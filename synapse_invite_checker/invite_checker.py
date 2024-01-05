@@ -16,7 +16,7 @@ import logging
 import re
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Literal, Union
+from typing import Literal
 
 from synapse.http.server import JsonResource
 from synapse.http.servlet import RestServlet
@@ -47,12 +47,12 @@ class InviteChecker:
         self.resource = JsonResource(api._hs)
         InfoResource(self).register(self.resource)
         self.api.register_web_resource(f"{config.api_prefix}", self.resource)
-        logger.info(f"Module initialized at {config.api_prefix}")
+        logger.info("Module initialized at %s", config.api_prefix)
 
     # pylint: disable=unused-argument
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str
-    ) -> Union[Literal["NOT_SPAM"], errors.Codes]:
+    ) -> Literal["NOT_SPAM"] | errors.Codes:
         # if self.config.block_all_outgoing_invites and self.api.is_mine(inviter):
         #    print(f"is mine {inviter}")
         #    return errors.Codes.FORBIDDEN

@@ -202,9 +202,9 @@ class MockClock:
         self.loopers.append(Looper(function, interval / 1000.0, self.now, args, kwargs))
 
     def cancel_call_later(self, timer: Timer, ignore_errs: bool = False) -> None:
-        if timer.expired:
-            if not ignore_errs:
-                raise Exception("Cannot cancel an expired timer")
+        if timer.expired and not ignore_errs:
+            msg = "Cannot cancel an expired timer"
+            raise Exception(msg)
 
         timer.expired = True
         self.timers = [t for t in self.timers if t != timer]
@@ -218,7 +218,8 @@ class MockClock:
 
         for t in timers:
             if t.expired:
-                raise Exception("Timer already expired")
+                msg = "Timer already expired"
+                raise Exception(msg)
 
             if self.now >= t.absolute_time:
                 t.expired = True
@@ -273,7 +274,7 @@ async def create_room(hs: HomeServer, room_id: str, creator_id: str) -> None:
 T = TypeVar("T")
 
 
-def checked_cast(type: type[T], x: object) -> T:
+def checked_cast(type_: type[T], x: object) -> T:
     """A version of typing.cast that is checked at runtime.
 
     We have our own function for this for two reasons:
@@ -290,5 +291,5 @@ def checked_cast(type: type[T], x: object) -> T:
         https://docs.python.org/3/library/typing.html#typing.runtime_checkable
     for more details.
     """
-    assert isinstance(x, type)
+    assert isinstance(x, type_)
     return x

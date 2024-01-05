@@ -51,7 +51,8 @@ def get_awaitable_result(awaitable: Awaitable[TV]) -> TV:
         return e.value
 
     # if next didn't raise, the awaitable hasn't completed.
-    raise Exception("awaitable has not yet completed")
+    msg = "awaitable has not yet completed"
+    raise Exception(msg)
 
 
 def setup_awaitable_errors() -> Callable[[], None]:
@@ -123,7 +124,7 @@ class FakeResponse:  # type: ignore[misc]
 
 # A small image used in some tests.
 #
-# Resolution: 1×1, MIME type: image/png, Extension: png, Size: 67 B
+# Resolution: 1x1, MIME type: image/png, Extension: png, Size: 67 B
 SMALL_PNG = unhexlify(
     b"89504e470d0a1a0a0000000d4948445200000001000000010806"
     b"0000001f15c4890000000a49444154789c63000100000500010d"

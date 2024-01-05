@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional
+from typing import Any
 
 import synapse.server
 from synapse.api.constants import EventTypes
@@ -30,8 +30,8 @@ async def inject_member_event(
     room_id: str,
     sender: str,
     membership: str,
-    target: Optional[str] = None,
-    extra_content: Optional[dict] = None,
+    target: str | None = None,
+    extra_content: dict | None = None,
     **kwargs: Any,
 ) -> EventBase:
     """Inject a membership event into a room."""
@@ -55,8 +55,8 @@ async def inject_member_event(
 
 async def inject_event(
     hs: synapse.server.HomeServer,
-    room_version: Optional[str] = None,
-    prev_event_ids: Optional[list[str]] = None,
+    room_version: str | None = None,
+    prev_event_ids: list[str] | None = None,
     **kwargs: Any,
 ) -> EventBase:
     """Inject a generic event into a room
@@ -80,8 +80,8 @@ async def inject_event(
 
 async def create_event(
     hs: synapse.server.HomeServer,
-    room_version: Optional[str] = None,
-    prev_event_ids: Optional[list[str]] = None,
+    room_version: str | None = None,
+    prev_event_ids: list[str] | None = None,
     **kwargs: Any,
 ) -> tuple[EventBase, EventContext]:
     if room_version is None:

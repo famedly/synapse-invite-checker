@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# ruff: noqa: ARG001 ARG002
+
 import hashlib
 import ipaddress
 import json
@@ -23,8 +26,6 @@ from collections.abc import Awaitable, Callable, Iterable, MutableMapping, Seque
 from io import SEEK_END, BytesIO
 from typing import (
     Any,
-    Deque,
-    Optional,
     TypeVar,
     Union,
     cast,
@@ -92,14 +93,14 @@ R = TypeVar("R")
 P = ParamSpec("P")
 
 # the type of thing that can be passed into `make_request` in the headers list
-CustomHeaderType = tuple[Union[str, bytes], Union[str, bytes]]
+CustomHeaderType = tuple[str | bytes, str | bytes]
 
 # A pre-prepared SQLite DB that is used as a template when creating new SQLite
 # DB each test run. This dramatically speeds up test set up when using SQLite.
-PREPPED_SQLITE_DB_CONN: Optional[LoggingDatabaseConnection] = None
+PREPPED_SQLITE_DB_CONN: LoggingDatabaseConnection | None = None
 
 
-class TimedOutException(Exception):
+class TimedOutError(Exception):
     """
     A web query timed out.
     """
@@ -119,9 +120,9 @@ class FakeChannel:
     _reactor: MemoryReactorClock
     result: dict = attr.Factory(dict)
     _ip: str = "127.0.0.1"
-    _producer: Optional[Union[IPullProducer, IPushProducer]] = None
-    resource_usage: Optional[ContextResourceUsage] = None
-    _request: Optional[Request] = None
+    _producer: type[IPullProducer] | type[IPushProducer] | None = None
+    resource_usage: ContextResourceUsage | None = None
+    _request: Request | None = None
 
     @property
     def request(self) -> Request:
@@ -152,7 +153,8 @@ class FakeChannel:
         Raises an exception if the request has not yet completed.
         """
         if not self.is_finished():
-            raise Exception("Request not yet completed")
+            msg = "Request not yet completed"
+            raise Exception(msg)
         return self.result["body"].decode("utf8")
 
     def is_finished(self) -> bool:
@@ -162,13 +164,15 @@ class FakeChannel:
     @property
     def code(self) -> int:
         if not self.result:
-            raise Exception("No result yet.")
+            msg = "No result yet."
+            raise Exception(msg)
         return int(self.result["code"])
 
     @property
     def headers(self) -> Headers:
         if not self.result:
-            raise Exception("No result yet.")
+            msg = "No result yet."
+            raise Exception(msg)
         h = Headers()
         for i in self.result["headers"]:
             h.addRawHeader(*i)
@@ -200,10 +204,10 @@ class FakeChannel:
 
     # Type ignore: mypy doesn't like the fact that producer isn't an IProducer.
     def registerProducer(self, producer: IProducer, streaming: bool) -> None:
-        # TODO This should ensure that the IProducer is an IPushProducer or
+        # TODO: This should ensure that the IProducer is an IPushProducer or
         # IPullProducer, unfortunately twisted.protocols.basic.FileSender does
         # implement those, but doesn't declare it.
-        self._producer = cast(Union[IPushProducer, IPullProducer], producer)
+        self._producer = cast(type[IPushProducer] | type[IPullProducer], producer)
         self.producerStreaming = streaming
 
         def _produce() -> None:
@@ -265,7 +269,8 @@ class FakeChannel:
                 self._producer.resumeProducing()
 
             if self._reactor.seconds() > end_time:
-                raise TimedOutException("Timed out waiting for request to finish.")
+                msg = "Timed out waiting for request to finish."
+                raise TimedOutError(msg)
 
             self._reactor.advance(0.1)
 
@@ -315,17 +320,17 @@ class FakeSite:
 
 def make_request(
     reactor: MemoryReactorClock,
-    site: Union[Site, FakeSite],
-    method: Union[bytes, str],
-    path: Union[bytes, str],
-    content: Union[bytes, str, JsonDict] = b"",
-    access_token: Optional[str] = None,
+    site: Site | FakeSite,
+    method: bytes | str,
+    path: bytes | str,
+    content: bytes | str | JsonDict = b"",
+    access_token: str | None = None,
     request: type[Request] = SynapseRequest,
     shorthand: bool = True,
-    federation_auth_origin: Optional[bytes] = None,
+    federation_auth_origin: bytes | None = None,
     content_is_form: bool = False,
     await_result: bool = True,
-    custom_headers: Optional[Iterable[CustomHeaderType]] = None,
+    custom_headers: Iterable[CustomHeaderType] | None = None,
     client_ip: str = "127.0.0.1",
 ) -> FakeChannel:
     """
@@ -443,17 +448,17 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         self._tcp_callbacks: dict[tuple[str, int], Callable] = {}
         self._udp: list[udp.Port] = []
         self.lookups: dict[str, str] = {}
-        self._thread_callbacks: Deque[Callable[..., R]] = deque()
+        self._thread_callbacks: deque[Callable[..., R]] = deque()
 
         lookups = self.lookups
 
         @implementer(IResolverSimple)
         class FakeResolver:
             def getHostByName(
-                self, name: str, timeout: Optional[Sequence[int]] = None
+                self, name: str, timeout: Sequence[int] | None = None
             ) -> "Deferred[str]":
                 if name not in lookups:
-                    return fail(DNSLookupError("OH NO: unknown %s" % (name,)))
+                    return fail(DNSLookupError(f"OH NO: unknown {name}"))
                 return succeed(lookups[name])
 
         # In order for the TLS protocol tests to work, modify _get_default_clock
@@ -485,18 +490,19 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         return p
 
     def callFromThread(
-        self, callable: Callable[..., Any], *args: object, **kwargs: object
+        self, callable_: Callable[..., Any], *args: object, **kwargs: object
     ) -> None:
         """
         Make the callback fire in the next reactor iteration.
         """
-        cb = lambda: callable(*args, **kwargs)
+        def cb():
+            return callable_(*args, **kwargs)
         # it's not safe to call callLater() here, so we append the callback to a
         # separate queue.
         self._thread_callbacks.append(cb)
 
     def callInThread(
-        self, callable: Callable[..., Any], *args: object, **kwargs: object
+        self, callable_: Callable[..., Any], *args: object, **kwargs: object
     ) -> None:
         raise NotImplementedError
 
@@ -530,7 +536,8 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         developer trying it out that they will need to do some work before being able
         to use it in tests.
         """
-        raise Exception("Unix sockets are not implemented for tests yet, sorry.")
+        msg = "Unix sockets are not implemented for tests yet, sorry."
+        raise Exception(msg)
 
     def listenUNIX(
         self,
@@ -545,7 +552,8 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         developer trying it out that they will need to do some work before being able
         to use it in tests.
         """
-        raise Exception("Unix sockets are not implemented for tests, sorry")
+        msg = "Unix sockets are not implemented for tests, sorry"
+        raise Exception(msg)
 
     def connectTCP(
         self,
@@ -553,7 +561,7 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         port: int,
         factory: ClientFactory,
         timeout: float = 30,
-        bindAddress: Optional[tuple[str, int]] = None,
+        bindAddress: tuple[str, int] | None = None,
     ) -> IConnector:
         """Fake L{IReactorTCP.connectTCP}."""
 
@@ -631,15 +639,15 @@ def validate_connector(connector: tcp.Connector, expected_ip: str) -> None:
     if cls is not None:
         try:
             cls(expected_ip)
-        except Exception as exc:
+        except Exception as exc: # noqa: BLE001
+            msg = f"Invalid IP type and resolution for {destination}. Expected {expected_ip} to be {cls.__name__}"
             raise ValueError(
-                "Invalid IP type and resolution for %s. Expected %s to be %s"
-                % (destination, expected_ip, cls.__name__)
+                msg
             ) from exc
     else:
+        msg = f"Unknown address type {destination.__class__.__name__} for {destination}"
         raise ValueError(
-            "Unknown address type %s for %s"
-            % (destination.__class__.__name__, destination)
+            msg
         )
 
 
@@ -661,7 +669,7 @@ class ThreadPool:
 
     def callInThreadWithCallback(
         self,
-        onResult: Callable[[bool, Union[Failure, R]], None],
+        onResult: Callable[[bool, Failure | R], None],
         function: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
@@ -673,7 +681,7 @@ class ThreadPool:
                 onResult(True, res)
 
         d: "Deferred[None]" = Deferred()
-        d.addCallback(lambda x: function(*args, **kwargs))
+        d.addCallback(lambda _: function(*args, **kwargs))
         d.addBoth(_)
         self._reactor.callLater(0, d.callback, True)
         return d
@@ -689,36 +697,39 @@ def _make_test_homeserver_synchronous(server: HomeServer) -> None:
     for database in server.get_datastores().databases:
         pool = database._db_pool
 
-        def runWithConnection(
-            func: Callable[..., R], *args: Any, **kwargs: Any
-        ) -> Awaitable[R]:
-            return threads.deferToThreadPool(
-                pool._reactor,
-                pool.threadpool,
-                pool._runWithConnection,
-                func,
-                *args,
-                **kwargs,
-            )
+        def wrap_pool(pool):
+            def runWithConnection(
+                func: Callable[..., R], *args: Any, **kwargs: Any
+            ) -> Awaitable[R]:
+                return threads.deferToThreadPool(
+                    pool._reactor,
+                    pool.threadpool,
+                    pool._runWithConnection,
+                    func,
+                    *args,
+                    **kwargs,
+                )
 
-        def runInteraction(
-            desc: str, func: Callable[..., R], *args: Any, **kwargs: Any
-        ) -> Awaitable[R]:
-            return threads.deferToThreadPool(
-                pool._reactor,
-                pool.threadpool,
-                pool._runInteraction,
-                desc,
-                func,
-                *args,
-                **kwargs,
-            )
+            def runInteraction(
+                desc: str, func: Callable[..., R],  *args: Any, **kwargs: Any
+            ) -> Awaitable[R]:
+                return threads.deferToThreadPool(
+                    pool._reactor,
+                    pool.threadpool,
+                    pool._runInteraction,
+                    desc,
+                    func,
+                    *args,
+                    **kwargs,
+                )
 
-        pool.runWithConnection = runWithConnection  # type: ignore[method-assign]
-        pool.runInteraction = runInteraction  # type: ignore[assignment]
-        # Replace the thread pool with a threadless 'thread' pool
-        pool.threadpool = ThreadPool(clock._reactor)
-        pool.running = True
+            pool.runWithConnection = runWithConnection  # type: ignore[method-assign]
+            pool.runInteraction = runInteraction  # type: ignore[assignment]
+            # Replace the thread pool with a threadless 'thread' pool
+            pool.threadpool = ThreadPool(clock._reactor)
+            pool.running = True
+
+        wrap_pool(pool)
 
     # We've just changed the Databases to run DB transactions on the same
     # thread, so we need to disable the dedicated thread behaviour.
@@ -755,7 +766,7 @@ class FakeTransport:
     """Test reactor
     """
 
-    _protocol: Optional[IProtocol] = None
+    _protocol: "IProtocol | None" = None
     """The Protocol which is producing data for this transport. Optional, but if set
     will get called back for connectionLost() notifications etc.
     """
@@ -774,7 +785,7 @@ class FakeTransport:
     disconnected = False
     connected = True
     buffer: bytes = b""
-    producer: Optional[IPushProducer] = None
+    producer: type[IPushProducer] | None = None
     autoflush: bool = True
 
     def getPeer(self) -> IAddress:
@@ -839,14 +850,15 @@ class FakeTransport:
             # some implementations of IProducer (for example, FileSender)
             # don't return a deferred.
             d = maybeDeferred(self.producer.resumeProducing)
-            d.addCallback(lambda x: self._reactor.callLater(0.1, _produce))
+            d.addCallback(lambda _: self._reactor.callLater(0.1, _produce))
 
         if not streaming:
             self._reactor.callLater(0.0, _produce)
 
     def write(self, byt: bytes) -> None:
         if self.disconnecting:
-            raise Exception("Writing to disconnecting FakeTransport")
+            msg = "Writing to disconnecting FakeTransport"
+            raise Exception(msg)
 
         self.buffer = self.buffer + byt
 
@@ -860,7 +872,7 @@ class FakeTransport:
         for x in seq:
             self.write(x)
 
-    def flush(self, maxbytes: Optional[int] = None) -> None:
+    def flush(self, maxbytes: int | None = None) -> None:
         if not self.buffer:
             # nothing to do. Don't write empty buffers: it upsets the
             # TLSMemoryBIOProtocol
@@ -869,17 +881,14 @@ class FakeTransport:
         if self.disconnected:
             return
 
-        if maxbytes is not None:
-            to_write = self.buffer[:maxbytes]
-        else:
-            to_write = self.buffer
+        to_write = self.buffer[:maxbytes] if maxbytes is not None else self.buffer
 
         logger.info("%s->%s: %s", self._protocol, self.other, to_write)
 
         try:
             self.other.dataReceived(to_write)
-        except Exception as e:
-            logger.exception("Exception writing to protocol: %s", e)
+        except Exception:
+            logger.exception("Exception writing to protocol")
             return
 
         self.buffer = self.buffer[len(to_write) :]
@@ -916,8 +925,8 @@ class TestHomeServer(HomeServer):
 
 def setup_test_homeserver(
     name: str = "test",
-    config: Optional[HomeServerConfig] = None,
-    reactor: Optional[ISynapseReactor] = None,
+    config: HomeServerConfig | None = None,
+    reactor: type[ISynapseReactor] | None = None,
     homeserver_to_use: type[HomeServer] = TestHomeServer,
     **kwargs: Any,
 ) -> HomeServer:
@@ -1004,13 +1013,13 @@ def setup_test_homeserver(
     # Need to let the HS build an auth handler and then mess with it
     # because AuthHandler's constructor requires the HS, so we can't make one
     # beforehand and pass it in to the HS's constructor (chicken / egg)
-    async def hash(p: str) -> str:
-        return hashlib.md5(p.encode("utf8")).hexdigest()
+    async def _hash(p: str) -> str:
+        return hashlib.md5(p.encode("utf8")).hexdigest() # noqa: S324
 
-    hs.get_auth_handler().hash = hash  # type: ignore[assignment]
+    hs.get_auth_handler().hash = _hash  # type: ignore[assignment]
 
     async def validate_hash(p: str, h: str) -> bool:
-        return hashlib.md5(p.encode("utf8")).hexdigest() == h
+        return hashlib.md5(p.encode("utf8")).hexdigest() == h # noqa: S324
 
     hs.get_auth_handler().validate_hash = validate_hash  # type: ignore[assignment]
 
@@ -1021,7 +1030,7 @@ def setup_test_homeserver(
     module_api = hs.get_module_api()
     for module, module_config in hs.config.modules.loaded_modules:
         module(config=module_config, api=module_api)
-        logger.debug(f"Loaded module {module} {module_config!r}")
+        logger.debug("Loaded module %s %r", module, module_config)
 
     load_legacy_spam_checkers(hs)
     load_legacy_third_party_event_rules(hs)

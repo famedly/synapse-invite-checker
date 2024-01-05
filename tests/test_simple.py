@@ -21,11 +21,9 @@ from synapse.rest.client import login, notifications, presence, profile, room
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
-from twisted.trial import unittest
+from typing_extensions import override
 
 import tests.unittest as synapsetest
-
-from . import get_invite_checker
 
 
 class ModuleApiTestCase(synapsetest.HomeserverTestCase):
@@ -38,6 +36,8 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         notifications.register_servlets,
     ]
 
+    # Ignore ARG001
+    @override
     def prepare(
         self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
     ) -> None:
@@ -47,6 +47,7 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         self.sync_handler = homeserver.get_sync_handler()
         self.auth_handler = homeserver.get_auth_handler()
 
+    @override
     def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
         # Mock out the calls over federation.
         self.fed_transport_client = Mock(spec=["send_transaction"])
@@ -77,9 +78,9 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         )
 
         # Check that the new user exists with all provided attributes
-        self.assertEqual(user_id, "@bob:test")
-        self.assertTrue(access_token)
-        self.assertTrue(self.get_success(self.store.get_user_by_id(user_id)))
+        assert user_id == "@bob:test"
+        assert access_token
+        assert self.get_success(self.store.get_user_by_id(user_id))
 
     def test_registered_default_info_resource(self) -> None:
         """Tests that the registered info resource is accessible"""
@@ -89,13 +90,11 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
             path="/_synapse/client/com.famedly/tim/v1",
         )
 
-        self.assertEqual(channel.code, 200, channel.result)
-        self.assertEqual(channel.json_body["title"], "Invite Checker module by Famedly")
-        self.assertEqual(
-            channel.json_body["description"], "Invite Checker module by Famedly"
-        )
-        self.assertEqual(channel.json_body["contact"], "info@famedly.com")
-        self.assertTrue(channel.json_body["version"], "Version returned")
+        assert channel.code == 200, channel.result
+        assert channel.json_body["title"] == "Invite Checker module by Famedly"
+        assert channel.json_body["description"] == "Invite Checker module by Famedly"
+        assert channel.json_body["contact"] == "info@famedly.com"
+        assert channel.json_body["version"], "Version returned"
 
     @synapsetest.override_config(
         {
@@ -120,22 +119,10 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
             path="/_synapse/client/test",
         )
 
-        self.assertEqual(channel.code, 200, channel.result)
-        self.assertEqual(channel.json_body["title"], "abc")
-        self.assertEqual(channel.json_body["description"], "def")
-        self.assertEqual(channel.json_body["contact"], "ghi")
-        self.assertTrue(channel.json_body["version"], "Version returned")
+        assert channel.code == 200, channel.result
+        assert channel.json_body["title"] == "abc"
+        assert channel.json_body["description"] == "def"
+        assert channel.json_body["contact"] == "ghi"
+        assert channel.json_body["version"], "Version returned"
 
 
-class SimpleTestCase(unittest.TestCase):
-    async def test_block_outgoing_invites(self):
-        checker = get_invite_checker(
-            {"title": "abc", "description": "def", "contact": "ghi"}
-        )
-
-        # Not easy to test the resource endpoint without setting up a whole homeserver. That can be done using the utils in synapse.tests.unittest, but that is a bit too much effort for now.
-        # info_res = checker.api._hs._module_web_resources[f'{checker.config.api_prefix}/']
-        # self.assertTrue(info_res, 'Info resource registered')
-
-        # res = info_res.render_GET()
-        # self.assertEqual(res, Codes.FORBIDDEN)

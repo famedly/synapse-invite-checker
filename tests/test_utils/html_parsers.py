@@ -14,7 +14,7 @@
 
 from collections.abc import Iterable
 from html.parser import HTMLParser
-from typing import NoReturn, Optional
+from typing import NoReturn
 
 
 class TestHtmlParser(HTMLParser):
@@ -27,13 +27,13 @@ class TestHtmlParser(HTMLParser):
         self.links: list[str] = []
 
         # the values of any hidden <input>s: map from name to value
-        self.hiddens: dict[str, Optional[str]] = {}
+        self.hiddens: dict[str, str | None] = {}
 
         # the values of any radio buttons: map from name to list of values
-        self.radios: dict[str, list[Optional[str]]] = {}
+        self.radios: dict[str, list[str | None]] = {}
 
     def handle_starttag(
-        self, tag: str, attrs: Iterable[tuple[str, Optional[str]]]
+        self, tag: str, attrs: Iterable[tuple[str, str | None]]
     ) -> None:
         attr_dict = dict(attrs)
         if tag == "a":

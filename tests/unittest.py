@@ -13,6 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# ruff: noqa: ARG001 ARG002
+
 import functools
 import gc
 import hashlib
@@ -28,10 +31,8 @@ from typing import (
     Concatenate,
     Generic,
     NoReturn,
-    Optional,
     Protocol,
     TypeVar,
-    Union,
 )
 from unittest.mock import Mock, patch
 
@@ -84,18 +85,18 @@ from tests.utils import checked_cast, default_config
 setup_logging()
 
 TV = TypeVar("TV")
-_ExcType = TypeVar("_ExcType", bound=BaseException, covariant=True)
+_ExcType_co = TypeVar("_ExcType_co", bound=BaseException, covariant=True)
 
 P = ParamSpec("P")
 R = TypeVar("R")
 S = TypeVar("S")
 
 
-class _TypedFailure(Generic[_ExcType], Protocol):
+class _TypedFailure(Generic[_ExcType_co], Protocol):
     """Extension to twisted.Failure, where the 'value' has a certain type."""
 
     @property
-    def value(self) -> _ExcType:
+    def value(self) -> _ExcType_co:
         ...
 
 
@@ -135,10 +136,7 @@ def deepcopy_config(config: _TConfig) -> _TConfig:
         if attr_name.startswith("__") or attr_name == "root":
             continue
         attr = getattr(config, attr_name)
-        if isinstance(attr, Config):
-            new_attr = deepcopy_config(attr)
-        else:
-            new_attr = attr
+        new_attr = deepcopy_config(attr) if isinstance(attr, Config) else attr
 
         setattr(new_config, attr_name, new_attr)
 
@@ -185,8 +183,7 @@ class TestCase(unittest.TestCase):
             # all future bets are off.
             if current_context():
                 self.fail(
-                    "Test starting with non-sentinel logging context %s"
-                    % (current_context(),)
+                    f"Test starting with non-sentinel logging context {current_context()}"
                 )
 
             # Disable GC for duration of test. See below for why.
@@ -236,13 +233,14 @@ class TestCase(unittest.TestCase):
     def assertObjectHasAttributes(self, attrs: dict[str, object], obj: object) -> None:
         """Asserts that the given object has each of the attributes given, and
         that the value of each matches according to assertEqual."""
-        for key in attrs.keys():
+        for key in attrs:
             if not hasattr(obj, key):
                 raise AssertionError("Expected obj to have a '.%s'" % key)
             try:
-                self.assertEqual(attrs[key], getattr(obj, key))
+                assert attrs[key] == getattr(obj, key)
             except AssertionError as e:
-                raise (type(e))(f"Assert error for '.{key}':") from e
+                msg = f"Assert error for '.{key}':"
+                raise (type(e))(msg) from e
 
     def assert_dict(self, required: Mapping, actual: Mapping) -> None:
         """Does a partial assert of a dict.
@@ -252,9 +250,7 @@ class TestCase(unittest.TestCase):
             actual: The test result. Extra keys will not be checked.
         """
         for key in required:
-            self.assertEqual(
-                required[key], actual[key], msg="%s mismatch. %s" % (key, actual)
-            )
+            assert required[key] == actual[key], f"{key} mismatch. {actual}"
 
 
 def DEBUG(target: TV) -> TV:
@@ -337,10 +333,12 @@ class HomeserverTestCase(TestCase):
         events.USE_FROZEN_DICTS = self.hs.config.server.use_frozen_dicts
 
         if self.hs is None:
-            raise Exception("No homeserver returned from make_homeserver.")
+            msg = "No homeserver returned from make_homeserver."
+            raise TypeError(msg)
 
         if not isinstance(self.hs, HomeServer):
-            raise Exception("A homeserver wasn't returned, but %r" % (self.hs,))
+            msg = f"A homeserver wasn't returned, but {self.hs!r}"
+            raise TypeError(msg)
 
         # create the root resource, and a site to wrap it.
         self.resource = self.create_test_resource()
@@ -364,34 +362,33 @@ class HomeserverTestCase(TestCase):
             getattr(self, "user_id", None),
         )
 
-        if hasattr(self, "user_id"):
-            if self.hijack_auth:
-                assert self.helper.auth_user_id is not None
-                token = "some_fake_token"
+        if hasattr(self, "user_id") and self.hijack_auth:
+            assert self.helper.auth_user_id is not None
+            token = "some_fake_token"
 
-                # We need a valid token ID to satisfy foreign key constraints.
-                token_id = self.get_success(
-                    self.hs.get_datastores().main.add_access_token_to_user(
-                        self.helper.auth_user_id,
-                        token,
-                        None,
-                        None,
-                    )
+            # We need a valid token ID to satisfy foreign key constraints.
+            token_id = self.get_success(
+                self.hs.get_datastores().main.add_access_token_to_user(
+                    self.helper.auth_user_id,
+                    token,
+                    None,
+                    None,
+                )
+            )
+
+            # This has to be a function and not just a Mock, because
+            # `self.helper.auth_user_id` is temporarily reassigned in some tests
+            async def get_requester(*args: Any, **kwargs: Any) -> Requester:
+                assert self.helper.auth_user_id is not None
+                return create_requester(
+                    user_id=UserID.from_string(self.helper.auth_user_id),
+                    access_token_id=token_id,
                 )
 
-                # This has to be a function and not just a Mock, because
-                # `self.helper.auth_user_id` is temporarily reassigned in some tests
-                async def get_requester(*args: Any, **kwargs: Any) -> Requester:
-                    assert self.helper.auth_user_id is not None
-                    return create_requester(
-                        user_id=UserID.from_string(self.helper.auth_user_id),
-                        access_token_id=token_id,
-                    )
-
-                # Type ignore: mypy doesn't like us assigning to methods.
-                self.hs.get_auth().get_user_by_req = get_requester  # type: ignore[method-assign]
-                self.hs.get_auth().get_user_by_access_token = get_requester  # type: ignore[method-assign]
-                self.hs.get_auth().get_access_token_from_request = Mock(return_value=token)  # type: ignore[method-assign]
+            # Type ignore: mypy doesn't like us assigning to methods.
+            self.hs.get_auth().get_user_by_req = get_requester  # type: ignore[method-assign]
+            self.hs.get_auth().get_user_by_access_token = get_requester  # type: ignore[method-assign]
+            self.hs.get_auth().get_access_token_from_request = Mock(return_value=token)  # type: ignore[method-assign]
 
         if self.needs_threadpool:
             self.reactor.threadpool = ThreadPool()  # type: ignore[assignment]
@@ -413,7 +410,8 @@ class HomeserverTestCase(TestCase):
 
         while not deferred.called:
             if start_time + timeout < time.time():
-                raise ValueError("Timed out waiting for threadpool")
+                msg = "Timed out waiting for threadpool"
+                raise ValueError(msg)
             self.reactor.advance(0.01)
             time.sleep(0.01)
 
@@ -442,8 +440,7 @@ class HomeserverTestCase(TestCase):
 
         Function to be overridden in subclasses.
         """
-        hs = self.setup_test_homeserver()
-        return hs
+        return self.setup_test_homeserver()
 
     def create_test_resource(self) -> Resource:
         """
@@ -505,16 +502,16 @@ class HomeserverTestCase(TestCase):
 
     def make_request(
         self,
-        method: Union[bytes, str],
-        path: Union[bytes, str],
-        content: Union[bytes, str, JsonDict] = b"",
-        access_token: Optional[str] = None,
+        method: bytes | str,
+        path: bytes | str,
+        content: bytes | str | JsonDict = b"",
+        access_token: str | None = None,
         request: type[Request] = SynapseRequest,
         shorthand: bool = True,
-        federation_auth_origin: Optional[bytes] = None,
+        federation_auth_origin: bytes | None = None,
         content_is_form: bool = False,
         await_result: bool = True,
-        custom_headers: Optional[Iterable[CustomHeaderType]] = None,
+        custom_headers: Iterable[CustomHeaderType] | None = None,
         client_ip: str = "127.0.0.1",
     ) -> FakeChannel:
         """
@@ -562,7 +559,7 @@ class HomeserverTestCase(TestCase):
         )
 
     def setup_test_homeserver(
-        self, name: Optional[str] = None, **kwargs: Any
+        self, name: str | None = None, **kwargs: Any
     ) -> HomeServer:
         """
         Set up the test homeserver, meant to be called by the overridable
@@ -577,10 +574,7 @@ class HomeserverTestCase(TestCase):
         """
         kwargs = dict(kwargs)
         kwargs.update(self._hs_args)
-        if "config" not in kwargs:
-            config = self.default_config()
-        else:
-            config = kwargs["config"]
+        config = self.default_config() if "config" not in kwargs else kwargs["config"]
 
         # The server name can be specified using either the `name` argument or a config
         # override. The `name` argument takes precedence over any config overrides.
@@ -621,8 +615,8 @@ class HomeserverTestCase(TestCase):
         return self.successResultOf(deferred)
 
     def get_failure(
-        self, d: Awaitable[Any], exc: type[_ExcType]
-    ) -> _TypedFailure[_ExcType]:
+        self, d: Awaitable[Any], exc: type[_ExcType_co]
+    ) -> _TypedFailure[_ExcType_co]:
         """
         Run a Deferred and get a Failure from it. The failure must be of the type `exc`.
         """
@@ -657,8 +651,8 @@ class HomeserverTestCase(TestCase):
         self,
         username: str,
         password: str,
-        admin: Optional[bool] = False,
-        displayname: Optional[str] = None,
+        admin: bool | None = False,
+        displayname: str | None = None,
     ) -> str:
         """
         Register a user. Requires the Admin API be registered.
@@ -676,7 +670,7 @@ class HomeserverTestCase(TestCase):
 
         # Create the user
         channel = self.make_request("GET", "/_synapse/admin/v1/register")
-        self.assertEqual(channel.code, 200, msg=channel.result)
+        assert channel.code == 200, channel.result
         nonce = channel.json_body["nonce"]
 
         want_mac = hmac.new(key=b"shared", digestmod=hashlib.sha1)
@@ -699,10 +693,9 @@ class HomeserverTestCase(TestCase):
             "inhibit_login": True,
         }
         channel = self.make_request("POST", "/_synapse/admin/v1/register", body)
-        self.assertEqual(channel.code, 200, channel.json_body)
+        assert channel.code == 200, channel.json_body
 
-        user_id = channel.json_body["user_id"]
-        return user_id
+        return channel.json_body["user_id"]
 
     def register_appservice_user(
         self,
@@ -731,16 +724,16 @@ class HomeserverTestCase(TestCase):
             },
             access_token=appservice_token,
         )
-        self.assertEqual(channel.code, 200, channel.json_body)
+        assert channel.code == 200, channel.json_body
         return channel.json_body["user_id"], channel.json_body["device_id"]
 
     def login(
         self,
         username: str,
         password: str,
-        device_id: Optional[str] = None,
-        additional_request_fields: Optional[dict[str, str]] = None,
-        custom_headers: Optional[Iterable[CustomHeaderType]] = None,
+        device_id: str | None = None,
+        additional_request_fields: dict[str, str] | None = None,
+        custom_headers: Iterable[CustomHeaderType] | None = None,
     ) -> str:
         """
         Log in a user, and get an access token. Requires the Login API be registered.
@@ -769,17 +762,16 @@ class HomeserverTestCase(TestCase):
             body,
             custom_headers=custom_headers,
         )
-        self.assertEqual(channel.code, 200, channel.result)
+        assert channel.code == 200, channel.result
 
-        access_token = channel.json_body["access_token"]
-        return access_token
+        return channel.json_body["access_token"]
 
     def create_and_send_event(
         self,
         room_id: str,
         user: UserID,
         soft_failed: bool = False,
-        prev_event_ids: Optional[list[str]] = None,
+        prev_event_ids: list[str] | None = None,
     ) -> str:
         """
         Create and send an event.
@@ -849,7 +841,7 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         # poke the other server's signing key into the key store, so that we don't
         # make requests for it
         verify_key = signedjson.key.get_verify_key(self.OTHER_SERVER_SIGNATURE_KEY)
-        verify_key_id = "%s:%s" % (verify_key.alg, verify_key.version)
+        verify_key_id = f"{verify_key.alg}:{verify_key.version}"
 
         self.get_success(
             hs.get_datastores().main.store_server_keys_response(
@@ -880,9 +872,9 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         self,
         method: str,
         path: str,
-        content: Optional[JsonDict] = None,
+        content: JsonDict | None = None,
         await_result: bool = True,
-        custom_headers: Optional[Iterable[CustomHeaderType]] = None,
+        custom_headers: Iterable[CustomHeaderType] | None = None,
         client_ip: str = "127.0.0.1",
     ) -> FakeChannel:
         """Make an inbound signed federation request to this server
@@ -891,10 +883,7 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         already has the keys for.
         """
 
-        if custom_headers is None:
-            custom_headers = []
-        else:
-            custom_headers = list(custom_headers)
+        custom_headers = [] if custom_headers is None else list(custom_headers)
 
         custom_headers.append(
             (
@@ -947,7 +936,7 @@ def _auth_header_for_request(
     signing_key: signedjson.key.SigningKey,
     method: str,
     path: str,
-    content: Optional[JsonDict],
+    content: JsonDict | None,
 ) -> str:
     """Build a suitable Authorization header for an outgoing federation request"""
     request_description: JsonDict = {
