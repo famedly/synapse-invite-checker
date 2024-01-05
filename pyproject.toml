@@ -3,34 +3,29 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "synapse-invite-policies"
-description = 'Synapse module which allows restricting invite permissions'
+name = "synapse-invite-checker"
+description = 'Synapse module to handle TIM contact management and invite permissions'
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 license = "AGPL-3.0-only"
 keywords = []
 authors = [
-  { name = "Sorunome", email = "mail@sorunome.de" },
-  { name = "Amanda Graven", email = "amanda@graven.dev" },
-  { name = "Jan Christian Grünhage", email = "jan.christian@gruenhage.xyz" },
   { name = "Nicolas Werner", email = "n.werner@famedly.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = ["twisted"]
-version = "0.3.2"
+version = "0.0.1"
 
 [project.urls]
-Documentation = "https://github.com/famedly/synapse-invite-policies#synapse-invite-policies"
-Issues = "https://github.com/famedly/synapse-invite-policies/-/issues"
-Source = "https://github.com/famedly/synapse-invite-policies/"
+Documentation = "https://github.com/famedly/synapse-invite-checker#synapse-invite-checker"
+Issues = "https://github.com/famedly/synapse-invite-checker/-/issues"
+Source = "https://github.com/famedly/synapse-invite-checker/"
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -41,11 +36,11 @@ dependencies = [
   "matrix-synapse"
 ]
 [tool.hatch.envs.default.scripts]
-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_policies --cov=tests"
+cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
 format = "black ."
 # For CI use
-head-cov = "pytest --cov-report=lcov:../head.lcov --cov-config=pyproject.toml --cov=synapse_invite_policies --cov=tests"
-base-cov = "pytest --cov-report=lcov:../base.lcov --cov-config=pyproject.toml --cov=synapse_invite_policies --cov=tests"
+head-cov = "pytest --cov-report=lcov:../head.lcov --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
+base-cov = "pytest --cov-report=lcov:../base.lcov --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
 
 [tool.hatch.envs.ci.scripts]
 format = "black --check ."

@@ -15,7 +15,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from mock import Mock
-from synapse_invite_policies import InvitePolicies
+from synapse_invite_checker import InviteChecker
 
 from synapse.server import HomeServer
 from synapse.module_api import ModuleApi
@@ -23,7 +23,7 @@ from synapse.module_api import ModuleApi
 admins = {}
 
 
-def get_invite_policies(config: dict):
+def get_invite_checker(config: dict):
     def is_mine(user_id: str):
         return user_id.endswith(":example.org")
 
@@ -34,4 +34,4 @@ def get_invite_policies(config: dict):
     api.server_name = "example.org"
     api.is_mine.side_effect = is_mine
 
-    return InvitePolicies(InvitePolicies.parse_config(config), api)
+    return InviteChecker(InviteChecker.parse_config(config), api)

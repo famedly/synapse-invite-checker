@@ -1,7 +1,7 @@
-# Synapse Invite Policies
+# Synapse Invite Checker
 
-[![PyPI - Version](https://img.shields.io/pypi/v/synapse-invite-policies.svg)](https://pypi.org/project/synapse-invite-policies)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/synapse-invite-policies.svg)](https://pypi.org/project/synapse-invite-policies)
+[![PyPI - Version](https://img.shields.io/pypi/v/synapse-invite-checker.svg)](https://pypi.org/project/synapse-invite-checker)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/synapse-invite-checker.svg)](https://pypi.org/project/synapse-invite-checker)
 
 Synapse Invite Policies is a synapse module to restrict invites on a homeserver. Currently this only supports restricting all outgoing invites.
 
@@ -20,7 +20,7 @@ Synapse Invite Policies is a synapse module to restrict invites on a homeserver.
 **TODO**: requires publishing on pypi.
 
 ```console
-pip install synapse-invite-policies
+pip install synapse-invite-checker
 ```
 
 ## Configuration
@@ -30,10 +30,8 @@ Here are the available configuration options:
 ```yaml
 # the outer modules section is just provided for completeness, the config block is the actual module config.
 modules:
-  - module: "synapse_invite_policies.InvitePolicies"
+  - module: "synapse_invite_checker.InviteChecker"
     config:
-      # Block all invites sent by local users
-      block_all_outgoing_invites: true
 ```
 
 ## Testing
@@ -48,5 +46,5 @@ hatch run cov
 
 ## License
 
-`synapse-invite-policies` is distributed under the terms of the
+`synapse-invite-checker` is distributed under the terms of the
 [AGPL-3.0](https://spdx.org/licenses/AGPL-3.0-only.html) license.
