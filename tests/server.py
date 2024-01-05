@@ -19,20 +19,12 @@ import os
 import os.path
 import sqlite3
 from collections import deque
+from collections.abc import Awaitable, Callable, Iterable, MutableMapping, Sequence
 from io import SEEK_END, BytesIO
 from typing import (
     Any,
-    Awaitable,
-    Callable,
     Deque,
-    Dict,
-    Iterable,
-    List,
-    MutableMapping,
     Optional,
-    Sequence,
-    Tuple,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -40,11 +32,25 @@ from typing import (
 from unittest.mock import Mock
 
 import attr
-from incremental import Version
-from typing_extensions import ParamSpec
-from zope.interface import implementer
-
 import twisted
+from incremental import Version
+from synapse.config.database import DatabaseConnectionConfig
+from synapse.config.homeserver import HomeServerConfig
+from synapse.events.presence_router import load_legacy_presence_router
+from synapse.handlers.auth import load_legacy_password_auth_providers
+from synapse.http.site import SynapseRequest
+from synapse.logging.context import ContextResourceUsage
+from synapse.module_api.callbacks.spamchecker_callbacks import load_legacy_spam_checkers
+from synapse.module_api.callbacks.third_party_event_rules_callbacks import (
+    load_legacy_third_party_event_rules,
+)
+from synapse.server import HomeServer
+from synapse.storage import DataStore
+from synapse.storage.database import LoggingDatabaseConnection
+from synapse.storage.engines import create_engine
+from synapse.storage.prepare_database import prepare_database
+from synapse.types import ISynapseReactor, JsonDict
+from synapse.util import Clock
 from twisted.internet import address, tcp, threads, udp
 from twisted.internet._resolver import SimpleResolverComplexifier
 from twisted.internet.defer import Deferred, fail, maybeDeferred, succeed
@@ -65,30 +71,14 @@ from twisted.internet.interfaces import (
     ITransport,
 )
 from twisted.internet.protocol import ClientFactory, DatagramProtocol, Factory
+from twisted.internet.testing import AccumulatingProtocol, MemoryReactorClock
 from twisted.python import threadpool
 from twisted.python.failure import Failure
-from twisted.internet.testing import AccumulatingProtocol, MemoryReactorClock
 from twisted.web.http_headers import Headers
 from twisted.web.resource import IResource
 from twisted.web.server import Request, Site
-
-from synapse.config.database import DatabaseConnectionConfig
-from synapse.config.homeserver import HomeServerConfig
-from synapse.events.presence_router import load_legacy_presence_router
-from synapse.handlers.auth import load_legacy_password_auth_providers
-from synapse.http.site import SynapseRequest
-from synapse.logging.context import ContextResourceUsage
-from synapse.module_api.callbacks.spamchecker_callbacks import load_legacy_spam_checkers
-from synapse.module_api.callbacks.third_party_event_rules_callbacks import (
-    load_legacy_third_party_event_rules,
-)
-from synapse.server import HomeServer
-from synapse.storage import DataStore
-from synapse.storage.database import LoggingDatabaseConnection
-from synapse.storage.engines import create_engine
-from synapse.storage.prepare_database import prepare_database
-from synapse.types import ISynapseReactor, JsonDict
-from synapse.util import Clock
+from typing_extensions import ParamSpec
+from zope.interface import implementer
 
 from tests.utils import (
     SQLITE_PERSIST_DB,
@@ -102,7 +92,7 @@ R = TypeVar("R")
 P = ParamSpec("P")
 
 # the type of thing that can be passed into `make_request` in the headers list
-CustomHeaderType = Tuple[Union[str, bytes], Union[str, bytes]]
+CustomHeaderType = tuple[Union[str, bytes], Union[str, bytes]]
 
 # A pre-prepared SQLite DB that is used as a template when creating new SQLite
 # DB each test run. This dramatically speeds up test set up when using SQLite.
@@ -150,7 +140,7 @@ class FakeChannel:
         return body
 
     @property
-    def json_list(self) -> List[JsonDict]:
+    def json_list(self) -> list[JsonDict]:
         body = json.loads(self.text_body)
         assert isinstance(body, list)
         return body
@@ -235,10 +225,10 @@ class FakeChannel:
             self._producer.stopProducing()
 
     def pauseProducing(self) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def resumeProducing(self) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def requestDone(self, _self: Request) -> None:
         self.result["done"] = True
@@ -330,7 +320,7 @@ def make_request(
     path: Union[bytes, str],
     content: Union[bytes, str, JsonDict] = b"",
     access_token: Optional[str] = None,
-    request: Type[Request] = SynapseRequest,
+    request: type[Request] = SynapseRequest,
     shorthand: bool = True,
     federation_auth_origin: Optional[bytes] = None,
     content_is_form: bool = False,
@@ -450,9 +440,9 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
     def __init__(self) -> None:
         self.threadpool = ThreadPool(self)
 
-        self._tcp_callbacks: Dict[Tuple[str, int], Callable] = {}
-        self._udp: List[udp.Port] = []
-        self.lookups: Dict[str, str] = {}
+        self._tcp_callbacks: dict[tuple[str, int], Callable] = {}
+        self._udp: list[udp.Port] = []
+        self.lookups: dict[str, str] = {}
         self._thread_callbacks: Deque[Callable[..., R]] = deque()
 
         lookups = self.lookups
@@ -480,7 +470,7 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         super().__init__()
 
     def installNameResolver(self, resolver: IHostnameResolver) -> IHostnameResolver:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def listenUDP(
         self,
@@ -508,10 +498,10 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
     def callInThread(
         self, callable: Callable[..., Any], *args: object, **kwargs: object
     ) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def suggestThreadPoolSize(self, size: int) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def getThreadPool(self) -> "threadpool.ThreadPool":
         # Cast to match super-class.
@@ -563,7 +553,7 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         port: int,
         factory: ClientFactory,
         timeout: float = 30,
-        bindAddress: Optional[Tuple[str, int]] = None,
+        bindAddress: Optional[tuple[str, int]] = None,
     ) -> IConnector:
         """Fake L{IReactorTCP.connectTCP}."""
 
@@ -735,7 +725,7 @@ def _make_test_homeserver_synchronous(server: HomeServer) -> None:
     server.get_datastores().main.USE_DEDICATED_DB_THREADS_FOR_EVENT_FETCHING = False
 
 
-def get_clock() -> Tuple[ThreadedMemoryReactorClock, Clock]:
+def get_clock() -> tuple[ThreadedMemoryReactorClock, Clock]:
     clock = ThreadedMemoryReactorClock()
     hs_clock = Clock(clock)
     return clock, hs_clock
@@ -903,7 +893,7 @@ class FakeTransport:
 
 def connect_client(
     reactor: ThreadedMemoryReactorClock, client_id: int
-) -> Tuple[IProtocol, AccumulatingProtocol]:
+) -> tuple[IProtocol, AccumulatingProtocol]:
     """
     Connect a client to a fake TCP transport.
 
@@ -928,7 +918,7 @@ def setup_test_homeserver(
     name: str = "test",
     config: Optional[HomeServerConfig] = None,
     reactor: Optional[ISynapseReactor] = None,
-    homeserver_to_use: Type[HomeServer] = TestHomeServer,
+    homeserver_to_use: type[HomeServer] = TestHomeServer,
     **kwargs: Any,
 ) -> HomeServer:
     """
@@ -982,9 +972,7 @@ def setup_test_homeserver(
 
         database = DatabaseConnectionConfig("master", database_config)
         config.database.databases = [database]
-        prepare_database(
-            PREPPED_SQLITE_DB_CONN, create_engine(database_config), config
-        )
+        prepare_database(PREPPED_SQLITE_DB_CONN, create_engine(database_config), config)
 
     database_config["_TEST_PREPPED_CONN"] = PREPPED_SQLITE_DB_CONN
 
@@ -1041,4 +1029,3 @@ def setup_test_homeserver(
     load_legacy_password_auth_providers(hs)
 
     return hs
-

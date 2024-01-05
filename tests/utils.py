@@ -14,18 +14,17 @@
 # limitations under the License.
 
 import os
-from typing import Any, Callable, Dict, List, Tuple, Type, TypeVar, Union, overload
+from collections.abc import Callable
+from typing import Any, Literal, TypeVar, overload
 
 import attr
-from typing_extensions import Literal, ParamSpec
-
 from synapse.api.constants import EventTypes
 from synapse.api.room_versions import RoomVersions
 from synapse.config.homeserver import HomeServerConfig
 from synapse.config.server import DEFAULT_ROOM_VERSION
 from synapse.logging.context import current_context, set_current_context
 from synapse.server import HomeServer
-
+from typing_extensions import ParamSpec
 
 # When debugging a specific test, it's occasionally useful to write the
 # DB to disk and query it with the sqlite CLI.
@@ -33,7 +32,7 @@ SQLITE_PERSIST_DB = os.environ.get("SYNAPSE_TEST_PERSIST_SQLITE_DB") is not None
 
 
 @overload
-def default_config(name: str, parse: Literal[False] = ...) -> Dict[str, object]:
+def default_config(name: str, parse: Literal[False] = ...) -> dict[str, object]:
     ...
 
 
@@ -44,7 +43,7 @@ def default_config(name: str, parse: Literal[True]) -> HomeServerConfig:
 
 def default_config(
     name: str, parse: bool = False
-) -> Union[Dict[str, object], HomeServerConfig]:
+) -> dict[str, object] | HomeServerConfig:
     """
     Create a reasonable test config.
     """
@@ -157,8 +156,8 @@ class Looper:
     func: Callable[..., Any]
     interval: float  # seconds
     last: float
-    args: Tuple[object, ...]
-    kwargs: Dict[str, object]
+    args: tuple[object, ...]
+    kwargs: dict[str, object]
 
 
 class MockClock:
@@ -166,8 +165,8 @@ class MockClock:
 
     def __init__(self) -> None:
         # Timers in no particular order
-        self.timers: List[Timer] = []
-        self.loopers: List[Looper] = []
+        self.timers: list[Timer] = []
+        self.loopers: list[Looper] = []
 
     def time(self) -> float:
         return self.now
@@ -274,7 +273,7 @@ async def create_room(hs: HomeServer, room_id: str, creator_id: str) -> None:
 T = TypeVar("T")
 
 
-def checked_cast(type: Type[T], x: object) -> T:
+def checked_cast(type: type[T], x: object) -> T:
     """A version of typing.cast that is checked at runtime.
 
     We have our own function for this for two reasons:
@@ -293,4 +292,3 @@ def checked_cast(type: Type[T], x: object) -> T:
     """
     assert isinstance(x, type)
     return x
-

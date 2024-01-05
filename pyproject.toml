@@ -48,7 +48,7 @@ format = "black --check ."
 [tool.coverage.run]
 branch = true
 parallel = true
-omit = []
+omit = ["tests/*"]
 
 [tool.coverage.report]
 exclude_lines = [

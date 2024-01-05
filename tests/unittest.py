@@ -21,20 +21,15 @@ import json
 import logging
 import secrets
 import time
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from typing import (
     Any,
-    Awaitable,
-    Callable,
     ClassVar,
-    Dict,
+    Concatenate,
     Generic,
-    Iterable,
-    List,
-    Mapping,
     NoReturn,
     Optional,
-    Tuple,
-    Type,
+    Protocol,
     TypeVar,
     Union,
 )
@@ -43,16 +38,6 @@ from unittest.mock import Mock, patch
 import canonicaljson
 import signedjson.key
 import unpaddedbase64
-from typing_extensions import Concatenate, ParamSpec, Protocol
-
-from twisted.internet.defer import Deferred, ensureDeferred
-from twisted.python.failure import Failure
-from twisted.python.threadpool import ThreadPool
-from twisted.internet.testing import MemoryReactor, MemoryReactorClock
-from twisted.trial import unittest
-from twisted.web.resource import Resource
-from twisted.web.server import Request
-
 from synapse import events
 from synapse.api.constants import EventTypes
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS, RoomVersion
@@ -75,6 +60,14 @@ from synapse.storage.keys import FetchKeyResult
 from synapse.types import JsonDict, Requester, UserID, create_requester
 from synapse.util import Clock
 from synapse.util.httpresourcetree import create_resource_tree
+from twisted.internet.defer import Deferred, ensureDeferred
+from twisted.internet.testing import MemoryReactor, MemoryReactorClock
+from twisted.python.failure import Failure
+from twisted.python.threadpool import ThreadPool
+from twisted.trial import unittest
+from twisted.web.resource import Resource
+from twisted.web.server import Request
+from typing_extensions import ParamSpec
 
 from tests.server import (
     CustomHeaderType,
@@ -159,7 +152,7 @@ def _parse_config_dict(config: str) -> RootConfig:
     return config_obj
 
 
-def make_homeserver_config_obj(config: Dict[str, Any]) -> RootConfig:
+def make_homeserver_config_obj(config: dict[str, Any]) -> RootConfig:
     """Creates a :class:`HomeServerConfig` instance with the given configuration dict.
 
     This is equivalent to::
@@ -240,7 +233,7 @@ class TestCase(unittest.TestCase):
 
             return ret
 
-    def assertObjectHasAttributes(self, attrs: Dict[str, object], obj: object) -> None:
+    def assertObjectHasAttributes(self, attrs: dict[str, object], obj: object) -> None:
         """Asserts that the given object has each of the attributes given, and
         that the value of each matches according to assertEqual."""
         for key in attrs.keys():
@@ -319,7 +312,7 @@ class HomeserverTestCase(TestCase):
 
     hijack_auth: ClassVar[bool] = True
     needs_threadpool: ClassVar[bool] = False
-    servlets: ClassVar[List[RegisterServletsFunc]] = []
+    servlets: ClassVar[list[RegisterServletsFunc]] = []
 
     def __init__(self, methodName: str):
         super().__init__(methodName)
@@ -463,7 +456,7 @@ class HomeserverTestCase(TestCase):
         create_resource_tree(self.create_resource_dict(), root_resource)
         return root_resource
 
-    def create_resource_dict(self) -> Dict[str, Resource]:
+    def create_resource_dict(self) -> dict[str, Resource]:
         """Create a resource tree for the test server
 
         A resource tree is a mapping from path to twisted.web.resource.
@@ -474,7 +467,7 @@ class HomeserverTestCase(TestCase):
         servlet_resource = JsonResource(self.hs)
         for servlet in self.servlets:
             servlet(self.hs, servlet_resource)
-        resources : dict[str, Resource] = {
+        resources: dict[str, Resource] = {
             "/_matrix/client": servlet_resource,
             "/_synapse/admin": servlet_resource,
         }
@@ -516,7 +509,7 @@ class HomeserverTestCase(TestCase):
         path: Union[bytes, str],
         content: Union[bytes, str, JsonDict] = b"",
         access_token: Optional[str] = None,
-        request: Type[Request] = SynapseRequest,
+        request: type[Request] = SynapseRequest,
         shorthand: bool = True,
         federation_auth_origin: Optional[bytes] = None,
         content_is_form: bool = False,
@@ -628,7 +621,7 @@ class HomeserverTestCase(TestCase):
         return self.successResultOf(deferred)
 
     def get_failure(
-        self, d: Awaitable[Any], exc: Type[_ExcType]
+        self, d: Awaitable[Any], exc: type[_ExcType]
     ) -> _TypedFailure[_ExcType]:
         """
         Run a Deferred and get a Failure from it. The failure must be of the type `exc`.
@@ -650,9 +643,7 @@ class HomeserverTestCase(TestCase):
 
         if not results:
             self.fail(
-                "Success result expected on {!r}, found no result instead".format(
-                    deferred
-                )
+                f"Success result expected on {deferred!r}, found no result instead"
             )
 
         result = results[0]
@@ -717,7 +708,7 @@ class HomeserverTestCase(TestCase):
         self,
         username: str,
         appservice_token: str,
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         """Register an appservice user as an application service.
         Requires the client-facing registration API be registered.
 
@@ -748,7 +739,7 @@ class HomeserverTestCase(TestCase):
         username: str,
         password: str,
         device_id: Optional[str] = None,
-        additional_request_fields: Optional[Dict[str, str]] = None,
+        additional_request_fields: Optional[dict[str, str]] = None,
         custom_headers: Optional[Iterable[CustomHeaderType]] = None,
     ) -> str:
         """
@@ -788,7 +779,7 @@ class HomeserverTestCase(TestCase):
         room_id: str,
         user: UserID,
         soft_failed: bool = False,
-        prev_event_ids: Optional[List[str]] = None,
+        prev_event_ids: Optional[list[str]] = None,
     ) -> str:
         """
         Create and send an event.
@@ -880,7 +871,7 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
             )
         )
 
-    def create_resource_dict(self) -> Dict[str, Resource]:
+    def create_resource_dict(self) -> dict[str, Resource]:
         d = super().create_resource_dict()
         d["/_matrix/federation"] = TransportLayerServer(self.hs)
         return d
@@ -1025,4 +1016,3 @@ def skip_unless(condition: bool, reason: str) -> Callable[[TV], TV]:
         return f
 
     return decorator
-

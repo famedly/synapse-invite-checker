@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2020,2023 Famedly
 #
 # This program is free software: you can redistribute it and/or modify
@@ -13,25 +12,27 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-from typing import Union, Literal
 import logging
+import re
 from dataclasses import dataclass
+from http import HTTPStatus
+from typing import Literal, Union
 
-from synapse.module_api import ModuleApi, NOT_SPAM, errors
-
-from twisted.web.resource import Resource
-from twisted.web.server import Request
-import json
+from synapse.http.server import JsonResource
+from synapse.http.servlet import RestServlet
+from synapse.http.site import SynapseRequest
+from synapse.module_api import NOT_SPAM, ModuleApi, errors
+from synapse.types import JsonDict
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class InviteCheckerConfig:
-    api_prefix: str = '/_synapse/client/com.famedly/tim/v1'
-    title: str = 'Invite Checker module by Famedly'
-    description: str = 'Invite Checker module by Famedly'
-    contact: str = 'info@famedly.com'
+    api_prefix: str = "/_synapse/client/com.famedly/tim/v1"
+    title: str = "Invite Checker module by Famedly"
+    description: str = "Invite Checker module by Famedly"
+    contact: str = "info@famedly.com"
 
 
 class InviteChecker:
@@ -41,17 +42,18 @@ class InviteChecker:
         self.api = api
 
         self.config = config
-        self.api.register_spam_checker_callbacks(
-                user_may_invite=self.user_may_invite
-                )
-        self.api.register_web_resource(f'{config.api_prefix}', InfoResource(self))
+        self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
+        # self.api.register_web_resource(f'{config.api_prefix}', InfoResource(self))
+        self.resource = JsonResource(api._hs)
+        InfoResource(self).register(self.resource)
+        self.api.register_web_resource(f"{config.api_prefix}", self.resource)
         logger.info(f"Module initialized at {config.api_prefix}")
 
     # pylint: disable=unused-argument
     async def user_may_invite(
-            self, inviter: str, invitee: str, room_id: str
-            ) -> Union[Literal["NOT_SPAM"], errors.Codes]:
-        #if self.config.block_all_outgoing_invites and self.api.is_mine(inviter):
+        self, inviter: str, invitee: str, room_id: str
+    ) -> Union[Literal["NOT_SPAM"], errors.Codes]:
+        # if self.config.block_all_outgoing_invites and self.api.is_mine(inviter):
         #    print(f"is mine {inviter}")
         #    return errors.Codes.FORBIDDEN
         return NOT_SPAM
@@ -62,25 +64,38 @@ class InviteChecker:
         _config = InviteCheckerConfig()
 
         _config.api_prefix = config.get(
-                "api_prefix", '/_synapse/client/com.famedly/tim/v1'
-                )
+            "api_prefix", "/_synapse/client/com.famedly/tim/v1"
+        )
         _config.title = config.get("title", _config.title)
         _config.description = config.get("description", _config.description)
         _config.contact = config.get("contact", _config.contact)
 
         return _config
 
-class InfoResource(Resource):
-    def __init__(self, checker: InviteChecker):
-        super(InfoResource, self).__init__()
-        self.checker = checker
 
-    #@override
-    def render_GET(self, _: Request):
-        return json.dumps({
+def invite_checker_pattern(path_regex: str, config: InviteCheckerConfig):
+    path = path_regex.removeprefix("/")
+    root = config.api_prefix.removesuffix("/")
+    raw_regex = f"^{root}/{path}"
+
+    # we need to strip the /$, otherwise we can't register for the root of the prefix in a handler...
+    if raw_regex.endswith("/$"):
+        raw_regex = raw_regex.replace("/$", "$")
+
+    return [re.compile(raw_regex)]
+
+
+class InfoResource(RestServlet):
+    def __init__(self, checker: InviteChecker):
+        super().__init__()
+        self.checker = checker
+        self.PATTERNS = invite_checker_pattern("$", self.checker.config)
+
+    # @override
+    async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
+        return HTTPStatus.OK, {
             "title": self.checker.config.title,
             "description": self.checker.config.description,
             "contact": self.checker.config.contact,
             "version": self.checker.__version__,
-            }).encode()
-
+        }

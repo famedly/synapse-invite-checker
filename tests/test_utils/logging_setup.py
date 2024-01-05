@@ -15,7 +15,6 @@ import logging
 import os
 
 import twisted.logger
-
 from synapse.logging.context import LoggingContextFilter
 from synapse.synapse_rust import reset_logging_config
 

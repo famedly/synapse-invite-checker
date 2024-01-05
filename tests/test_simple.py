@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2020 Famedly
 #
 # This program is free software: you can redistribute it and/or modify
@@ -14,21 +13,19 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from twisted.trial import unittest
-from . import get_invite_checker
-from synapse.module_api.errors import Codes
-from synapse.module_api import NOT_SPAM
-from synapse.server import HomeServer
-from synapse.util import Clock
-from twisted.internet.testing import MemoryReactor
+from typing import Any
 from unittest.mock import AsyncMock, Mock
-
-from typing import Dict, Any
 
 from synapse.rest import admin
 from synapse.rest.client import login, notifications, presence, profile, room
+from synapse.server import HomeServer
+from synapse.util import Clock
+from twisted.internet.testing import MemoryReactor
+from twisted.trial import unittest
 
 import tests.unittest as synapsetest
+
+from . import get_invite_checker
 
 
 class ModuleApiTestCase(synapsetest.HomeserverTestCase):
@@ -41,7 +38,9 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         notifications.register_servlets,
     ]
 
-    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer) -> None:
+    def prepare(
+        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
+    ) -> None:
         self.store = homeserver.get_datastores().main
         self.module_api = homeserver.get_module_api()
         self.event_creation_handler = homeserver.get_event_creation_handler()
@@ -57,13 +56,15 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
             federation_transport_client=self.fed_transport_client,
         )
 
-    def default_config(self) -> Dict[str, Any]:
+    def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
-        if not "modules" in conf:
-            conf["modules"] = [{
-                "module":  "synapse_invite_checker.InviteChecker",
-                "config": {},
-                }]
+        if "modules" not in conf:
+            conf["modules"] = [
+                {
+                    "module": "synapse_invite_checker.InviteChecker",
+                    "config": {},
+                }
+            ]
         return conf
 
     def test_can_register_user(self) -> None:
@@ -89,16 +90,28 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         )
 
         self.assertEqual(channel.code, 200, channel.result)
-        self.assertEqual(channel.json_body['title'],  'Invite Checker module by Famedly')
-        self.assertEqual(channel.json_body['description'],  'Invite Checker module by Famedly')
-        self.assertEqual(channel.json_body['contact'],   'info@famedly.com')
-        self.assertTrue(channel.json_body['version'], 'Version returned')
+        self.assertEqual(channel.json_body["title"], "Invite Checker module by Famedly")
+        self.assertEqual(
+            channel.json_body["description"], "Invite Checker module by Famedly"
+        )
+        self.assertEqual(channel.json_body["contact"], "info@famedly.com")
+        self.assertTrue(channel.json_body["version"], "Version returned")
 
     @synapsetest.override_config(
-            {"modules": [{
-                "module": "synapse_invite_checker.InviteChecker",
-                "config": {"api_prefix": "/_synapse/client/test", "title": "abc", "description": "def", "contact": "ghi"},
-                }]})
+        {
+            "modules": [
+                {
+                    "module": "synapse_invite_checker.InviteChecker",
+                    "config": {
+                        "api_prefix": "/_synapse/client/test",
+                        "title": "abc",
+                        "description": "def",
+                        "contact": "ghi",
+                    },
+                }
+            ]
+        }
+    )
     def test_registered_custom_info_resource(self) -> None:
         """Tests that the registered info resource is accessible and has the configured values"""
 
@@ -108,19 +121,21 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         )
 
         self.assertEqual(channel.code, 200, channel.result)
-        self.assertEqual(channel.json_body['title'], 'abc')
-        self.assertEqual(channel.json_body['description'], 'def')
-        self.assertEqual(channel.json_body['contact'], 'ghi')
-        self.assertTrue(channel.json_body['version'], 'Version returned')
+        self.assertEqual(channel.json_body["title"], "abc")
+        self.assertEqual(channel.json_body["description"], "def")
+        self.assertEqual(channel.json_body["contact"], "ghi")
+        self.assertTrue(channel.json_body["version"], "Version returned")
+
 
 class SimpleTestCase(unittest.TestCase):
     async def test_block_outgoing_invites(self):
-        checker = get_invite_checker({"title": "abc", "description": "def", "contact": "ghi"})
+        checker = get_invite_checker(
+            {"title": "abc", "description": "def", "contact": "ghi"}
+        )
 
         # Not easy to test the resource endpoint without setting up a whole homeserver. That can be done using the utils in synapse.tests.unittest, but that is a bit too much effort for now.
-        #info_res = checker.api._hs._module_web_resources[f'{checker.config.api_prefix}/']
-        #self.assertTrue(info_res, 'Info resource registered')
+        # info_res = checker.api._hs._module_web_resources[f'{checker.config.api_prefix}/']
+        # self.assertTrue(info_res, 'Info resource registered')
 
-        #res = info_res.render_GET()
-        #self.assertEqual(res, Codes.FORBIDDEN)
-
+        # res = info_res.render_GET()
+        # self.assertEqual(res, Codes.FORBIDDEN)

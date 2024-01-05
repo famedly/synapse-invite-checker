@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2020 Famedly
 #
 # This program is free software: you can redistribute it and/or modify
@@ -14,11 +13,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from mock import Mock
-from synapse_invite_checker import InviteChecker
+from unittest.mock import Mock
 
-from synapse.server import HomeServer
 from synapse.module_api import ModuleApi
+from synapse.server import HomeServer
+
+from synapse_invite_checker import InviteChecker
 
 admins = {}
 

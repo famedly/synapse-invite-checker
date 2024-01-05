@@ -19,19 +19,18 @@ import json
 import sys
 import warnings
 from binascii import unhexlify
-from typing import TYPE_CHECKING, Awaitable, Callable, Tuple, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, TypeVar
 
 import attr
 import zope.interface
-
+from synapse.types import JsonSerializable
 from twisted.internet.interfaces import IProtocol
 from twisted.python.failure import Failure
 from twisted.web.client import ResponseDone
 from twisted.web.http import RESPONSES
 from twisted.web.http_headers import Headers
 from twisted.web.iweb import IResponse
-
-from synapse.types import JsonSerializable
 
 if TYPE_CHECKING:
     from sys import UnraisableHookArgs
@@ -93,7 +92,7 @@ class FakeResponse:  # type: ignore[misc]
     attribute, and didn't support deliverBody until recently.
     """
 
-    version: Tuple[bytes, int, int] = (b"HTTP", 1, 1)
+    version: tuple[bytes, int, int] = (b"HTTP", 1, 1)
 
     # HTTP response code
     code: int = 200
