@@ -63,7 +63,7 @@ class ContactsResource(RestServlet):
     # @override
     async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
         requester = await self.checker.api.get_user_by_req(request)
-        return HTTPStatus.OK, self.checker.get_contacts(requester.user).model_dump()
+        return HTTPStatus.OK, (await self.checker.store.get_contacts(requester.user)).model_dump()
 
     async def on_POST(self, request: SynapseRequest) -> tuple[int, JsonDict]:
         return await self.on_PUT(request)
@@ -73,7 +73,7 @@ class ContactsResource(RestServlet):
 
         try:
             contact = parse_and_validate_json_object_from_request(request, Contact)
-            self.checker.add_contact(requester.user, contact)
+            await self.checker.store.add_contact(requester.user, contact)
         except (errors.SynapseError, ValidationError) as e:
             raise errors.SynapseError(
                     HTTPStatus.BAD_REQUEST,
@@ -93,7 +93,7 @@ class ContactResource(RestServlet):
     async def on_GET(self, request: SynapseRequest, mxid: str) -> tuple[int, JsonDict]:
         requester = await self.checker.api.get_user_by_req(request)
 
-        contact = self.checker.get_contact(requester.user, mxid)
+        contact = await self.checker.store.get_contact(requester.user, mxid)
         if contact:
             return HTTPStatus.OK, contact.model_dump()
 
@@ -103,9 +103,9 @@ class ContactResource(RestServlet):
     async def on_DELETE(self, request: SynapseRequest, mxid: str) -> tuple[int, JsonDict]:
         requester = await self.checker.api.get_user_by_req(request)
 
-        contact = self.checker.get_contact(requester.user, mxid)
+        contact = await self.checker.store.get_contact(requester.user, mxid)
         if contact:
-            self.checker.del_contact(requester.user, mxid)
+            await self.checker.store.del_contact(requester.user, mxid)
             return HTTPStatus.NO_CONTENT, {}
 
         return HTTPStatus.NOT_FOUND, {}

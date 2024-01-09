@@ -13,30 +13,41 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import logging
-from collections import defaultdict
 from typing import Literal
 
 from synapse.api.constants import AccountDataTypes
 from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
-from synapse.types import UserID
+from synapse.storage.database import make_conn
 
 from synapse_invite_checker.config import InviteCheckerConfig
-from synapse_invite_checker.types import Contact, Contacts
+from synapse_invite_checker.store import InviteCheckerStore
 
 logger = logging.getLogger(__name__)
+
 
 class InviteChecker:
     __version__ = "0.0.1"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
-        self._contacts_by_user: dict[UserID, list[Contact]] = defaultdict(list)
         self.api = api
 
         self.config = config
         self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
 
         self.resource = JsonResource(api._hs)
+
+
+        dbconfig  = None
+        for dbconf in api._store.config.database.databases:
+            if dbconf.name == "master":
+                dbconfig = dbconf
+
+        if not dbconfig:
+            msg = "missing database config"
+            raise Exception(msg)
+        with make_conn(dbconfig, api._store.database_engine, "invite_checker_startup") as db_conn:
+            self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
         from synapse_invite_checker.handlers import ContactsResource, register_handlers
         register_handlers(self, self.resource)
@@ -76,22 +87,4 @@ class InviteChecker:
 
         # TODO(Nico): implement remaining rules
         return errors.Codes.FORBIDDEN
-
-    def get_contacts(self, user: UserID) -> Contacts:
-        if user in self._contacts_by_user:
-            return Contacts(contacts=self._contacts_by_user[user])
-        return Contacts(contacts=[])
-
-    def del_contact(self, user: UserID, contact: str) -> None:
-        self._contacts_by_user[user] = [item for item in  self._contacts_by_user[user] if item.mxid != contact]
-
-    def add_contact(self, user: UserID, contact: Contact) -> None:
-        self.del_contact(user, contact.mxid)
-        self._contacts_by_user[user].append(contact)
-
-    def get_contact(self, user: UserID, mxid: str) -> Contact | None:
-        for contact in self._contacts_by_user[user]:
-            if contact.mxid == mxid:
-                return contact
-        return None
 
