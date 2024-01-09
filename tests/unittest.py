@@ -70,6 +70,7 @@ from twisted.web.resource import Resource
 from twisted.web.server import Request
 from typing_extensions import ParamSpec
 
+from tests.rest import RestHelper
 from tests.server import (
     CustomHeaderType,
     FakeChannel,
@@ -81,7 +82,6 @@ from tests.server import (
 from tests.test_utils import event_injection, setup_awaitable_errors
 from tests.test_utils.logging_setup import setup_logging
 from tests.utils import checked_cast, default_config
-from tests.rest import RestHelper
 
 setup_logging()
 
