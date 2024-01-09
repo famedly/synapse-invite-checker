@@ -32,9 +32,7 @@ class TestHtmlParser(HTMLParser):
         # the values of any radio buttons: map from name to list of values
         self.radios: dict[str, list[str | None]] = {}
 
-    def handle_starttag(
-        self, tag: str, attrs: Iterable[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: Iterable[tuple[str, str | None]]) -> None:
         attr_dict = dict(attrs)
         if tag == "a":
             href = attr_dict["href"]

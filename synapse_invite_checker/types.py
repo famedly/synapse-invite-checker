@@ -22,15 +22,16 @@ class InviteSettings(BaseModel):
     start: int
     end: int | None = None
 
+
 class Contact(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
 
-    displayName: str # noqa: N815
+    displayName: str  # noqa: N815
     mxid: str
-    inviteSettings: InviteSettings # noqa: N815
+    inviteSettings: InviteSettings  # noqa: N815
+
 
 class Contacts(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
 
-    contacts : list[Contact]
-
+    contacts: list[Contact]

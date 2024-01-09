@@ -291,9 +291,7 @@ class FakeOidcServer:
 
         if method == "POST":
             # If the method is POST, assume it has an url-encoded body
-            if data is None or headers.getRawHeaders(b"Content-Type") != [
-                b"application/x-www-form-urlencoded"
-            ]:
+            if data is None or headers.getRawHeaders(b"Content-Type") != [b"application/x-www-form-urlencoded"]:
                 return FakeResponse.json(code=400, payload={"error": "invalid_request"})
 
             params = parse_qs(data.decode("utf-8"))

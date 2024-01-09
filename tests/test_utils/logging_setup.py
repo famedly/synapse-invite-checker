@@ -27,9 +27,7 @@ class ToTwistedHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         log_entry = self.format(record)
         log_level = record.levelname.lower().replace("warning", "warn")
-        self.tx_log.emit(
-            twisted.logger.LogLevel.levelWithName(log_level), "{entry}", entry=log_entry
-        )
+        self.tx_log.emit(twisted.logger.LogLevel.levelWithName(log_level), "{entry}", entry=log_entry)
 
 
 def setup_logging() -> None:
@@ -59,9 +57,7 @@ def setup_logging() -> None:
         # Log when events are (maybe unexpectedly) filtered out of responses in tests. It's
         # just nice to be able to look at the CI log and figure out why an event isn't being
         # returned.
-        logging.getLogger("synapse.visibility.filtered_event_debug").setLevel(
-            logging.DEBUG
-        )
+        logging.getLogger("synapse.visibility.filtered_event_debug").setLevel(logging.DEBUG)
 
     # Blow away the pyo3-log cache so that it reloads the configuration.
     reset_logging_config()

@@ -21,9 +21,12 @@ from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.storage.database import make_conn
 
 from synapse_invite_checker.config import InviteCheckerConfig
+from synapse_invite_checker.handlers import ContactResource, ContactsResource, InfoResource
 from synapse_invite_checker.store import InviteCheckerStore
 
 logger = logging.getLogger(__name__)
+
+# ruff: noqa: SLF001
 
 
 class InviteChecker:
@@ -37,8 +40,7 @@ class InviteChecker:
 
         self.resource = JsonResource(api._hs)
 
-
-        dbconfig  = None
+        dbconfig = None
         for dbconf in api._store.config.database.databases:
             if dbconf.name == "master":
                 dbconfig = dbconf
@@ -46,12 +48,13 @@ class InviteChecker:
         if not dbconfig:
             msg = "missing database config"
             raise Exception(msg)
+
         with make_conn(dbconfig, api._store.database_engine, "invite_checker_startup") as db_conn:
             self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
-        from synapse_invite_checker.handlers import ContactsResource, register_handlers
-        register_handlers(self, self.resource)
-        ContactsResource(self).register(self.resource)
+        InfoResource(self.config, self.__version__).register(self.resource)
+        ContactsResource(self.api, self.store, self.config).register(self.resource)
+        ContactResource(self.api, self.store, self.config).register(self.resource)
 
         self.api.register_web_resource(f"{config.api_prefix}", self.resource)
         logger.info("Module initialized at %s", config.api_prefix)
@@ -61,18 +64,14 @@ class InviteChecker:
         logger.error("PARSE CONFIG")
         _config = InviteCheckerConfig()
 
-        _config.api_prefix = config.get(
-            "api_prefix", "/_synapse/client/com.famedly/tim/v1"
-        )
+        _config.api_prefix = config.get("api_prefix", "/_synapse/client/com.famedly/tim/v1")
         _config.title = config.get("title", _config.title)
         _config.description = config.get("description", _config.description)
         _config.contact = config.get("contact", _config.contact)
 
         return _config
 
-    async def user_may_invite(
-        self, inviter: str, invitee: str, room_id: str
-    ) -> Literal["NOT_SPAM"] | errors.Codes:
+    async def user_may_invite(self, inviter: str, invitee: str, room_id: str) -> Literal["NOT_SPAM"] | errors.Codes:
         if self.api.is_mine(inviter):
             direct = await self.api.account_data_manager.get_global(inviter, AccountDataTypes.DIRECT)
             if direct:
@@ -87,4 +86,3 @@ class InviteChecker:
 
         # TODO(Nico): implement remaining rules
         return errors.Codes.FORBIDDEN
-

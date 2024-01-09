@@ -39,9 +39,7 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
 
     # Ignore ARG001
     @override
-    def prepare(
-        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
-    ) -> None:
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer) -> None:
         self.store = homeserver.get_datastores().main
         self.module_api = homeserver.get_module_api()
         self.event_creation_handler = homeserver.get_event_creation_handler()
@@ -114,10 +112,9 @@ class InfoResourceTest(ModuleApiTestCase):
         assert channel.json_body["contact"] == "ghi"
         assert channel.json_body["version"], "Version returned"
 
+
 class LocalInviteTest(ModuleApiTestCase):
-    def prepare(
-        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
-            ):
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.user_a = self.register_user("a", "password")
         self.access_token = self.login("a", "password")
@@ -136,7 +133,9 @@ class LocalInviteTest(ModuleApiTestCase):
         channel = self.make_request(
             "PUT",
             f"/user/{self.user_a}/account_data/m.direct",
-            { self.user_b: [room_id], },
+            {
+                self.user_b: [room_id],
+            },
             access_token=self.access_token,
         )
         assert channel.code == 200, channel.result
@@ -155,7 +154,9 @@ class LocalInviteTest(ModuleApiTestCase):
         channel = self.make_request(
             "PUT",
             f"/user/{self.user_a}/account_data/m.direct",
-            { self.user_b: ["!not:existing.example.com"], },
+            {
+                self.user_b: ["!not:existing.example.com"],
+            },
             access_token=self.access_token,
         )
         assert channel.code == 200, channel.result
@@ -173,10 +174,9 @@ class LocalInviteTest(ModuleApiTestCase):
         self.helper.invite(room=room_id, src=self.user_a, targ=self.user_c, tok=self.access_token, expect_code=200)
         self.helper.invite(room=room_id, src=self.user_a, targ=self.user_b, tok=self.access_token, expect_code=200)
 
+
 class ContactsApiTest(ModuleApiTestCase):
-    def prepare(
-        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
-            ):
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.user_a = self.register_user("a", "password")
         self.access_token = self.login("a", "password")
@@ -213,8 +213,8 @@ class ContactsApiTest(ModuleApiTestCase):
             {
                 "displayName": "Test User",
                 "mxid": "@test:other.example.com",
-                "inviteSettings": { "start": 0 },
-            }
+                "inviteSettings": {"start": 0},
+            },
         )
         assert channel.code == 401, channel.result
 
@@ -224,7 +224,9 @@ class ContactsApiTest(ModuleApiTestCase):
             "/_synapse/client/com.famedly/tim/v1/contacts",
             {
                 "displayName": "Test User",
-                "inviteSettings": { "start": 0, },
+                "inviteSettings": {
+                    "start": 0,
+                },
             },
             access_token=self.access_token,
         )
@@ -237,7 +239,9 @@ class ContactsApiTest(ModuleApiTestCase):
             {
                 "displayName": "Test User",
                 "mxid": "@test:other.example.com",
-                "inviteSettings": { "start": 0, },
+                "inviteSettings": {
+                    "start": 0,
+                },
             },
             access_token=self.access_token,
         )
@@ -261,7 +265,9 @@ class ContactsApiTest(ModuleApiTestCase):
             {
                 "displayName": "Test User",
                 "mxid": "@test:other.example.com",
-                "inviteSettings": { "start": 500, },
+                "inviteSettings": {
+                    "start": 500,
+                },
             },
             access_token=self.access_token,
         )
@@ -286,7 +292,9 @@ class ContactsApiTest(ModuleApiTestCase):
             {
                 "displayName": "Test User",
                 "mxid": "@test:other.example.com",
-                "inviteSettings": { "start": 400, },
+                "inviteSettings": {
+                    "start": 400,
+                },
             },
             access_token=self.access_token,
         )
@@ -311,7 +319,9 @@ class ContactsApiTest(ModuleApiTestCase):
             {
                 "displayName": "Test User2",
                 "mxid": "@test2:other.example.com",
-                "inviteSettings": { "start": 300, },
+                "inviteSettings": {
+                    "start": 300,
+                },
             },
             access_token=self.access_token,
         )
@@ -327,8 +337,16 @@ class ContactsApiTest(ModuleApiTestCase):
         assert channel.code == 200, channel.result
         assert "contacts" in channel.json_body, "Result contains contacts"
         assert len(channel.json_body["contacts"]) == 2, "List is not empty anymore"
-        assert [item["inviteSettings"]["start"] for item in channel.json_body["contacts"] if item["mxid"] == "@test:other.example.com"] == [400], "Setting overwritten"
-        assert [item["inviteSettings"]["start"] for item in channel.json_body["contacts"] if item["mxid"] == "@test2:other.example.com"] == [300], "Setting overwritten"
+        assert [
+            item["inviteSettings"]["start"]
+            for item in channel.json_body["contacts"]
+            if item["mxid"] == "@test:other.example.com"
+        ] == [400], "Setting overwritten"
+        assert [
+            item["inviteSettings"]["start"]
+            for item in channel.json_body["contacts"]
+            if item["mxid"] == "@test2:other.example.com"
+        ] == [300], "Setting overwritten"
 
     def test_get_contact(self) -> None:
         """See if we can retrieve a specific contact"""
@@ -354,7 +372,9 @@ class ContactsApiTest(ModuleApiTestCase):
             {
                 "displayName": "Test User",
                 "mxid": "@test:other.example.com",
-                "inviteSettings": { "start": 0, },
+                "inviteSettings": {
+                    "start": 0,
+                },
             },
             access_token=self.access_token,
         )
@@ -375,7 +395,9 @@ class ContactsApiTest(ModuleApiTestCase):
             {
                 "displayName": "Test User",
                 "mxid": "@test2:other.example.com",
-                "inviteSettings": { "start": 0, },
+                "inviteSettings": {
+                    "start": 0,
+                },
             },
             access_token=self.access_token,
         )
@@ -422,7 +444,9 @@ class ContactsApiTest(ModuleApiTestCase):
             {
                 "displayName": "Test User",
                 "mxid": "@test:other.example.com",
-                "inviteSettings": { "start": 0, },
+                "inviteSettings": {
+                    "start": 0,
+                },
             },
             access_token=self.access_token,
         )

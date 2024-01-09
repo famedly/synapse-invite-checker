@@ -183,9 +183,7 @@ class TestCase(unittest.TestCase):
             # if we're not starting in the sentinel logcontext, then to be honest
             # all future bets are off.
             if current_context():
-                self.fail(
-                    f"Test starting with non-sentinel logging context {current_context()}"
-                )
+                self.fail(f"Test starting with non-sentinel logging context {current_context()}")
 
             # Disable GC for duration of test. See below for why.
             gc.disable()
@@ -417,16 +415,10 @@ class HomeserverTestCase(TestCase):
     def wait_for_background_updates(self) -> None:
         """Block until all background database updates have completed."""
         store = self.hs.get_datastores().main
-        while not self.get_success(
-            store.db_pool.updates.has_completed_background_updates()
-        ):
-            self.get_success(
-                store.db_pool.updates.do_next_background_update(False), by=0.1
-            )
+        while not self.get_success(store.db_pool.updates.has_completed_background_updates()):
+            self.get_success(store.db_pool.updates.do_next_background_update(False), by=0.1)
 
-    def make_homeserver(
-        self, reactor: ThreadedMemoryReactorClock, clock: Clock
-    ) -> HomeServer:
+    def make_homeserver(self, reactor: ThreadedMemoryReactorClock, clock: Clock) -> HomeServer:
         """
         Make and return a homeserver.
 
@@ -483,9 +475,7 @@ class HomeserverTestCase(TestCase):
 
         return config
 
-    def prepare(
-        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
-    ) -> None:
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer) -> None:
         """
         Prepare for the test.  This involves things like mocking out parts of
         the homeserver, or building test data common across the whole test
@@ -557,9 +547,7 @@ class HomeserverTestCase(TestCase):
             client_ip,
         )
 
-    def setup_test_homeserver(
-        self, name: str | None = None, **kwargs: Any
-    ) -> HomeServer:
+    def setup_test_homeserver(self, name: str | None = None, **kwargs: Any) -> HomeServer:
         """
         Set up the test homeserver, meant to be called by the overridable
         make_homeserver. It automatically passes through the test class's
@@ -613,9 +601,7 @@ class HomeserverTestCase(TestCase):
         self.pump(by=by)
         return self.successResultOf(deferred)
 
-    def get_failure(
-        self, d: Awaitable[Any], exc: type[_ExcType_co]
-    ) -> _TypedFailure[_ExcType_co]:
+    def get_failure(self, d: Awaitable[Any], exc: type[_ExcType_co]) -> _TypedFailure[_ExcType_co]:
         """
         Run a Deferred and get a Failure from it. The failure must be of the type `exc`.
         """
@@ -635,9 +621,7 @@ class HomeserverTestCase(TestCase):
         self.pump(by=by)
 
         if not results:
-            self.fail(
-                f"Success result expected on {deferred!r}, found no result instead"
-            )
+            self.fail(f"Success result expected on {deferred!r}, found no result instead")
 
         result = results[0]
 
@@ -802,11 +786,7 @@ class HomeserverTestCase(TestCase):
         if soft_failed:
             event.internal_metadata.soft_failed = True
 
-        self.get_success(
-            event_creator.handle_new_client_event(
-                requester, events_and_context=[(event, context)]
-            )
-        )
+        self.get_success(event_creator.handle_new_client_event(requester, events_and_context=[(event, context)]))
 
         return event.event_id
 
@@ -821,9 +801,7 @@ class HomeserverTestCase(TestCase):
             user: MXID of the user to inject the membership for.
             membership: The membership type.
         """
-        self.get_success(
-            event_injection.inject_member_event(self.hs, room, user, membership)
-        )
+        self.get_success(event_injection.inject_member_event(self.hs, room, user, membership))
 
 
 class FederatingHomeserverTestCase(HomeserverTestCase):
@@ -848,16 +826,10 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
                 from_server=self.OTHER_SERVER_NAME,
                 ts_added_ms=clock.time_msec(),
                 verify_keys={
-                    verify_key_id: FetchKeyResult(
-                        verify_key=verify_key, valid_until_ts=clock.time_msec() + 10000
-                    ),
+                    verify_key_id: FetchKeyResult(verify_key=verify_key, valid_until_ts=clock.time_msec() + 10000),
                 },
                 response_json={
-                    "verify_keys": {
-                        verify_key_id: {
-                            "key": signedjson.key.encode_verify_key_base64(verify_key)
-                        }
-                    }
+                    "verify_keys": {verify_key_id: {"key": signedjson.key.encode_verify_key_base64(verify_key)}}
                 },
             )
         )
@@ -947,15 +919,9 @@ def _auth_header_for_request(
     if content is not None:
         request_description["content"] = content
     signature_base64 = unpaddedbase64.encode_base64(
-        signing_key.sign(
-            canonicaljson.encode_canonical_json(request_description)
-        ).signature
+        signing_key.sign(canonicaljson.encode_canonical_json(request_description)).signature
     )
-    return (
-        f"X-Matrix origin={origin},"
-        f"key={signing_key.alg}:{signing_key.version},"
-        f"sig={signature_base64}"
-    )
+    return f"X-Matrix origin={origin}," f"key={signing_key.alg}:{signing_key.version}," f"sig={signature_base64}"
 
 
 def override_config(extra_config: JsonDict) -> Callable[[TV], TV]:
