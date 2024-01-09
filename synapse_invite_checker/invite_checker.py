@@ -22,7 +22,8 @@ from synapse.http.server import JsonResource
 from synapse.http.servlet import RestServlet
 from synapse.http.site import SynapseRequest
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
-from synapse.types import JsonDict
+from synapse.types import JsonDict, StateKey
+from synapse.api.constants import AccountDataTypes, EventTypes
 
 logger = logging.getLogger(__name__)
 
@@ -43,20 +44,29 @@ class InviteChecker:
 
         self.config = config
         self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
-        # self.api.register_web_resource(f'{config.api_prefix}', InfoResource(self))
+
         self.resource = JsonResource(api._hs)
         InfoResource(self).register(self.resource)
         self.api.register_web_resource(f"{config.api_prefix}", self.resource)
         logger.info("Module initialized at %s", config.api_prefix)
 
-    # pylint: disable=unused-argument
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str
     ) -> Literal["NOT_SPAM"] | errors.Codes:
-        # if self.config.block_all_outgoing_invites and self.api.is_mine(inviter):
-        #    print(f"is mine {inviter}")
-        #    return errors.Codes.FORBIDDEN
-        return NOT_SPAM
+        if self.api.is_mine(inviter):
+            direct = await self.api.account_data_manager.get_global(inviter, AccountDataTypes.DIRECT)
+            if direct:
+                for user, roomids in direct.items():
+                    if room_id in roomids and user != invitee:
+                        # Can't invite to DM!
+                        return errors.Codes.FORBIDDEN
+
+            # local invites are always valid, if they are not to a dm
+            if self.api.is_mine(invitee):
+                return NOT_SPAM
+
+        # TODO(Nico): implement remaining rules
+        return errors.Codes.FORBIDDEN
 
     @staticmethod
     def parse_config(config):

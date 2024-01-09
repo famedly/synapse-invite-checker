@@ -81,6 +81,7 @@ from tests.server import (
 from tests.test_utils import event_injection, setup_awaitable_errors
 from tests.test_utils.logging_setup import setup_logging
 from tests.utils import checked_cast, default_config
+from tests.rest import RestHelper
 
 setup_logging()
 
@@ -352,8 +353,6 @@ class HomeserverTestCase(TestCase):
             reactor=self.reactor,
             hs=self.hs,
         )
-
-        from tests.rest import RestHelper
 
         self.helper = RestHelper(
             self.hs,
