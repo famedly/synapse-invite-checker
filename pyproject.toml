@@ -34,7 +34,11 @@ dependencies = [
   "pytest",
   "pytest-cov",
   "mock",
-  "matrix-synapse"
+  "matrix-synapse",
+  "cachetools",
+  "asyncache",
+  "jwcrypto",
+  "pyopenssl"
 ]
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"

@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -35,3 +36,18 @@ class Contacts(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
 
     contacts: list[Contact]
+
+
+class FederationDomain(BaseModel):
+    model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
+
+    domain: str
+    telematikID: str  # noqa: N815
+    timAnbieter: str | None  # noqa: N815
+    isInsurance: bool  # noqa: N815
+
+
+class FederationList(BaseModel):
+    model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
+
+    domainList: list[FederationDomain]  # noqa: N815

@@ -989,7 +989,7 @@ def setup_test_homeserver(
     # Load any configured modules into the homeserver
     module_api = hs.get_module_api()
     for module, module_config in hs.config.modules.loaded_modules:
-        module(config=module_config, api=module_api)
+        hs.mockmod = module(config=module_config, api=module_api)
         logger.debug("Loaded module %s %r", module, module_config)
 
     load_legacy_spam_checkers(hs)
