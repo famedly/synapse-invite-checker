@@ -19,7 +19,14 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 from synapse.rest import admin
-from synapse.rest.client import account_data, login, notifications, presence, profile, room
+from synapse.rest.client import (
+    account_data,
+    login,
+    notifications,
+    presence,
+    profile,
+    room,
+)
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
@@ -124,7 +131,9 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
 
     # Ignore ARG001
     @override
-    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer) -> None:
+    def prepare(
+        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
+    ) -> None:
         self.store = homeserver.get_datastores().main
         self.module_api = homeserver.get_module_api()
         self.event_creation_handler = homeserver.get_event_creation_handler()
@@ -178,10 +187,16 @@ class InfoResourceTest(ModuleApiTestCase):
         assert channel.json_body["contact"] == "info@famedly.com"
         assert channel.json_body["version"], "Version returned"
 
-        invchecker = InviteChecker(self.hs.config.modules.loaded_modules[0][1], self.hs.get_module_api())
+        invchecker = InviteChecker(
+            self.hs.config.modules.loaded_modules[0][1], self.hs.get_module_api()
+        )
         invchecker._raw_federation_list_fetch = AsyncMock(return_value=rawjwt)
-        invchecker._raw_gematik_root_ca_fetch = AsyncMock(return_value=json.loads(raw_ca_list))
-        invchecker._raw_gematik_intermediate_cert_fetch = AsyncMock(side_effect=return_gem_cert)
+        invchecker._raw_gematik_root_ca_fetch = AsyncMock(
+            return_value=json.loads(raw_ca_list)
+        )
+        invchecker._raw_gematik_intermediate_cert_fetch = AsyncMock(
+            side_effect=return_gem_cert
+        )
         domains = await invchecker.fetch_federation_allow_list()
         assert "test.amp.chat" in domains
 
@@ -231,7 +246,9 @@ class LocalInviteTest(ModuleApiTestCase):
 
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, but nobody else invited"""
-        room_id = self.helper.create_room_as(self.user_a, is_public=False, tok=self.access_token)
+        room_id = self.helper.create_room_as(
+            self.user_a, is_public=False, tok=self.access_token
+        )
         assert room_id, "Room created"
 
         # create DM event
@@ -246,13 +263,27 @@ class LocalInviteTest(ModuleApiTestCase):
         assert channel.code == 200, channel.result
 
         # Can't invite other users
-        self.helper.invite(room=room_id, src=self.user_a, targ=self.user_c, tok=self.access_token, expect_code=403)
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_c,
+            tok=self.access_token,
+            expect_code=403,
+        )
         # But can invite the dm user
-        self.helper.invite(room=room_id, src=self.user_a, targ=self.user_b, tok=self.access_token, expect_code=200)
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_b,
+            tok=self.access_token,
+            expect_code=200,
+        )
 
     def test_invite_to_group(self) -> None:
         """Tests that a group with local users works normally"""
-        room_id = self.helper.create_room_as(self.user_a, is_public=False, tok=self.access_token)
+        room_id = self.helper.create_room_as(
+            self.user_a, is_public=False, tok=self.access_token
+        )
         assert room_id, "Room created"
 
         # create DM event
@@ -267,17 +298,43 @@ class LocalInviteTest(ModuleApiTestCase):
         assert channel.code == 200, channel.result
 
         # Can invite other users
-        self.helper.invite(room=room_id, src=self.user_a, targ=self.user_c, tok=self.access_token, expect_code=200)
-        self.helper.invite(room=room_id, src=self.user_a, targ=self.user_b, tok=self.access_token, expect_code=200)
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_c,
+            tok=self.access_token,
+            expect_code=200,
+        )
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_b,
+            tok=self.access_token,
+            expect_code=200,
+        )
 
     def test_invite_to_group_without_dm_event(self) -> None:
         """Tests that a group with local users works normally in case the user has no m.direct set"""
-        room_id = self.helper.create_room_as(self.user_a, is_public=False, tok=self.access_token)
+        room_id = self.helper.create_room_as(
+            self.user_a, is_public=False, tok=self.access_token
+        )
         assert room_id, "Room created"
 
         # Can invite other users
-        self.helper.invite(room=room_id, src=self.user_a, targ=self.user_c, tok=self.access_token, expect_code=200)
-        self.helper.invite(room=room_id, src=self.user_a, targ=self.user_b, tok=self.access_token, expect_code=200)
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_c,
+            tok=self.access_token,
+            expect_code=200,
+        )
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_b,
+            tok=self.access_token,
+            expect_code=200,
+        )
 
 
 class ContactsApiTest(ModuleApiTestCase):
@@ -388,7 +445,9 @@ class ContactsApiTest(ModuleApiTestCase):
         assert channel.code == 200, channel.result
         assert "contacts" in channel.json_body, "Result contains contacts"
         assert len(channel.json_body["contacts"]) == 1, "List is not empty anymore"
-        assert channel.json_body["contacts"][0]["inviteSettings"]["start"] == 500, "Setting overwritten"
+        assert (
+            channel.json_body["contacts"][0]["inviteSettings"]["start"] == 500
+        ), "Setting overwritten"
 
         # And post works as well
         channel = self.make_request(
@@ -415,7 +474,9 @@ class ContactsApiTest(ModuleApiTestCase):
         assert channel.code == 200, channel.result
         assert "contacts" in channel.json_body, "Result contains contacts"
         assert len(channel.json_body["contacts"]) == 1, "List is not empty anymore"
-        assert channel.json_body["contacts"][0]["inviteSettings"]["start"] == 400, "Setting overwritten"
+        assert (
+            channel.json_body["contacts"][0]["inviteSettings"]["start"] == 400
+        ), "Setting overwritten"
 
         # And we can add a second user
         channel = self.make_request(

@@ -42,7 +42,11 @@ from twisted.web.iweb import IPolicyForHTTPS
 from zope.interface import implementer
 
 from synapse_invite_checker.config import InviteCheckerConfig
-from synapse_invite_checker.handlers import ContactResource, ContactsResource, InfoResource
+from synapse_invite_checker.handlers import (
+    ContactResource,
+    ContactsResource,
+    InfoResource,
+)
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import FederationList
 
@@ -63,7 +67,9 @@ class MtlsPolicy:
             content = file.read()
 
         client_cert = PrivateCertificate.loadPEM(content)
-        self.options = optionsForClientTLS(self.url.hostname, platformTrust(), clientCertificate=client_cert)
+        self.options = optionsForClientTLS(
+            self.url.hostname, platformTrust(), clientCertificate=client_cert
+        )
 
     def creatorForNetloc(self, hostname, port):
         if self.url.hostname != hostname or self.url.port != port:
@@ -119,7 +125,9 @@ class InviteChecker:
             msg = "missing database config"
             raise Exception(msg)
 
-        with make_conn(dbconfig, api._store.database_engine, "invite_checker_startup") as db_conn:
+        with make_conn(
+            dbconfig, api._store.database_engine, "invite_checker_startup"
+        ) as db_conn:
             self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
         InfoResource(self.config, self.__version__).register(self.resource)
@@ -134,29 +142,43 @@ class InviteChecker:
         logger.error("PARSE CONFIG")
         _config = InviteCheckerConfig()
 
-        _config.api_prefix = config.get("api_prefix", "/_synapse/client/com.famedly/tim/v1")
+        _config.api_prefix = config.get(
+            "api_prefix", "/_synapse/client/com.famedly/tim/v1"
+        )
         _config.title = config.get("title", _config.title)
         _config.description = config.get("description", _config.description)
         _config.contact = config.get("contact", _config.contact)
-        _config.federation_list_client_cert = config.get("federation_list_client_cert", "")
+        _config.federation_list_client_cert = config.get(
+            "federation_list_client_cert", ""
+        )
         _config.federation_list_url = config.get("federation_list_url", "")
         _config.gematik_ca_baseurl = config.get("gematik_ca_baseurl", "")
 
-        if not _config.federation_list_client_cert or not _config.federation_list_url or not _config.gematik_ca_baseurl:
+        if (
+            not _config.federation_list_client_cert
+            or not _config.federation_list_url
+            or not _config.gematik_ca_baseurl
+        ):
             msg = "Incomplete federation list config"
             raise Exception(msg)
 
         return _config
 
     async def _raw_federation_list_fetch(self) -> str:
-        resp = await self.federation_list_client.get_raw(self.config.federation_list_url)
+        resp = await self.federation_list_client.get_raw(
+            self.config.federation_list_url
+        )
         return resp.decode()
 
     async def _raw_gematik_root_ca_fetch(self) -> dict:
-        return await self.api.http_client.get_json(f"{self.config.gematik_ca_baseurl}/ECC/ROOT-CA/roots.json")
+        return await self.api.http_client.get_json(
+            f"{self.config.gematik_ca_baseurl}/ECC/ROOT-CA/roots.json"
+        )
 
     async def _raw_gematik_intermediate_cert_fetch(self, cn: str) -> bytes:
-        return await self.api.http_client.get_raw(f"{self.config.gematik_ca_baseurl}/ECC/SUB-CA/{cn}.der")
+        return await self.api.http_client.get_raw(
+            f"{self.config.gematik_ca_baseurl}/ECC/SUB-CA/{cn}.der"
+        )
 
     def _load_cert_b64(self, cert: str) -> X509:
         return load_certificate(FILETYPE_ASN1, base64.b64decode(cert))
@@ -178,7 +200,10 @@ class InviteChecker:
             if rawcert:
                 store.add_cert(self._load_cert_b64(rawcert))
 
-        chain = load_certificate(FILETYPE_ASN1, await self._raw_gematik_intermediate_cert_fetch(jwskey.get_issuer().CN))
+        chain = load_certificate(
+            FILETYPE_ASN1,
+            await self._raw_gematik_intermediate_cert_fetch(jwskey.get_issuer().CN),
+        )
         store_ctx = X509StoreContext(store, jwskey, chain=[chain])
         store_ctx.verify_certificate()
 
@@ -193,9 +218,13 @@ class InviteChecker:
         fedlist = FederationList.model_validate_json(jws_verify.payload)
         return {fed.domain for fed in fedlist.domainList}
 
-    async def user_may_invite(self, inviter: str, invitee: str, room_id: str) -> Literal["NOT_SPAM"] | errors.Codes:
+    async def user_may_invite(
+        self, inviter: str, invitee: str, room_id: str
+    ) -> Literal["NOT_SPAM"] | errors.Codes:
         if self.api.is_mine(inviter):
-            direct = await self.api.account_data_manager.get_global(inviter, AccountDataTypes.DIRECT)
+            direct = await self.api.account_data_manager.get_global(
+                inviter, AccountDataTypes.DIRECT
+            )
             if direct:
                 for user, roomids in direct.items():
                     if room_id in roomids and user != invitee:

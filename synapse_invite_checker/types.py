@@ -18,14 +18,18 @@ from pydantic import BaseModel, ConfigDict
 
 
 class InviteSettings(BaseModel):
-    model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
+    model_config = ConfigDict(
+        strict=True, frozen=True, extra="ignore", allow_inf_nan=False
+    )
 
     start: int
     end: int | None = None
 
 
 class Contact(BaseModel):
-    model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
+    model_config = ConfigDict(
+        strict=True, frozen=True, extra="ignore", allow_inf_nan=False
+    )
 
     displayName: str  # noqa: N815
     mxid: str
@@ -33,13 +37,17 @@ class Contact(BaseModel):
 
 
 class Contacts(BaseModel):
-    model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
+    model_config = ConfigDict(
+        strict=True, frozen=True, extra="ignore", allow_inf_nan=False
+    )
 
     contacts: list[Contact]
 
 
 class FederationDomain(BaseModel):
-    model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
+    model_config = ConfigDict(
+        strict=True, frozen=True, extra="ignore", allow_inf_nan=False
+    )
 
     domain: str
     telematikID: str  # noqa: N815
@@ -48,6 +56,8 @@ class FederationDomain(BaseModel):
 
 
 class FederationList(BaseModel):
-    model_config = ConfigDict(strict=True, frozen=True, extra="ignore", allow_inf_nan=False)
+    model_config = ConfigDict(
+        strict=True, frozen=True, extra="ignore", allow_inf_nan=False
+    )
 
     domainList: list[FederationDomain]  # noqa: N815

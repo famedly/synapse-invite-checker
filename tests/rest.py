@@ -321,7 +321,9 @@ class RestHelper:
         )
 
         if expect_errcode:
-            assert str(channel.json_body["errcode"]) == expect_errcode, "Expected: {!r}, got: {!r}, resp: {!r}".format(
+            assert (
+                str(channel.json_body["errcode"]) == expect_errcode
+            ), "Expected: {!r}, got: {!r}, resp: {!r}".format(
                 expect_errcode,
                 channel.json_body["errcode"],
                 channel.result["body"],
@@ -329,8 +331,12 @@ class RestHelper:
 
         if expect_additional_fields is not None:
             for expect_key, expect_value in expect_additional_fields.items():
-                assert expect_key in channel.json_body, f"Expected field {expect_key}, got {channel.json_body}"
-                assert channel.json_body[expect_key] == expect_value, "Expected: {} at {}, got: {}, resp: {}".format(
+                assert (
+                    expect_key in channel.json_body
+                ), f"Expected field {expect_key}, got {channel.json_body}"
+                assert (
+                    channel.json_body[expect_key] == expect_value
+                ), "Expected: {} at {}, got: {}, resp: {}".format(
                     expect_value,
                     expect_key,
                     channel.json_body[expect_key],
@@ -504,7 +510,9 @@ class RestHelper:
         Raises:
             AssertionError: if expect_code doesn't match the HTTP code we received
         """
-        return self._read_write_state(room_id, event_type, None, tok, expect_code, state_key, method="GET")
+        return self._read_write_state(
+            room_id, event_type, None, tok, expect_code, state_key, method="GET"
+        )
 
     def send_state(
         self,
@@ -531,7 +539,9 @@ class RestHelper:
         Raises:
             AssertionError: if expect_code doesn't match the HTTP code we received
         """
-        return self._read_write_state(room_id, event_type, body, tok, expect_code, state_key, method="PUT")
+        return self._read_write_state(
+            room_id, event_type, body, tok, expect_code, state_key, method="PUT"
+        )
 
     def upload_media(
         self,
@@ -677,7 +687,9 @@ class RestHelper:
             "/login",
             content={"type": "m.login.token", "token": login_token},
         )
-        assert channel.code == expected_status, f"unexpected status in response: {channel.code}"
+        assert (
+            channel.code == expected_status
+        ), f"unexpected status in response: {channel.code}"
         return channel.json_body
 
     def auth_via_oidc(
@@ -731,7 +743,9 @@ class RestHelper:
                 oauth_uri = self.initiate_sso_ui_auth(ui_auth_session_id, cookies)
             else:
                 # otherwise, hit the login redirect endpoint
-                oauth_uri = self.initiate_sso_login(client_redirect_url, cookies, idp_id=idp_id)
+                oauth_uri = self.initiate_sso_login(
+                    client_redirect_url, cookies, idp_id=idp_id
+                )
 
         # we now have a URI for the OIDC IdP, but we skip that and go straight
         # back to synapse's OIDC callback resource. However, we do need the "state"
@@ -739,8 +753,12 @@ class RestHelper:
         # that synapse passes to the client.
 
         oauth_uri_path, _ = oauth_uri.split("?", 1)
-        assert oauth_uri_path == fake_server.authorization_endpoint, "unexpected SSO URI " + oauth_uri_path
-        return self.complete_oidc_auth(fake_server, oauth_uri, cookies, user_info_dict, with_sid=with_sid)
+        assert oauth_uri_path == fake_server.authorization_endpoint, (
+            "unexpected SSO URI " + oauth_uri_path
+        )
+        return self.complete_oidc_auth(
+            fake_server, oauth_uri, cookies, user_info_dict, with_sid=with_sid
+        )
 
     def complete_oidc_auth(
         self,
@@ -866,7 +884,9 @@ class RestHelper:
         channel.extract_cookies(cookies)
         return get_location(channel)
 
-    def initiate_sso_ui_auth(self, ui_auth_session_id: str, cookies: MutableMapping[str, str]) -> str:
+    def initiate_sso_ui_auth(
+        self, ui_auth_session_id: str, cookies: MutableMapping[str, str]
+    ) -> str:
         """Make a request to the ui-auth-via-sso endpoint, and return the target
 
         Assumes that exactly one SSO provider has been configured. Requires the
@@ -879,8 +899,9 @@ class RestHelper:
         Returns:
             the URI that the client gets linked to (ie, the SSO server)
         """
-        sso_redirect_endpoint = "/_matrix/client/r0/auth/m.login.sso/fallback/web?" + urllib.parse.urlencode(
-            {"session": ui_auth_session_id}
+        sso_redirect_endpoint = (
+            "/_matrix/client/r0/auth/m.login.sso/fallback/web?"
+            + urllib.parse.urlencode({"session": ui_auth_session_id})
         )
         # hit the redirect url (which will issue a cookie and state)
         channel = make_request(self.reactor, self.site, "GET", sso_redirect_endpoint)
