@@ -13,12 +13,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import base64
+import functools
 import logging
+import time
+from contextlib import suppress
 from typing import Literal
 from urllib.parse import quote, urlparse
 
-from asyncache import cached
-from cachetools import TTLCache
+from cachetools import TTLCache, keys
 from jwcrypto import jwk, jws
 from OpenSSL.crypto import (
     FILETYPE_ASN1,
@@ -36,6 +38,7 @@ from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import make_conn
+from synapse.types import UserID
 from twisted.internet.ssl import PrivateCertificate, optionsForClientTLS, platformTrust
 from twisted.web.client import HTTPConnectionPool
 from twisted.web.iweb import IPolicyForHTTPS
@@ -54,6 +57,33 @@ logger = logging.getLogger(__name__)
 
 # We need to acces the private API in some places, in particular the store and the homeserver
 # ruff: noqa: SLF001
+
+
+def cached(cache):
+    """Simplified cached decorator from cachetools, that allows calling an async function."""
+
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            k = keys.hashkey(*args, **kwargs)
+            with suppress(KeyError):
+                return cache[k]
+
+            v = await func(*args, **kwargs)
+
+            with suppress(ValueError):
+                cache[k] = v
+
+            return v
+
+        def cache_clear():
+            cache.clear()
+
+        wrapper.cache = cache
+        wrapper.cache_clear = cache_clear
+
+        return functools.update_wrapper(wrapper, func)
+
+    return decorator
 
 
 @implementer(IPolicyForHTTPS)
@@ -231,6 +261,7 @@ class InviteChecker:
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str
     ) -> Literal["NOT_SPAM"] | errors.Codes:
+        # Check local invites first, no need to check federation invites for those
         if self.api.is_mine(inviter):
             direct = await self.api.account_data_manager.get_global(
                 inviter, AccountDataTypes.DIRECT
@@ -241,9 +272,34 @@ class InviteChecker:
                         # Can't invite to DM!
                         return errors.Codes.FORBIDDEN
 
-            # local invites are always valid, if they are not to a dm
-            if self.api.is_mine(invitee):
-                return NOT_SPAM
+            # local invites are always valid, if they are not to a dm.
+            # There are no checks done for outgoing invites apart from in the federation proxy,
+            # which checks all requests.
+            # if self.api.is_mine(invitee):
+            return NOT_SPAM
+
+        inviter_id = UserID.from_string(inviter)
+        inviter_domain = inviter_id.domain
+        fedlist = await self.fetch_federation_allow_list()
+        if inviter_domain not in fedlist:
+            self.fetch_federation_allow_list.cache_clear()
+            fedlist = await self.fetch_federation_allow_list()
+
+            if inviter_domain not in fedlist:
+                logger.warning("Discarding invite from domain: %s", inviter_domain)
+                return errors.Codes.FORBIDDEN
+
+        contact = await self.store.get_contact(UserID.from_string(invitee), inviter)
+        seconds_since_epoch = int(time.time())
+        if (
+            contact
+            and contact.inviteSettings.start <= seconds_since_epoch
+            and (
+                contact.inviteSettings.end is None
+                or contact.inviteSettings.end >= seconds_since_epoch
+            )
+        ):
+            return NOT_SPAM
 
         # TODO(Nico): implement remaining rules
         return errors.Codes.FORBIDDEN

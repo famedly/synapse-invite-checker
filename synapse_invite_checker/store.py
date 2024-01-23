@@ -42,7 +42,7 @@ class InviteCheckerStore(SQLBaseStore):
     async def ensure_table_exists(self):
         if not self.db_checked:
 
-            def ensure_table_exists_txn(txn: LoggingTransaction) -> None:
+            def ensure_table_exists_txn(txn: LoggingTransaction) -> bool:
                 sql = """
                     CREATE TABLE IF NOT EXISTS famedly_invite_checker (
                         user TEXT NOT NULL,
@@ -52,7 +52,6 @@ class InviteCheckerStore(SQLBaseStore):
                         contact_invite_settings_end BIGINT
                     );
                     """
-
                 txn.execute(sql)
                 txn.execute(
                     """
@@ -66,9 +65,10 @@ class InviteCheckerStore(SQLBaseStore):
                             ON famedly_invite_checker(user, contact_mxid);
                             """
                 )
+                return True
 
             await self.db_pool.runInteraction(
-                "get_user_id_for_token", ensure_table_exists_txn
+                "ensure_invite_checker_table_exists", ensure_table_exists_txn
             )
 
             self.db_checked = True
@@ -82,7 +82,7 @@ class InviteCheckerStore(SQLBaseStore):
                 "contact_display_name",
                 "contact_mxid",
                 "contact_invite_settings_start",
-                "contact_invite_settings_start",
+                "contact_invite_settings_end",
             ),
             desc="famedly_invite_checker_get_contacts",
         )
@@ -129,7 +129,7 @@ class InviteCheckerStore(SQLBaseStore):
                 "contact_display_name",
                 "contact_mxid",
                 "contact_invite_settings_start",
-                "contact_invite_settings_start",
+                "contact_invite_settings_end",
             ),
             desc="famedly_invite_checker_get_contact",
             allow_none=True,
