@@ -15,7 +15,7 @@
 import base64
 import logging
 from typing import Literal
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from asyncache import cached
 from cachetools import TTLCache
@@ -63,10 +63,17 @@ class MtlsPolicy:
 
         self.url = urlparse(config.federation_list_url)
 
-        with open(config.federation_list_client_cert) as file:
-            content = file.read()
+        # if no certificate is specified, we assume the connection uses http and no MTLS
+        client_cert = None
+        if config.federation_list_client_cert:
+            with open(config.federation_list_client_cert) as file:
+                content = file.read()
 
-        client_cert = PrivateCertificate.loadPEM(content)
+            client_cert = PrivateCertificate.loadPEM(content)
+        elif self.url.scheme != "http":
+            msg = "No mtls cert and scheme is not http"
+            raise Exception(msg)
+
         self.options = optionsForClientTLS(
             self.url.hostname, platformTrust(), clientCertificate=client_cert
         )
@@ -154,12 +161,15 @@ class InviteChecker:
         _config.federation_list_url = config.get("federation_list_url", "")
         _config.gematik_ca_baseurl = config.get("gematik_ca_baseurl", "")
 
-        if (
-            not _config.federation_list_client_cert
-            or not _config.federation_list_url
-            or not _config.gematik_ca_baseurl
-        ):
+        if not _config.federation_list_url or not _config.gematik_ca_baseurl:
             msg = "Incomplete federation list config"
+            raise Exception(msg)
+
+        if (
+            _config.federation_list_url.startswith("https")
+            and not _config.federation_list_client_cert
+        ):
+            msg = "Federation list config requires an mtls (PEM) cert for https connections"
             raise Exception(msg)
 
         return _config
@@ -177,7 +187,7 @@ class InviteChecker:
 
     async def _raw_gematik_intermediate_cert_fetch(self, cn: str) -> bytes:
         return await self.api.http_client.get_raw(
-            f"{self.config.gematik_ca_baseurl}/ECC/SUB-CA/{cn}.der"
+            f"{self.config.gematik_ca_baseurl}/ECC/SUB-CA/{quote(cn, safe='')}.der"
         )
 
     def _load_cert_b64(self, cert: str) -> X509:
