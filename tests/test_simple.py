@@ -126,6 +126,24 @@ def return_gem_cert(cn: str) -> bytes:
     raise Exception("Could not find cert" + cn)
 
 
+def return_localization(mxid: str) -> str:
+    if mxid in {
+        "@mxid:test.amp.chat",
+        "matrix:u/matrixuri%3Atest.amp.chat",
+        "matrix:user/gematikuri%3Atest.amp.chat",
+    }:
+        return "pract"
+    if mxid in {
+        "@mxid404:test.amp.chat",
+        "matrix:u/matrixuri404%3Atest.amp.chat",
+        "matrix:user/gematikuri404%3Atest.amp.chat",
+    }:
+        raise errors.HttpResponseException(404, "Not found", b"")
+    if mxid == "matrix:u/a%3Atest":
+        return "orgPract"
+    return "none"
+
+
 class ModuleApiTestCase(synapsetest.HomeserverTestCase):
     @classmethod
     def setUpClass(cls):
@@ -141,15 +159,21 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
             "synapse_invite_checker.InviteChecker._raw_gematik_intermediate_cert_fetch",
             new=AsyncMock(side_effect=return_gem_cert),
         )
+        cls._patcher4 = patch(
+            "synapse_invite_checker.InviteChecker._raw_localization_fetch",
+            new=AsyncMock(side_effect=return_localization),
+        )
         cls._patcher1.start()
         cls._patcher2.start()
         cls._patcher3.start()
+        cls._patcher4.start()
 
     @classmethod
     def tearDownClass(cls):
         cls._patcher1.stop()
         cls._patcher2.stop()
         cls._patcher3.stop()
+        cls._patcher4.stop()
 
     servlets = [
         admin.register_servlets,
@@ -190,6 +214,7 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
                     "module": "synapse_invite_checker.InviteChecker",
                     "config": {
                         "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
+                        "federation_localization_url": "http://dummy.test/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                     },
@@ -224,6 +249,7 @@ class InfoResourceTest(ModuleApiTestCase):
                         "description": "def",
                         "contact": "ghi",
                         "federation_list_url": "https://localhost:8080",
+                        "federation_localization_url": "https://localhost:8000/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                     },
@@ -381,7 +407,7 @@ class RemoteInviteTest(ModuleApiTestCase):
         domains = await invchecker.fetch_federation_allow_list()
         assert "test.amp.chat" in domains
 
-    async def test_invite_from_remote_outside_of_fed(self) -> None:
+    async def test_invite_from_remote_outside_of_fed_list(self) -> None:
         """Tests that an invite from a remote server not in the federation list gets denied"""
 
         channel = self.make_request(
@@ -440,6 +466,51 @@ class RemoteInviteTest(ModuleApiTestCase):
         assert (
             await self.may_invite(
                 "@example2:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+
+    async def test_invite_from_publicly_listed_practitioners(self) -> None:
+        """Tests that an invite from a remote server gets accepted when in the federation list and both practitioners are public"""
+        assert (
+            await self.may_invite(
+                "@mxid:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@matrixuri:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@gematikuri:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@mxid404:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        assert (
+            await self.may_invite(
+                "@matrixuri404:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        assert (
+            await self.may_invite(
+                "@gematikuri404:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        assert (
+            await self.may_invite(
+                "@unknown:test.amp.chat", self.user_a, "!madeup:example.com"
             )
             == errors.Codes.FORBIDDEN
         )
