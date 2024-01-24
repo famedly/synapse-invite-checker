@@ -32,6 +32,13 @@ Here are the available configuration options:
 modules:
   - module: "synapse_invite_checker.InviteChecker"
     config:
+        api_prefix: "/_synapse/client/test", # Prefix to expose these endpoints under, optional, configure only if you know why you need to change it.
+        title: "TIM Contact API by Famedly", # Title for the info endpoint, optional
+        description: "Custom description for the endpoint", # Description for the info endpoint, optional
+        contact: "random@example.com", # Contact information for the info endpoint, optional
+        federation_list_url: "https://localhost:8080", # Full url where to fetch the federation list from, required
+        federation_list_client_cert: "tests/certs/client.pem", # path to a pem encoded client certificate for mtls, required
+        gematik_ca_baseurl: "https://download-ref.tsl.ti-dienste.de/", # the baseurl to the ca to use for the federation list, required
 ```
 
 ## Testing

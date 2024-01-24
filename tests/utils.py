@@ -41,7 +41,9 @@ def default_config(name: str, parse: Literal[True]) -> HomeServerConfig:
     ...
 
 
-def default_config(name: str, parse: bool = False) -> dict[str, object] | HomeServerConfig:
+def default_config(
+    name: str, parse: bool = False
+) -> dict[str, object] | HomeServerConfig:
     """
     Create a reasonable test config.
     """
@@ -261,7 +263,9 @@ async def create_room(hs: HomeServer, room_id: str, creator_id: str) -> None:
         },
     )
 
-    event, unpersisted_context = await event_creation_handler.create_new_client_event(builder)
+    event, unpersisted_context = await event_creation_handler.create_new_client_event(
+        builder
+    )
     context = await unpersisted_context.persist(event)
 
     await persistence_store.persist_event(event, context)

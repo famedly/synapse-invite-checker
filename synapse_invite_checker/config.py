@@ -21,3 +21,6 @@ class InviteCheckerConfig:
     title: str = "Invite Checker module by Famedly"
     description: str = "Invite Checker module by Famedly"
     contact: str = "info@famedly.com"
+    federation_list_url: str = ""
+    federation_list_client_cert: str = ""
+    gematik_ca_baseurl: str = ""

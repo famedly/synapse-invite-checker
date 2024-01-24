@@ -178,7 +178,9 @@ class FakeChannel:
             h.addRawHeader(*i)
         return h
 
-    def writeHeaders(self, version: bytes, code: bytes, reason: bytes, headers: Headers) -> None:
+    def writeHeaders(
+        self, version: bytes, code: bytes, reason: bytes, headers: Headers
+    ) -> None:
         self.result["version"] = version
         self.result["code"] = code
         self.result["reason"] = reason
@@ -367,7 +369,11 @@ def make_request(
         path = path.encode("ascii")
 
     # Decorate it to be the full path, if we're using shorthand
-    if shorthand and not path.startswith(b"/_matrix") and not path.startswith(b"/_synapse"):
+    if (
+        shorthand
+        and not path.startswith(b"/_matrix")
+        and not path.startswith(b"/_synapse")
+    ):
         if path.startswith(b"/"):
             path = path[1:]
         path = b"/_matrix/client/r0/" + path
@@ -391,10 +397,14 @@ def make_request(
 
     # Old version of Twisted (<20.3.0) have issues with parsing x-www-form-urlencoded
     # bodies if the Content-Length header is missing
-    req.requestHeaders.addRawHeader(b"Content-Length", str(len(content)).encode("ascii"))
+    req.requestHeaders.addRawHeader(
+        b"Content-Length", str(len(content)).encode("ascii")
+    )
 
     if access_token:
-        req.requestHeaders.addRawHeader(b"Authorization", b"Bearer " + access_token.encode("ascii"))
+        req.requestHeaders.addRawHeader(
+            b"Authorization", b"Bearer " + access_token.encode("ascii")
+        )
 
     if federation_auth_origin is not None:
         req.requestHeaders.addRawHeader(
@@ -404,7 +414,9 @@ def make_request(
 
     if content:
         if content_is_form:
-            req.requestHeaders.addRawHeader(b"Content-Type", b"application/x-www-form-urlencoded")
+            req.requestHeaders.addRawHeader(
+                b"Content-Type", b"application/x-www-form-urlencoded"
+            )
         else:
             # Assume the body is JSON
             req.requestHeaders.addRawHeader(b"Content-Type", b"application/json")
@@ -442,7 +454,9 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
 
         @implementer(IResolverSimple)
         class FakeResolver:
-            def getHostByName(self, name: str, timeout: Sequence[int] | None = None) -> "Deferred[str]":
+            def getHostByName(
+                self, name: str, timeout: Sequence[int] | None = None
+            ) -> "Deferred[str]":
                 if name not in lookups:
                     return fail(DNSLookupError(f"OH NO: unknown {name}"))
                 return succeed(lookups[name])
@@ -475,7 +489,9 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         self._udp.append(p)
         return p
 
-    def callFromThread(self, callable_: Callable[..., Any], *args: object, **kwargs: object) -> None:
+    def callFromThread(
+        self, callable_: Callable[..., Any], *args: object, **kwargs: object
+    ) -> None:
         """
         Make the callback fire in the next reactor iteration.
         """
@@ -487,7 +503,9 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         # separate queue.
         self._thread_callbacks.append(cb)
 
-    def callInThread(self, callable_: Callable[..., Any], *args: object, **kwargs: object) -> None:
+    def callInThread(
+        self, callable_: Callable[..., Any], *args: object, **kwargs: object
+    ) -> None:
         raise NotImplementedError
 
     def suggestThreadPoolSize(self, size: int) -> None:
@@ -497,7 +515,9 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         # Cast to match super-class.
         return cast(threadpool.ThreadPool, self.threadpool)
 
-    def add_tcp_client_callback(self, host: str, port: int, callback: Callable[[], None]) -> None:
+    def add_tcp_client_callback(
+        self, host: str, port: int, callback: Callable[[], None]
+    ) -> None:
         """Add a callback that will be invoked when we receive a connection
         attempt to the given IP/port using `connectTCP`.
 
@@ -547,7 +567,9 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
     ) -> IConnector:
         """Fake L{IReactorTCP.connectTCP}."""
 
-        conn = super().connectTCP(host, port, factory, timeout=timeout, bindAddress=None)
+        conn = super().connectTCP(
+            host, port, factory, timeout=timeout, bindAddress=None
+        )
         if self.lookups and host in self.lookups:
             validate_connector(conn, self.lookups[host])
 
@@ -674,7 +696,9 @@ def _make_test_homeserver_synchronous(server: HomeServer) -> None:
         pool = database._db_pool
 
         def wrap_pool(pool):
-            def runWithConnection(func: Callable[..., R], *args: Any, **kwargs: Any) -> Awaitable[R]:
+            def runWithConnection(
+                func: Callable[..., R], *args: Any, **kwargs: Any
+            ) -> Awaitable[R]:
                 return threads.deferToThreadPool(
                     pool._reactor,
                     pool.threadpool,
@@ -684,7 +708,9 @@ def _make_test_homeserver_synchronous(server: HomeServer) -> None:
                     **kwargs,
                 )
 
-            def runInteraction(desc: str, func: Callable[..., R], *args: Any, **kwargs: Any) -> Awaitable[R]:
+            def runInteraction(
+                desc: str, func: Callable[..., R], *args: Any, **kwargs: Any
+            ) -> Awaitable[R]:
                 return threads.deferToThreadPool(
                     pool._reactor,
                     pool.threadpool,
@@ -743,10 +769,14 @@ class FakeTransport:
     will get called back for connectionLost() notifications etc.
     """
 
-    _peer_address: IAddress = attr.Factory(lambda: address.IPv4Address("TCP", "127.0.0.1", 5678))
+    _peer_address: IAddress = attr.Factory(
+        lambda: address.IPv4Address("TCP", "127.0.0.1", 5678)
+    )
     """The value to be returned by getPeer"""
 
-    _host_address: IAddress = attr.Factory(lambda: address.IPv4Address("TCP", "127.0.0.1", 1234))
+    _host_address: IAddress = attr.Factory(
+        lambda: address.IPv4Address("TCP", "127.0.0.1", 1234)
+    )
     """The value to be returned by getHost"""
 
     disconnecting = False
@@ -767,11 +797,15 @@ class FakeTransport:
             logger.info("FakeTransport: loseConnection()")
             self.disconnecting = True
             if self._protocol:
-                self._protocol.connectionLost(Failure(RuntimeError("FakeTransport.loseConnection()")))
+                self._protocol.connectionLost(
+                    Failure(RuntimeError("FakeTransport.loseConnection()"))
+                )
 
             # if we still have data to write, delay until that is done
             if self.buffer:
-                logger.info("FakeTransport: Delaying disconnect until buffer is flushed")
+                logger.info(
+                    "FakeTransport: Delaying disconnect until buffer is flushed"
+                )
             else:
                 self.connected = False
                 self.disconnected = True
@@ -864,7 +898,9 @@ class FakeTransport:
             self.disconnected = True
 
 
-def connect_client(reactor: ThreadedMemoryReactorClock, client_id: int) -> tuple[IProtocol, AccumulatingProtocol]:
+def connect_client(
+    reactor: ThreadedMemoryReactorClock, client_id: int
+) -> tuple[IProtocol, AccumulatingProtocol]:
     """
     Connect a client to a fake TCP transport.
 
@@ -937,7 +973,9 @@ def setup_test_homeserver(
     global PREPPED_SQLITE_DB_CONN
     if PREPPED_SQLITE_DB_CONN is None:
         temp_engine = create_engine(database_config)
-        PREPPED_SQLITE_DB_CONN = LoggingDatabaseConnection(sqlite3.connect(":memory:"), temp_engine, "PREPPED_CONN")
+        PREPPED_SQLITE_DB_CONN = LoggingDatabaseConnection(
+            sqlite3.connect(":memory:"), temp_engine, "PREPPED_CONN"
+        )
 
         database = DatabaseConnectionConfig("master", database_config)
         config.database.databases = [database]
@@ -989,7 +1027,7 @@ def setup_test_homeserver(
     # Load any configured modules into the homeserver
     module_api = hs.get_module_api()
     for module, module_config in hs.config.modules.loaded_modules:
-        module(config=module_config, api=module_api)
+        hs.mockmod = module(config=module_config, api=module_api)
         logger.debug("Loaded module %s %r", module, module_config)
 
     load_legacy_spam_checkers(hs)

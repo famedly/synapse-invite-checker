@@ -16,7 +16,11 @@ import logging
 
 from synapse.server import HomeServer
 from synapse.storage._base import SQLBaseStore
-from synapse.storage.database import DatabasePool, LoggingDatabaseConnection, LoggingTransaction
+from synapse.storage.database import (
+    DatabasePool,
+    LoggingDatabaseConnection,
+    LoggingTransaction,
+)
 from synapse.types import UserID
 
 from synapse_invite_checker.types import Contact, Contacts, InviteSettings
@@ -63,7 +67,9 @@ class InviteCheckerStore(SQLBaseStore):
                             """
                 )
 
-            await self.db_pool.runInteraction("get_user_id_for_token", ensure_table_exists_txn)
+            await self.db_pool.runInteraction(
+                "get_user_id_for_token", ensure_table_exists_txn
+            )
 
             self.db_checked = True
 
@@ -82,7 +88,11 @@ class InviteCheckerStore(SQLBaseStore):
         )
         return Contacts(
             contacts=[
-                Contact(displayName=name, mxid=mxid, inviteSettings=InviteSettings(start=start, end=end))
+                Contact(
+                    displayName=name,
+                    mxid=mxid,
+                    inviteSettings=InviteSettings(start=start, end=end),
+                )
                 for (name, mxid, start, end) in contacts
             ]
         )
@@ -126,5 +136,9 @@ class InviteCheckerStore(SQLBaseStore):
         )
         if contact:
             (name, mxid, start, end) = contact
-            return Contact(displayName=name, mxid=mxid, inviteSettings=InviteSettings(start=start, end=end))
+            return Contact(
+                displayName=name,
+                mxid=mxid,
+                inviteSettings=InviteSettings(start=start, end=end),
+            )
         return None

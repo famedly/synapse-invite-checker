@@ -16,7 +16,10 @@ import re
 from http import HTTPStatus
 
 from pydantic import ValidationError
-from synapse.http.servlet import RestServlet, parse_and_validate_json_object_from_request
+from synapse.http.servlet import (
+    RestServlet,
+    parse_and_validate_json_object_from_request,
+)
 from synapse.http.site import SynapseRequest
 from synapse.module_api import ModuleApi, errors
 from synapse.types import JsonDict
@@ -56,7 +59,9 @@ class InfoResource(RestServlet):
 
 
 class ContactsResource(RestServlet):
-    def __init__(self, api: ModuleApi, store: InviteCheckerStore, config: InviteCheckerConfig):
+    def __init__(
+        self, api: ModuleApi, store: InviteCheckerStore, config: InviteCheckerConfig
+    ):
         super().__init__()
         self.store = store
         self.api = api
@@ -65,7 +70,10 @@ class ContactsResource(RestServlet):
     # @override
     async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
         requester = await self.api.get_user_by_req(request)
-        return HTTPStatus.OK, (await self.store.get_contacts(requester.user)).model_dump()
+        return (
+            HTTPStatus.OK,
+            (await self.store.get_contacts(requester.user)).model_dump(),
+        )
 
     async def on_POST(self, request: SynapseRequest) -> tuple[int, JsonDict]:
         return await self.on_PUT(request)
@@ -87,7 +95,9 @@ class ContactsResource(RestServlet):
 
 
 class ContactResource(RestServlet):
-    def __init__(self, api: ModuleApi, store: InviteCheckerStore, config: InviteCheckerConfig):
+    def __init__(
+        self, api: ModuleApi, store: InviteCheckerStore, config: InviteCheckerConfig
+    ):
         super().__init__()
         self.store = store
         self.api = api
@@ -103,7 +113,9 @@ class ContactResource(RestServlet):
 
         return HTTPStatus.NOT_FOUND, {}
 
-    async def on_DELETE(self, request: SynapseRequest, mxid: str) -> tuple[int, JsonDict]:
+    async def on_DELETE(
+        self, request: SynapseRequest, mxid: str
+    ) -> tuple[int, JsonDict]:
         requester = await self.api.get_user_by_req(request)
 
         contact = await self.store.get_contact(requester.user, mxid)
