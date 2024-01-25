@@ -3,7 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/synapse-invite-checker.svg)](https://pypi.org/project/synapse-invite-checker)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/synapse-invite-checker.svg)](https://pypi.org/project/synapse-invite-checker)
 
-Synapse Invite Policies is a synapse module to restrict invites on a homeserver. Currently this only supports restricting all outgoing invites.
+Synapse Invite Checker is a synapse module to restrict invites on a homeserver according to the rules required by Gematik in a TIM federation.
 
 ---
 
@@ -16,8 +16,6 @@ Synapse Invite Policies is a synapse module to restrict invites on a homeserver.
 - [License](#license)
 
 ## Installation
-
-**TODO**: requires publishing on pypi.
 
 ```console
 pip install synapse-invite-checker
