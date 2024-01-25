@@ -16,8 +16,9 @@
 import base64
 import json
 from typing import Any
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
+from synapse.module_api import NOT_SPAM, errors
 from synapse.rest import admin
 from synapse.rest.client import (
     account_data,
@@ -29,6 +30,7 @@ from synapse.rest.client import (
 )
 from synapse.server import HomeServer
 from synapse.util import Clock
+from twisted.internet import defer
 from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
@@ -118,7 +120,61 @@ raw_ca_list = """
 gem_komp_ca50_cert = "MIIDUjCCAvigAwIBAgIBJTAKBggqhkjOPQQDAjCBgTELMAkGA1UEBhMCREUxHzAdBgNVBAoMFmdlbWF0aWsgR21iSCBOT1QtVkFMSUQxNDAyBgNVBAsMK1plbnRyYWxlIFJvb3QtQ0EgZGVyIFRlbGVtYXRpa2luZnJhc3RydWt0dXIxGzAZBgNVBAMMEkdFTS5SQ0E0IFRFU1QtT05MWTAeFw0yMTA2MTAxMDQ1MjJaFw0yOTA2MDgxMDQ1MjFaMIGEMQswCQYDVQQGEwJERTEfMB0GA1UECgwWZ2VtYXRpayBHbWJIIE5PVC1WQUxJRDEyMDAGA1UECwwpS29tcG9uZW50ZW4tQ0EgZGVyIFRlbGVtYXRpa2luZnJhc3RydWt0dXIxIDAeBgNVBAMMF0dFTS5LT01QLUNBNTAgVEVTVC1PTkxZMFowFAYHKoZIzj0CAQYJKyQDAwIIAQEHA0IABGDIQ/rR6jYzxjGyPmesnz5SbWNShsVyV4xDAkTYCqYrDCcsT8hYY7f/i9SvsePMTT4FiISKsE1i6TgnZmxW3OejggFZMIIBVTAdBgNVHQ4EFgQUOuKqJZJOrKmUfc8ZaeoTBrmoMNMwHwYDVR0jBBgwFoAUUdvZZkKzSis/VyxUjYVzHedXz38wSgYIKwYBBQUHAQEEPjA8MDoGCCsGAQUFBzABhi5odHRwOi8vb2NzcC10ZXN0cmVmLnJvb3QtY2EudGktZGllbnN0ZS5kZS9vY3NwMA4GA1UdDwEB/wQEAwIBBjBGBgNVHSAEPzA9MDsGCCqCFABMBIEjMC8wLQYIKwYBBQUHAgEWIWh0dHA6Ly93d3cuZ2VtYXRpay5kZS9nby9wb2xpY2llczBbBgNVHREEVDBSoFAGA1UECqBJDEdnZW1hdGlrIEdlc2VsbHNjaGFmdCBmw7xyIFRlbGVtYXRpa2Fud2VuZHVuZ2VuIGRlciBHZXN1bmRoZWl0c2thcnRlIG1iSDASBgNVHRMBAf8ECDAGAQH/AgEAMAoGCCqGSM49BAMCA0gAMEUCIFon6V178kFN5t6+CyZG+QxZ2uM4J31/lVe7LZyG2edMAiEAgNKUdc2aq8Sl32sDt46OAid4UWRGDwnkdij5dR1s5xA="
 
 
+def return_gem_cert(cn: str) -> bytes:
+    if cn == "GEM.KOMP-CA50 TEST-ONLY":
+        return base64.b64decode(gem_komp_ca50_cert)
+    raise Exception("Could not find cert" + cn)
+
+
+def return_localization(mxid: str) -> str:
+    if mxid in {
+        "@mxid:test.amp.chat",
+        "matrix:u/matrixuri%3Atest.amp.chat",
+        "matrix:user/gematikuri%3Atest.amp.chat",
+    }:
+        return "pract"
+    if mxid in {
+        "@mxid404:test.amp.chat",
+        "matrix:u/matrixuri404%3Atest.amp.chat",
+        "matrix:user/gematikuri404%3Atest.amp.chat",
+    }:
+        raise errors.HttpResponseException(404, "Not found", b"")
+    if mxid == "matrix:u/a%3Atest":
+        return "orgPract"
+    return "none"
+
+
 class ModuleApiTestCase(synapsetest.HomeserverTestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._patcher1 = patch(
+            "synapse_invite_checker.InviteChecker._raw_federation_list_fetch",
+            new=AsyncMock(return_value=rawjwt),
+        )
+        cls._patcher2 = patch(
+            "synapse_invite_checker.InviteChecker._raw_gematik_root_ca_fetch",
+            new=AsyncMock(return_value=json.loads(raw_ca_list)),
+        )
+        cls._patcher3 = patch(
+            "synapse_invite_checker.InviteChecker._raw_gematik_intermediate_cert_fetch",
+            new=AsyncMock(side_effect=return_gem_cert),
+        )
+        cls._patcher4 = patch(
+            "synapse_invite_checker.InviteChecker._raw_localization_fetch",
+            new=AsyncMock(side_effect=return_localization),
+        )
+        cls._patcher1.start()
+        cls._patcher2.start()
+        cls._patcher3.start()
+        cls._patcher4.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._patcher1.stop()
+        cls._patcher2.stop()
+        cls._patcher3.stop()
+        cls._patcher4.stop()
+
     servlets = [
         admin.register_servlets,
         account_data.register_servlets,
@@ -158,18 +214,13 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
                     "module": "synapse_invite_checker.InviteChecker",
                     "config": {
                         "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
+                        "federation_localization_url": "http://dummy.test/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                     },
                 }
             ]
         return conf
-
-
-def return_gem_cert(cn: str) -> bytes:
-    if cn == "GEM.KOMP-CA50 TEST-ONLY":
-        return base64.b64decode(gem_komp_ca50_cert)
-    raise Exception("Could not find cert" + cn)
 
 
 class InfoResourceTest(ModuleApiTestCase):
@@ -187,19 +238,6 @@ class InfoResourceTest(ModuleApiTestCase):
         assert channel.json_body["contact"] == "info@famedly.com"
         assert channel.json_body["version"], "Version returned"
 
-        invchecker = InviteChecker(
-            self.hs.config.modules.loaded_modules[0][1], self.hs.get_module_api()
-        )
-        invchecker._raw_federation_list_fetch = AsyncMock(return_value=rawjwt)
-        invchecker._raw_gematik_root_ca_fetch = AsyncMock(
-            return_value=json.loads(raw_ca_list)
-        )
-        invchecker._raw_gematik_intermediate_cert_fetch = AsyncMock(
-            side_effect=return_gem_cert
-        )
-        domains = await invchecker.fetch_federation_allow_list()
-        assert "test.amp.chat" in domains
-
     @synapsetest.override_config(
         {
             "modules": [
@@ -211,6 +249,7 @@ class InfoResourceTest(ModuleApiTestCase):
                         "description": "def",
                         "contact": "ghi",
                         "federation_list_url": "https://localhost:8080",
+                        "federation_localization_url": "https://localhost:8000/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                     },
@@ -334,6 +373,146 @@ class LocalInviteTest(ModuleApiTestCase):
             targ=self.user_b,
             tok=self.access_token,
             expect_code=200,
+        )
+
+
+class RemoteInviteTest(ModuleApiTestCase):
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.user_a = self.register_user("a", "password")
+        self.access_token = self.login("a", "password")
+        self.user_b = self.register_user("b", "password")
+        self.user_c = self.register_user("c", "password")
+
+        # authenticated as user_a
+        self.helper.auth_user_id = self.user_a
+
+    async def may_invite(self, inviter: str, invitee: str, roomid: str):
+        req = defer.ensureDeferred(
+            self.hs.get_module_api()._callbacks.spam_checker.user_may_invite(
+                inviter, invitee, roomid
+            )
+        )
+        self.wait_on_thread(req)
+        ret = self.get_success(req)
+        if ret == NOT_SPAM:
+            return NOT_SPAM
+        return ret[0]  # return first code instead of all of them to make assert easier
+
+    async def test_federation_list(self) -> None:
+        """Ensure we can properly fetch the federation list"""
+        invchecker = InviteChecker(
+            self.hs.config.modules.loaded_modules[0][1], self.hs.get_module_api()
+        )
+        domains = await invchecker.fetch_federation_allow_list()
+        assert "test.amp.chat" in domains
+
+    async def test_invite_from_remote_outside_of_fed_list(self) -> None:
+        """Tests that an invite from a remote server not in the federation list gets denied"""
+
+        channel = self.make_request(
+            "PUT",
+            "/_synapse/client/com.famedly/tim/v1/contacts",
+            {
+                "displayName": "Test User",
+                "mxid": "@example:test.amp.chat",
+                "inviteSettings": {
+                    "start": 0,
+                },
+            },
+            access_token=self.access_token,
+        )
+        assert channel.code == 200, channel.result
+
+        channel = self.make_request(
+            "PUT",
+            "/_synapse/client/com.famedly/tim/v1/contacts",
+            {
+                "displayName": "Test User",
+                "mxid": "@example:not-test.amp.chat",
+                "inviteSettings": {
+                    "start": 0,
+                },
+            },
+            access_token=self.access_token,
+        )
+        assert channel.code == 200, channel.result
+
+        assert (
+            await self.may_invite(
+                "@example:not-test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        # currently not testing modifying the fed list atm
+        assert (
+            await self.may_invite(
+                "@example:messenger.spilikin.dev", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        assert (
+            await self.may_invite(
+                "@example:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@example2:not-test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        assert (
+            await self.may_invite(
+                "@example2:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+
+    async def test_invite_from_publicly_listed_practitioners(self) -> None:
+        """Tests that an invite from a remote server gets accepted when in the federation list and both practitioners are public"""
+        assert (
+            await self.may_invite(
+                "@mxid:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@matrixuri:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@gematikuri:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@mxid404:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        assert (
+            await self.may_invite(
+                "@matrixuri404:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        assert (
+            await self.may_invite(
+                "@gematikuri404:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+        assert (
+            await self.may_invite(
+                "@unknown:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
         )
 
 

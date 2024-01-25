@@ -23,4 +23,5 @@ class InviteCheckerConfig:
     contact: str = "info@famedly.com"
     federation_list_url: str = ""
     federation_list_client_cert: str = ""
+    federation_localization_url: str = ""
     gematik_ca_baseurl: str = ""

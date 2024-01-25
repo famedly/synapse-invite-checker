@@ -13,12 +13,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import base64
+import functools
 import logging
+import time
+from contextlib import suppress
 from typing import Literal
 from urllib.parse import quote, urlparse
 
-from asyncache import cached
-from cachetools import TTLCache
+from cachetools import TTLCache, keys
 from jwcrypto import jwk, jws
 from OpenSSL.crypto import (
     FILETYPE_ASN1,
@@ -36,6 +38,7 @@ from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import make_conn
+from synapse.types import UserID
 from twisted.internet.ssl import PrivateCertificate, optionsForClientTLS, platformTrust
 from twisted.web.client import HTTPConnectionPool
 from twisted.web.iweb import IPolicyForHTTPS
@@ -54,6 +57,33 @@ logger = logging.getLogger(__name__)
 
 # We need to acces the private API in some places, in particular the store and the homeserver
 # ruff: noqa: SLF001
+
+
+def cached(cache):
+    """Simplified cached decorator from cachetools, that allows calling an async function."""
+
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            k = keys.hashkey(*args, **kwargs)
+            with suppress(KeyError):
+                return cache[k]
+
+            v = await func(*args, **kwargs)
+
+            with suppress(ValueError):
+                cache[k] = v
+
+            return v
+
+        def cache_clear():
+            cache.clear()
+
+        wrapper.cache = cache
+        wrapper.cache_clear = cache_clear
+
+        return functools.update_wrapper(wrapper, func)
+
+    return decorator
 
 
 @implementer(IPolicyForHTTPS)
@@ -159,10 +189,23 @@ class InviteChecker:
             "federation_list_client_cert", ""
         )
         _config.federation_list_url = config.get("federation_list_url", "")
+        _config.federation_localization_url = config.get(
+            "federation_localization_url", ""
+        )
         _config.gematik_ca_baseurl = config.get("gematik_ca_baseurl", "")
 
         if not _config.federation_list_url or not _config.gematik_ca_baseurl:
             msg = "Incomplete federation list config"
+            raise Exception(msg)
+
+        if (
+            not _config.federation_localization_url
+            or urlparse(_config.federation_list_url).hostname
+            != urlparse(_config.federation_localization_url).hostname
+            or urlparse(_config.federation_list_url).scheme
+            != urlparse(_config.federation_localization_url).scheme
+        ):
+            msg = "Expected localization url on the same host as federation list"
             raise Exception(msg)
 
         if (
@@ -173,6 +216,40 @@ class InviteChecker:
             raise Exception(msg)
 
         return _config
+
+    async def _raw_localization_fetch(self, mxid: str) -> str:
+        resp = await self.federation_list_client.get_raw(
+            self.config.federation_localization_url, {"mxid": mxid}
+        )
+        return resp.decode()
+
+    async def fetch_localization_for_mxid(self, mxid: str) -> str:
+        """Fetches from the VZD if this mxid is org, pract, orgPract or none.
+        Sadly the specification mixes mxids and matrix uris (in incorrect formats) several times,
+        which is why we need to try all of the variations for now until we know what is correct.
+        """
+
+        with suppress(errors.HttpResponseException):
+            # this format matches the matrix spec, but not the gematik documentation...
+            matrix_uri = f"matrix:u/{quote(mxid[1:], safe='')}"
+            loc = await self._raw_localization_fetch(matrix_uri)
+            if loc != "none":
+                return loc
+
+        with suppress(errors.HttpResponseException):
+            # this format matches the gematik spec, but not the matrix spec for URIs nor the actual practice...
+            matrix_uri = f"matrix:user/{quote(mxid[1:], safe='')}"
+            loc = await self._raw_localization_fetch(matrix_uri)
+            if loc != "none":
+                return loc
+
+        with suppress(errors.HttpResponseException):
+            # The test servers all have written mxids into them instead of matrix uris as required
+            loc = await self._raw_localization_fetch(mxid)
+            if loc != "none":
+                return loc
+
+        return "none"
 
     async def _raw_federation_list_fetch(self) -> str:
         resp = await self.federation_list_client.get_raw(
@@ -231,6 +308,8 @@ class InviteChecker:
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str
     ) -> Literal["NOT_SPAM"] | errors.Codes:
+        # Check local invites first, no need to check federation invites for those
+        # This verifies that local users can't invite into their DMs as verified by a few tests in the Testsuite
         if self.api.is_mine(inviter):
             direct = await self.api.account_data_manager.get_global(
                 inviter, AccountDataTypes.DIRECT
@@ -241,9 +320,43 @@ class InviteChecker:
                         # Can't invite to DM!
                         return errors.Codes.FORBIDDEN
 
-            # local invites are always valid, if they are not to a dm
-            if self.api.is_mine(invitee):
-                return NOT_SPAM
+            # local invites are always valid, if they are not to a dm.
+            # There are no checks done for outgoing invites apart from in the federation proxy,
+            # which checks all requests.
+            # if self.api.is_mine(invitee):
+            return NOT_SPAM
 
-        # TODO(Nico): implement remaining rules
+        # Step 1, check federation allow list
+        inviter_id = UserID.from_string(inviter)
+        inviter_domain = inviter_id.domain
+        fedlist = await self.fetch_federation_allow_list()
+        if inviter_domain not in fedlist:
+            self.fetch_federation_allow_list.cache_clear()
+            fedlist = await self.fetch_federation_allow_list()
+
+            if inviter_domain not in fedlist:
+                logger.warning("Discarding invite from domain: %s", inviter_domain)
+                return errors.Codes.FORBIDDEN
+
+        # Step 2, check invite settings
+        contact = await self.store.get_contact(UserID.from_string(invitee), inviter)
+        seconds_since_epoch = int(time.time())
+        if (
+            contact
+            and contact.inviteSettings.start <= seconds_since_epoch
+            and (
+                contact.inviteSettings.end is None
+                or contact.inviteSettings.end >= seconds_since_epoch
+            )
+        ):
+            return NOT_SPAM
+
+        # Step 3, no active invite settings found, ensure both users are publicly viewable as pract or orgPract
+        visible = ["pract", "orgPract"]
+        if (await self.fetch_localization_for_mxid(inviter)) in visible and (
+            await self.fetch_localization_for_mxid(invitee)
+        ) in visible:
+            return NOT_SPAM
+
+        # Forbid everything else (so remote invites not matching step1, 2 or 3)
         return errors.Codes.FORBIDDEN
