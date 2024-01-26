@@ -25,10 +25,9 @@ dependencies = [
   "cachetools",
   "asyncache",
   "jwcrypto",
-  "pyopenssl",
-  "matrix-synapse"
+  "pyopenssl"
 ]
-version = "0.0.2"
+version = "0.0.3"
 
 [project.urls]
 Documentation = "https://github.com/famedly/synapse-invite-checker#synapse-invite-checker"
@@ -40,7 +39,8 @@ dependencies = [
   "black",
   "pytest",
   "pytest-cov",
-  "mock"
+  "mock",
+  "matrix-synapse" # we don't depend on synapse directly to prevent pip from pulling the wrong synapse, when we just want to install the module
 ]
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
