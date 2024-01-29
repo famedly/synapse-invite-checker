@@ -140,7 +140,7 @@ class FederationAllowListClient(BaseHttpClient):
 
 
 class InviteChecker:
-    __version__ = "0.0.3"
+    __version__ = "0.0.4"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
@@ -264,7 +264,7 @@ class InviteChecker:
 
     async def _raw_gematik_intermediate_cert_fetch(self, cn: str) -> bytes:
         return await self.api.http_client.get_raw(
-            f"{self.config.gematik_ca_baseurl}/ECC/SUB-CA/{quote(cn, safe='')}.der"
+            f"{self.config.gematik_ca_baseurl}/ECC/SUB-CA/{quote(cn.replace(' ', '_'), safe='')}.der"
         )
 
     def _load_cert_b64(self, cert: str) -> X509:
