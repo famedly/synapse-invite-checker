@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.4] - 2023-01-29
+
+- Properly map CN to SUB-CA certificates
+
 ## [0.0.3] - 2023-01-26
 
 - Drop direct dependency on synapse to prevent pip from overwriting the locally installed one
