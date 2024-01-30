@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.5] - 2023-01-30
+
+- Ensure the "user" column name is properly quoted on postgres
+
 ## [0.0.4] - 2023-01-29
 
 - Properly map CN to SUB-CA certificates
