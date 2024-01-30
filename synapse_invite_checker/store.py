@@ -43,26 +43,27 @@ class InviteCheckerStore(SQLBaseStore):
         if not self.db_checked:
 
             def ensure_table_exists_txn(txn: LoggingTransaction) -> bool:
+                # We need to quote at least the user column on postgres
                 sql = """
                     CREATE TABLE IF NOT EXISTS famedly_invite_checker (
-                        user TEXT NOT NULL,
-                        contact_display_name TEXT NOT NULL,
-                        contact_mxid TEXT NOT NULL,
-                        contact_invite_settings_start BIGINT NOT NULL,
-                        contact_invite_settings_end BIGINT
+                        "user" TEXT NOT NULL,
+                        "contact_display_name" TEXT NOT NULL,
+                        "contact_mxid" TEXT NOT NULL,
+                        "contact_invite_settings_start" BIGINT NOT NULL,
+                        "contact_invite_settings_end" BIGINT
                     );
                     """
                 txn.execute(sql)
                 txn.execute(
                     """
                             CREATE INDEX IF NOT EXISTS famedly_invite_checker_user
-                            ON famedly_invite_checker(user);
+                            ON famedly_invite_checker("user");
                             """
                 )
                 txn.execute(
                     """
                             CREATE UNIQUE INDEX IF NOT EXISTS famedly_invite_checker_user_mxid
-                            ON famedly_invite_checker(user, contact_mxid);
+                            ON famedly_invite_checker("user", "contact_mxid");
                             """
                 )
                 return True
