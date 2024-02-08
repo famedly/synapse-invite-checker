@@ -131,16 +131,22 @@ def return_localization(mxid: str) -> str:
         "@mxid:test.amp.chat",
         "matrix:u/matrixuri%3Atest.amp.chat",
         "matrix:user/gematikuri%3Atest.amp.chat",
+        "matrix:u/a%3Atest",
     }:
         return "pract"
+    if mxid in {
+        "@mxidorg:test.amp.chat",
+        "matrix:u/matrixuriorg%3Atest.amp.chat",
+        "matrix:user/gematikuriorg%3Atest.amp.chat",
+        "matrix:u/b%3Atest",
+    }:
+        return "orgPract"
     if mxid in {
         "@mxid404:test.amp.chat",
         "matrix:u/matrixuri404%3Atest.amp.chat",
         "matrix:user/gematikuri404%3Atest.amp.chat",
     }:
         raise errors.HttpResponseException(404, "Not found", b"")
-    if mxid == "matrix:u/a%3Atest":
-        return "orgPract"
     return "none"
 
 
@@ -511,6 +517,57 @@ class RemoteInviteTest(ModuleApiTestCase):
         assert (
             await self.may_invite(
                 "@unknown:test.amp.chat", self.user_a, "!madeup:example.com"
+            )
+            == errors.Codes.FORBIDDEN
+        )
+
+    async def test_invite_from_remote_to_local_org(self) -> None:
+        """Tests that an invite from a remote server gets accepted when in the federation list and the invite is to an orgPract"""
+        assert (
+            await self.may_invite(
+                "@mxid:test.amp.chat", self.user_b, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@matrixuri:test.amp.chat", self.user_b, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@gematikuri:test.amp.chat", self.user_b, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@mxid404:test.amp.chat", self.user_b, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@matrixuri404:test.amp.chat", self.user_b, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@gematikuri404:test.amp.chat", self.user_b, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@unknown:test.amp.chat", self.user_b, "!madeup:example.com"
+            )
+            == NOT_SPAM
+        )
+        assert (
+            await self.may_invite(
+                "@unknown:not.in.fed", self.user_b, "!madeup:example.com"
             )
             == errors.Codes.FORBIDDEN
         )
