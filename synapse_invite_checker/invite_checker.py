@@ -140,7 +140,7 @@ class FederationAllowListClient(BaseHttpClient):
 
 
 class InviteChecker:
-    __version__ = "0.0.6"
+    __version__ = "0.0.7"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
@@ -237,8 +237,23 @@ class InviteChecker:
                 return loc
 
         with suppress(errors.HttpResponseException):
+            # this format matches the matrix spec apart from not encoding the :
+            matrix_uri = f"matrix:u/{quote(mxid[1:], safe=':')}"
+            loc = await self._raw_localization_fetch(matrix_uri)
+            if loc != "none":
+                return loc
+
+        with suppress(errors.HttpResponseException):
             # this format matches the gematik spec, but not the matrix spec for URIs nor the actual practice...
             matrix_uri = f"matrix:user/{quote(mxid[1:], safe='')}"
+            loc = await self._raw_localization_fetch(matrix_uri)
+            if loc != "none":
+                return loc
+
+        with suppress(errors.HttpResponseException):
+            # this format matches the gematik spec, but not the matrix spec for URIs nor the actual practice...
+            # It also doesn't encode the : since we have seen such entries in the wild...
+            matrix_uri = f"matrix:user/{quote(mxid[1:], safe=':')}"
             loc = await self._raw_localization_fetch(matrix_uri)
             if loc != "none":
                 return loc
@@ -354,14 +369,16 @@ class InviteChecker:
         # Step 3, no active invite settings found, ensure we
         # - either invite an org
         # - or both users are practitioners and the invitee has no restrcited visibility
+        # The values org, pract, orgPract stand for org membership, practitioner and both respectively.
         invitee_loc = await self.fetch_localization_for_mxid(invitee)
-        if invitee_loc == "orgPract":
+        if invitee_loc in {"orgPract", "org"}:
             return NOT_SPAM
 
-        visible = "pract"
+        visiblePract = {"pract", "orgPract"}
         if (
-            await self.fetch_localization_for_mxid(inviter)
-        ) == visible and invitee_loc == visible:
+            invitee_loc in visiblePract
+            and (await self.fetch_localization_for_mxid(inviter)) in visiblePract
+        ):
             return NOT_SPAM
 
         # Forbid everything else (so remote invites not matching step1, 2 or 3)
