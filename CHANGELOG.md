@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.6] - 2023-02-08
+
+- Allow invites to organization practitioners from any federation member
+
 ## [0.0.5] - 2023-01-30
 
 - Ensure the "user" column name is properly quoted on postgres

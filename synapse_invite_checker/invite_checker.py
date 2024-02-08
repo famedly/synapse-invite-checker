@@ -140,7 +140,7 @@ class FederationAllowListClient(BaseHttpClient):
 
 
 class InviteChecker:
-    __version__ = "0.0.5"
+    __version__ = "0.0.6"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
@@ -351,11 +351,17 @@ class InviteChecker:
         ):
             return NOT_SPAM
 
-        # Step 3, no active invite settings found, ensure both users are publicly viewable as pract or orgPract
-        visible = ["pract", "orgPract"]
-        if (await self.fetch_localization_for_mxid(inviter)) in visible and (
-            await self.fetch_localization_for_mxid(invitee)
-        ) in visible:
+        # Step 3, no active invite settings found, ensure we
+        # - either invite an org
+        # - or both users are practitioners and the invitee has no restrcited visibility
+        invitee_loc = await self.fetch_localization_for_mxid(invitee)
+        if invitee_loc == "orgPract":
+            return NOT_SPAM
+
+        visible = "pract"
+        if (
+            await self.fetch_localization_for_mxid(inviter)
+        ) == visible and invitee_loc == visible:
             return NOT_SPAM
 
         # Forbid everything else (so remote invites not matching step1, 2 or 3)
