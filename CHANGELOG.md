@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 - Treat both org and orgPract as organization membership
 - Treat both pract and orgPract as practitioners
 - Allow unencoded colons in matrix URIs (and gematik URIs)
+- Add debug logging for invite checks
 
 ## [0.0.6] - 2023-02-08
 

@@ -333,12 +333,18 @@ class InviteChecker:
                 for user, roomids in direct.items():
                     if room_id in roomids and user != invitee:
                         # Can't invite to DM!
+                        logger.debug(
+                            "Preventing invite since %s already has a DM with %s",
+                            inviter,
+                            invitee,
+                        )
                         return errors.Codes.FORBIDDEN
 
             # local invites are always valid, if they are not to a dm.
             # There are no checks done for outgoing invites apart from in the federation proxy,
             # which checks all requests.
             # if self.api.is_mine(invitee):
+            logger.debug("Local invite from %s to %s allowed", inviter, invitee)
             return NOT_SPAM
 
         # Step 1, check federation allow list
@@ -364,6 +370,11 @@ class InviteChecker:
                 or contact.inviteSettings.end >= seconds_since_epoch
             )
         ):
+            logger.debug(
+                "Allowing invite since invitee %s allowed the inviter %s in their contact settings",
+                invitee,
+                inviter,
+            )
             return NOT_SPAM
 
         # Step 3, no active invite settings found, ensure we
@@ -372,14 +383,34 @@ class InviteChecker:
         # The values org, pract, orgPract stand for org membership, practitioner and both respectively.
         invitee_loc = await self.fetch_localization_for_mxid(invitee)
         if invitee_loc in {"orgPract", "org"}:
+            logger.debug(
+                "Allowing invite since invitee %s is an organization (%s)",
+                invitee,
+                invitee_loc,
+            )
             return NOT_SPAM
+        else:
+            logger.debug("Invitee %s is not an organization (%s)", invitee, invitee_loc)
 
         visiblePract = {"pract", "orgPract"}
-        if (
-            invitee_loc in visiblePract
-            and (await self.fetch_localization_for_mxid(inviter)) in visiblePract
-        ):
+        inviter_loc = await self.fetch_localization_for_mxid(inviter)
+        if invitee_loc in visiblePract and inviter_loc in visiblePract:
+            logger.debug(
+                "Allowing invite since invitee (%s) and inviter (%s) are both practioners (%s and %s)",
+                invitee,
+                inviter,
+                invitee_loc,
+                inviter_loc,
+            )
             return NOT_SPAM
+
+        logger.debug(
+            "Not allowing invite since invitee (%s) and inviter (%s) are not both practioners (%s and %s) and all previous checks failed",
+            invitee,
+            inviter,
+            invitee_loc,
+            inviter_loc,
+        )
 
         # Forbid everything else (so remote invites not matching step1, 2 or 3)
         return errors.Codes.FORBIDDEN
