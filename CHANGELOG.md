@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.8] - 2023-02-09
+
+- Deal with quoted strings returned as the localization
+
 ## [0.0.7] - 2023-02-08
 
 - Treat both org and orgPract as organization membership

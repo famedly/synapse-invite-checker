@@ -140,7 +140,7 @@ class FederationAllowListClient(BaseHttpClient):
 
 
 class InviteChecker:
-    __version__ = "0.0.7"
+    __version__ = "0.0.8"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
@@ -221,7 +221,9 @@ class InviteChecker:
         resp = await self.federation_list_client.get_raw(
             self.config.federation_localization_url, {"mxid": mxid}
         )
-        return resp.decode()
+        return resp.decode().strip(
+            '"'
+        )  # yes, they sometimes are quoted and we don't know what is right yet
 
     async def fetch_localization_for_mxid(self, mxid: str) -> str:
         """Fetches from the VZD if this mxid is org, pract, orgPract or none.
