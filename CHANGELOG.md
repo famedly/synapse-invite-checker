@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.9] - 2023-02-10
+
+BREAKING: rename user column to avoid issues with SQL statements on postgres (that aren't handled by the synapse DB
+API). This also renames the table to simplify migration. You may want to delete the old (and probably empty table).
+
 ## [0.0.8] - 2023-02-09
 
 - Deal with quoted strings returned as the localization
