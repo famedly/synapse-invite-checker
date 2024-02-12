@@ -43,10 +43,9 @@ class InviteCheckerStore(SQLBaseStore):
         if not self.db_checked:
 
             def ensure_table_exists_txn(txn: LoggingTransaction) -> bool:
-                # We need to quote at least the user column on postgres
                 sql = """
-                    CREATE TABLE IF NOT EXISTS famedly_invite_checker (
-                        "user" TEXT NOT NULL,
+                    CREATE TABLE IF NOT EXISTS famedly_invite_checker_contacts (
+                        "owning_user" TEXT NOT NULL,
                         "contact_display_name" TEXT NOT NULL,
                         "contact_mxid" TEXT NOT NULL,
                         "contact_invite_settings_start" BIGINT NOT NULL,
@@ -56,14 +55,14 @@ class InviteCheckerStore(SQLBaseStore):
                 txn.execute(sql)
                 txn.execute(
                     """
-                            CREATE INDEX IF NOT EXISTS famedly_invite_checker_user
-                            ON famedly_invite_checker("user");
+                            CREATE INDEX IF NOT EXISTS famedly_invite_checker_contacts_user
+                            ON famedly_invite_checker_contacts("owning_user");
                             """
                 )
                 txn.execute(
                     """
-                            CREATE UNIQUE INDEX IF NOT EXISTS famedly_invite_checker_user_mxid
-                            ON famedly_invite_checker("user", "contact_mxid");
+                            CREATE UNIQUE INDEX IF NOT EXISTS famedly_invite_checker_contacts_user_mxid
+                            ON famedly_invite_checker_contacts("owning_user", "contact_mxid");
                             """
                 )
                 return True
@@ -77,8 +76,8 @@ class InviteCheckerStore(SQLBaseStore):
     async def get_contacts(self, user: UserID) -> Contacts:
         await self.ensure_table_exists()
         contacts = await self.db_pool.simple_select_list(
-            "famedly_invite_checker",
-            keyvalues={"user": user.to_string()},
+            "famedly_invite_checker_contacts",
+            keyvalues={"owning_user": user.to_string()},
             retcols=(
                 "contact_display_name",
                 "contact_mxid",
@@ -101,18 +100,18 @@ class InviteCheckerStore(SQLBaseStore):
     async def del_contact(self, user: UserID, contact: str) -> None:
         await self.ensure_table_exists()
         await self.db_pool.simple_delete(
-            "famedly_invite_checker",
-            {"user": user.to_string(), "contact_mxid": contact},
+            "famedly_invite_checker_contacts",
+            {"owning_user": user.to_string(), "contact_mxid": contact},
             desc="famedly_invite_checker_del_contact",
         )
 
     async def add_contact(self, user: UserID, contact: Contact) -> None:
         await self.ensure_table_exists()
         await self.db_pool.simple_upsert(
-            "famedly_invite_checker",
-            keyvalues={"user": user.to_string(), "contact_mxid": contact.mxid},
+            "famedly_invite_checker_contacts",
+            keyvalues={"owning_user": user.to_string(), "contact_mxid": contact.mxid},
             values={
-                "user": user.to_string(),
+                "owning_user": user.to_string(),
                 "contact_mxid": contact.mxid,
                 "contact_display_name": contact.displayName,
                 "contact_invite_settings_start": contact.inviteSettings.start,
@@ -124,8 +123,8 @@ class InviteCheckerStore(SQLBaseStore):
     async def get_contact(self, user: UserID, mxid: str) -> Contact | None:
         await self.ensure_table_exists()
         contact = await self.db_pool.simple_select_one(
-            "famedly_invite_checker",
-            keyvalues={"user": user.to_string(), "contact_mxid": mxid},
+            "famedly_invite_checker_contacts",
+            keyvalues={"owning_user": user.to_string(), "contact_mxid": mxid},
             retcols=(
                 "contact_display_name",
                 "contact_mxid",
