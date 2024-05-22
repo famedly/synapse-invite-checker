@@ -27,7 +27,7 @@ dependencies = [
   "jwcrypto",
   "pyopenssl"
 ]
-version = "0.0.9"
+version = "0.2.0"
 
 [project.urls]
 Documentation = "https://github.com/famedly/synapse-invite-checker#synapse-invite-checker"

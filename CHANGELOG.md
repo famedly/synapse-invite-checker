@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2024-05-22
+
+- Use SimpleHttpClient with proxy enabled to fetch CA roots
+
 ## [0.0.9] - 2023-02-10
 
 BREAKING: rename user column to avoid issues with SQL statements on postgres (that aren't handled by the synapse DB
