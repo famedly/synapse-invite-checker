@@ -32,13 +32,11 @@ SQLITE_PERSIST_DB = os.environ.get("SYNAPSE_TEST_PERSIST_SQLITE_DB") is not None
 
 
 @overload
-def default_config(name: str, parse: Literal[False] = ...) -> dict[str, object]:
-    ...
+def default_config(name: str, parse: Literal[False] = ...) -> dict[str, object]: ...
 
 
 @overload
-def default_config(name: str, parse: Literal[True]) -> HomeServerConfig:
-    ...
+def default_config(name: str, parse: Literal[True]) -> HomeServerConfig: ...
 
 
 def default_config(

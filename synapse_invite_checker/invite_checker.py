@@ -275,12 +275,12 @@ class InviteChecker:
         return resp.decode()
 
     async def _raw_gematik_root_ca_fetch(self) -> dict:
-        return await self.api.http_client.get_json(
+        return await self.api._hs.get_proxied_http_client().get_json(
             f"{self.config.gematik_ca_baseurl}/ECC/ROOT-CA/roots.json"
         )
 
     async def _raw_gematik_intermediate_cert_fetch(self, cn: str) -> bytes:
-        return await self.api.http_client.get_raw(
+        return await self.api._hs.get_proxied_http_client().get_raw(
             f"{self.config.gematik_ca_baseurl}/ECC/SUB-CA/{quote(cn.replace(' ', '_'), safe='')}.der"
         )
 

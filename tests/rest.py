@@ -74,8 +74,7 @@ class RestHelper:
         expect_code: Literal[200] = ...,
         extra_content: dict | None = ...,
         custom_headers: Iterable[tuple[AnyStr, AnyStr]] | None = ...,
-    ) -> str:
-        ...
+    ) -> str: ...
 
     @overload
     def create_room_as(
@@ -87,8 +86,7 @@ class RestHelper:
         expect_code: int = ...,
         extra_content: dict | None = ...,
         custom_headers: Iterable[tuple[AnyStr, AnyStr]] | None = ...,
-    ) -> str | None:
-        ...
+    ) -> str | None: ...
 
     def create_room_as(
         self,
