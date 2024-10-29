@@ -25,7 +25,10 @@ dependencies = [
   "cachetools",
   "asyncache",
   "jwcrypto",
-  "pyopenssl"
+  "pyopenssl",
+  # We need to pin this because of https://github.com/element-hq/synapse/issues/17882
+  # TODO: Remove this dependency when we can
+  "Twisted==24.7.0"
 ]
 version = "0.2.0"
 
@@ -46,11 +49,8 @@ dependencies = [
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
 format = "black ."
 # For CI use
-head-cov = "pytest --cov-report=lcov:../head.lcov --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
-base-cov = "pytest --cov-report=lcov:../base.lcov --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
-
 [tool.hatch.envs.ci.scripts]
-format = "black --check ."
+cov = "pytest --cov-report=lcov:lcov.info --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
 
 [tool.coverage.run]
 branch = true

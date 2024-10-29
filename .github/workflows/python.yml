@@ -14,7 +14,7 @@ concurrency:
 jobs:
   test:
     name: Tests and coverage
-    runs-on: ubuntu-latest-16core
+    runs-on: ubuntu-latest
     # Workaround for read-only dependabot GITHUB_TOKEN in meow-coverage
     permissions:
       issues: write
@@ -25,8 +25,7 @@ jobs:
         python-version: [ "3.9", "3.10", "3.11" ]
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: head
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -34,7 +33,6 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        working-directory: head
         run: |
           python -m pip install --upgrade pip
           python -m pip install hatch
@@ -42,7 +40,6 @@ jobs:
       - name: Formatting
         uses: famedly/black@stable
         with:
-          src: head
           options: "--check --verbose"
       
       - name: Prepare lint
@@ -50,49 +47,15 @@ jobs:
         run: echo PYTHON_TARGET="py${{ matrix.python-version }}" | sed -r "s/\.//" >> $GITHUB_ENV
 
       - name: Lint
-        uses: chartboost/ruff-action@2bc585f1253832f5a5220d7fbf86976822116147
+        uses: chartboost/ruff-action@491342200cdd1cf4d5132a30ddc546b3b5bc531b
         with:
-          args: --target-version ${{ env.PYTHON_TARGET }}
-          src: head
+          args: check --target-version ${{ env.PYTHON_TARGET }}
 
       - name: Tests and coverage
-        working-directory: head
-        run: hatch run head-cov
-      
-      - name: Load base coverage results from cache
-        if: github.event_name == 'pull_request'
-        id: cache-coverage
-        uses: actions/cache@v3
-        with:
-          path: ./base.lcov
-          key: coverage-${{ github.event.pull_request.base.sha }}
+        run: hatch run cov
 
-      - name: Pull base
-        uses: actions/checkout@v3
-        if: github.event_name == 'pull_request' && steps.cache-coverage.outputs.cache-hit != 'true'
+      - name: Codecov - Upload coverage
+        uses: codecov/codecov-action@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
-          repository: ${{ github.event.pull_request.base.full_name }}
-          path: base   
-
-      - name: Generate base coverage
-        if: github.event_name == 'pull_request' && steps.cache-coverage.outputs.cache-hit != 'true'
-        working-directory: base
-        # Needed for initial run
-        continue-on-error: true
-        run: hatch run base-cov
-    
-      - name: Meow Coverage
-        id: coverage-report
-        continue-on-error: true
-        uses: famedly/meow-coverage@main
-        if: github.event_name == 'pull_request'
-        with:
-          new-lcov-file: 'head.lcov'
-          old-lcov-file: ${{ github.event_name == 'pull_request' && 'base.lcov' || '' }}
-          source-prefix: 'synapse_invite_policies/'
-          pr-number: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
-          repo-name: ${{ github.repository }}
-          commit-id: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.after }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-  
+          token: ${{secrets.CODECOV_TOKEN}}
+          files: "lcov.info"
