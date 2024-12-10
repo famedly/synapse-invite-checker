@@ -288,7 +288,15 @@ class InviteChecker:
         return load_certificate(FILETYPE_ASN1, base64.b64decode(cert))
 
     @cached(cache=TTLCache(maxsize=1, ttl=60 * 60))
-    async def fetch_federation_allow_list(self) -> set[str]:
+    async def fetch_federation_allow_list(self) -> tuple[set[str], FederationList]:
+        """
+        Fetch the raw data for the federation list, verify it is authentic and parse
+        the data into a usable format
+
+        Returns: a tuple of a set of the domains from the list and the complete
+            validated list(for testing)
+
+        """
         raw_list = await self._raw_federation_list_fetch()
         jws_verify = jws.JWS()
         jws_verify.deserialize(raw_list, alg="BP256R1")
@@ -319,8 +327,9 @@ class InviteChecker:
             msg = "Empty federation list"
             raise Exception(msg)
 
-        fedlist = FederationList.model_validate_json(jws_verify.payload)
-        return {fed.domain for fed in fedlist.domainList}
+        # Validate incoming, potentially incomplete or corrupt data
+        fed_list = FederationList.model_validate_json(jws_verify.payload)
+        return {fed.domain for fed in fed_list.domainList}, fed_list
 
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str
@@ -352,12 +361,12 @@ class InviteChecker:
         # Step 1, check federation allow list
         inviter_id = UserID.from_string(inviter)
         inviter_domain = inviter_id.domain
-        fedlist = await self.fetch_federation_allow_list()
-        if inviter_domain not in fedlist:
+        domain_set, _ = await self.fetch_federation_allow_list()
+        if inviter_domain not in domain_set:
             self.fetch_federation_allow_list.cache_clear()
-            fedlist = await self.fetch_federation_allow_list()
+            domain_set, _ = await self.fetch_federation_allow_list()
 
-            if inviter_domain not in fedlist:
+            if inviter_domain not in domain_set:
                 logger.warning("Discarding invite from domain: %s", inviter_domain)
                 return errors.Codes.FORBIDDEN
 
