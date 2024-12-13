@@ -40,6 +40,8 @@ TV = TypeVar("TV")
 
 # Use a domain found in our raw fedlist data instead of inserting a fake one
 DOMAIN_IN_LIST = "timo.staging.famedly.de"
+# Also borrow an 'isInsurance' domain for testing
+INSURANCE_DOMAIN_IN_LIST = "cirosec.de"
 
 
 def get_awaitable_result(awaitable: Awaitable[TV]) -> TV:

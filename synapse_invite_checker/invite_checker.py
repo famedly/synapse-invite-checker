@@ -17,7 +17,7 @@ import functools
 import logging
 import time
 from contextlib import suppress
-from typing import Literal
+from typing import Any, Callable, Dict, Literal, cast
 from urllib.parse import quote, urlparse
 
 from cachetools import TTLCache, keys
@@ -32,6 +32,7 @@ from OpenSSL.crypto import (
     load_certificate,
 )
 from synapse.api.constants import AccountDataTypes
+from synapse.config import ConfigError
 from synapse.http.client import BaseHttpClient
 from synapse.http.proxyagent import ProxyAgent
 from synapse.http.server import JsonResource
@@ -39,6 +40,7 @@ from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import make_conn
 from synapse.types import UserID
+from twisted.internet.defer import Deferred
 from twisted.internet.ssl import PrivateCertificate, optionsForClientTLS, platformTrust
 from twisted.web.client import HTTPConnectionPool
 from twisted.web.iweb import IPolicyForHTTPS
@@ -50,10 +52,14 @@ from synapse_invite_checker.rest.contacts import (
     ContactResource,
     ContactsResource,
 )
-from synapse_invite_checker.rest.messenger_info import MessengerInfoResource
+from synapse_invite_checker.rest.messenger_info import (
+    MessengerInfoResource,
+    MessengerIsInsuranceResource,
+)
 
 from synapse_invite_checker.store import InviteCheckerStore
-from synapse_invite_checker.types import FederationList
+from synapse_invite_checker.types import FederationList, TimType
+
 
 logger = logging.getLogger(__name__)
 
@@ -179,14 +185,20 @@ class InviteChecker:
 
         # The TiMessengerInformation API resource
         MessengerInfoResource(self.config).register(self.resource)
+        MessengerIsInsuranceResource(self.config, self.is_domain_insurance).register(
+            self.resource
+        )
 
         # Register everything at the root of our namespace/app, to avoid complicating
         # Synapse's regex http registration
         self.api.register_web_resource(BASE_API_PREFIX, self.resource)
+
+        self.api._hs._reactor.callWhenRunning(self.after_startup)
+
         logger.info("Module initialized at %s", BASE_API_PREFIX)
 
     @staticmethod
-    def parse_config(config):
+    def parse_config(config: Dict[str, Any]) -> InviteCheckerConfig:
         logger.error("PARSE CONFIG")
         _config = InviteCheckerConfig()
 
@@ -223,7 +235,40 @@ class InviteChecker:
             msg = "Federation list config requires an mtls (PEM) cert for https connections"
             raise Exception(msg)
 
+        # Check that the configuration is defined. This allows a grace period for
+        # migration. For now, just issue a warning in the logs. The default of 'pro'
+        # is set inside InviteCheckerConfig
+        _tim_type = config.get("tim-type", "").lower()
+        if not _tim_type:
+            logger.warning(
+                "Please remember to set `tim-type` in your configuration. Defaulting to 'Pro' mode"
+            )
+
+        else:
+            if _tim_type == "epa":
+                _config.tim_type = TimType.EPA
+            elif _tim_type == "pro":
+                _config.tim_type = TimType.PRO
+            else:
+                msg = "`tim-type` setting is not a recognized value. Please fix."
+                raise ConfigError(msg)
+
         return _config
+
+    def after_startup(self) -> None:
+        """
+        To be called when the rector is running. Validates that the epa setting matches
+        the insurance setting in the federation list.
+        """
+        fetch_deferred = Deferred.fromCoroutine(self._fetch_federation_list())
+        fed_list = cast(FederationList, fetch_deferred.result)
+        if self.config.tim_type == TimType.EPA and not fed_list.is_insurance(
+            self.api._hs.config.server.server_name
+        ):
+            logger.warning(
+                "This server has enabled ePA Mode in its config, but is not found on "
+                "the Federation List as an Insurance Domain!"
+            )
 
     async def _raw_localization_fetch(self, mxid: str) -> str:
         resp = await self.federation_list_client.get_raw(
@@ -296,13 +341,15 @@ class InviteChecker:
         return load_certificate(FILETYPE_ASN1, base64.b64decode(cert))
 
     @cached(cache=TTLCache(maxsize=1, ttl=60 * 60))
-    async def fetch_federation_allow_list(self) -> tuple[set[str], FederationList]:
+    async def _fetch_federation_list(
+        self,
+    ) -> FederationList:
         """
         Fetch the raw data for the federation list, verify it is authentic and parse
         the data into a usable format
 
-        Returns: a tuple of a set of the domains from the list and the complete
-            validated list(for testing)
+        Returns:
+            a FederationList object
 
         """
         raw_list = await self._raw_federation_list_fetch()
@@ -336,15 +383,38 @@ class InviteChecker:
             raise Exception(msg)
 
         # Validate incoming, potentially incomplete or corrupt data
-        fed_list = FederationList.model_validate_json(jws_verify.payload)
-        return {fed.domain for fed in fed_list.domainList}, fed_list
+        return FederationList.model_validate_json(jws_verify.payload)
+
+    async def _domain_list_check(self, check: Callable[[str], bool]) -> bool:
+        """Run a `check` against data found on the FederationList"""
+        fed_list = await self._fetch_federation_list()
+        if check(fed_list):
+            return True
+
+        # Per A_25537:
+        # The domain wasn't found but the list may have changed since the last look.
+        # Re-fetch the list and try again
+        self._fetch_federation_list.cache_clear()
+        fed_list = await self._fetch_federation_list()
+        return check(fed_list)
+
+    async def is_domain_allowed(self, domain: str) -> bool:
+        return await self._domain_list_check(lambda fl: fl.allowed(domain))
+
+    async def is_domain_insurance(self, domain: str) -> bool:
+        return await self._domain_list_check(lambda fl: fl.is_insurance(domain))
 
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str
     ) -> Literal["NOT_SPAM"] | errors.Codes:
         # Check local invites first, no need to check federation invites for those
-        # This verifies that local users can't invite into their DMs as verified by a few tests in the Testsuite
         if self.api.is_mine(inviter):
+            if self.config.tim_type == TimType.EPA:
+                # The TIM-ePA backend forbids all local invites
+                if self.api.is_mine(invitee):
+                    return errors.Codes.FORBIDDEN
+
+            # Verify that local users can't invite into their DMs as verified by a few tests in the Testsuite
             direct = await self.api.account_data_manager.get_global(
                 inviter, AccountDataTypes.DIRECT
             )
@@ -362,23 +432,34 @@ class InviteChecker:
             # local invites are always valid, if they are not to a dm.
             # There are no checks done for outgoing invites apart from in the federation proxy,
             # which checks all requests.
-            # if self.api.is_mine(invitee):
             logger.debug("Local invite from %s to %s allowed", inviter, invitee)
             return NOT_SPAM
 
-        # Step 1, check federation allow list
         inviter_id = UserID.from_string(inviter)
         inviter_domain = inviter_id.domain
-        domain_set, _ = await self.fetch_federation_allow_list()
-        if inviter_domain not in domain_set:
-            self.fetch_federation_allow_list.cache_clear()
-            domain_set, _ = await self.fetch_federation_allow_list()
 
-            if inviter_domain not in domain_set:
-                logger.warning("Discarding invite from domain: %s", inviter_domain)
-                return errors.Codes.FORBIDDEN
+        # Step 1a, check federation allow list
+        if not await self.is_domain_allowed(inviter_domain):
+            logger.warning("Discarding invite from domain: %s", inviter_domain)
+            return errors.Codes.FORBIDDEN
+
+        # Step 1b
+        # Per AF_10233: Deny incoming remote invites if in ePA mode(which means the
+        # local user is an 'insured') and if the remote domain is type 'insurance'.
+
+        # TODO: stop trusting our local setting and instead check the federation list
+        #  data to see if *this* server is of type `isInsurance`
+        if self.config.tim_type == TimType.EPA and await self.is_domain_insurance(
+            inviter_domain
+        ):
+            logger.warning(
+                "Discarding invite from remote insurance domain: %s", inviter_domain
+            )
+            return errors.Codes.FORBIDDEN
 
         # Step 2, check invite settings
+        # TODO: This section checks for "Block all but allow exceptions" behavior. Need
+        #  to develop the inverse as well, "Allow all but block exceptions"
         contact = await self.store.get_contact(UserID.from_string(invitee), inviter)
         seconds_since_epoch = int(time.time())
         if (
@@ -398,7 +479,7 @@ class InviteChecker:
 
         # Step 3, no active invite settings found, ensure we
         # - either invite an org
-        # - or both users are practitioners and the invitee has no restrcited visibility
+        # - or both users are practitioners and the invitee has no restricted visibility
         # The values org, pract, orgPract stand for org membership, practitioner and both respectively.
         invitee_loc = await self.fetch_localization_for_mxid(invitee)
         if invitee_loc in {"orgPract", "org"}:
@@ -415,7 +496,7 @@ class InviteChecker:
         inviter_loc = await self.fetch_localization_for_mxid(inviter)
         if invitee_loc in visiblePract and inviter_loc in visiblePract:
             logger.debug(
-                "Allowing invite since invitee (%s) and inviter (%s) are both practioners (%s and %s)",
+                "Allowing invite since invitee (%s) and inviter (%s) are both practitioners (%s and %s)",
                 invitee,
                 inviter,
                 invitee_loc,
@@ -424,7 +505,7 @@ class InviteChecker:
             return NOT_SPAM
 
         logger.debug(
-            "Not allowing invite since invitee (%s) and inviter (%s) are not both practioners (%s and %s) and all previous checks failed",
+            "Not allowing invite since invitee (%s) and inviter (%s) are not both practitioners (%s and %s) and all previous checks failed",
             invitee,
             inviter,
             invitee_loc,

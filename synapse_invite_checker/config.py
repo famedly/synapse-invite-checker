@@ -14,6 +14,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from dataclasses import dataclass
 
+from synapse_invite_checker.types import TimType
+
 
 @dataclass
 class InviteCheckerConfig:
@@ -24,3 +26,4 @@ class InviteCheckerConfig:
     federation_list_client_cert: str = ""
     federation_localization_url: str = ""
     gematik_ca_baseurl: str = ""
+    tim_type: TimType = TimType.PRO

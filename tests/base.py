@@ -236,6 +236,7 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
                 {
                     "module": "synapse_invite_checker.InviteChecker",
                     "config": {
+                        "tim-type": "pro",
                         "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
                         "federation_localization_url": "http://dummy.test/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",

@@ -62,3 +62,63 @@ class MessengerInfoTestCase(ModuleApiTestCase):
         assert channel.json_body["description"] == "def"
         assert channel.json_body["contact"] == "ghi"
         assert channel.json_body["version"], "Version returned"
+
+
+class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
+    def test_pro_isInsurance_returns_expected(self) -> None:
+        """Tests that Pro mode returns expected response"""
+        channel = self.make_request(
+            method="GET",
+            path="/_synapse/client/com.famedly/tim/tim-information/v1/server/isInsurance?serverName=cirosec.de",
+        )
+
+        assert channel.code == 200, channel.result
+        assert channel.json_body[
+            "isInsurance"
+        ], "isInsurance is FALSE when it should be TRUE"
+
+        channel = self.make_request(
+            method="GET",
+            path="/_synapse/client/com.famedly/tim/tim-information/v1/server/isInsurance?serverName=timo.staging.famedly.de",
+        )
+
+        assert channel.code == 200, channel.result
+        assert not channel.json_body[
+            "isInsurance"
+        ], "isInsurance is TRUE when it should be FALSE"
+
+    @synapse_test.override_config(
+        {
+            "modules": [
+                {
+                    "module": "synapse_invite_checker.InviteChecker",
+                    "config": {
+                        "tim-type": "epa",
+                        "title": "abc",
+                        "description": "def",
+                        "contact": "ghi",
+                        "federation_list_url": "https://localhost:8080",
+                        "federation_localization_url": "https://localhost:8000/localization",
+                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
+                    },
+                }
+            ]
+        }
+    )
+    def test_epa_isInsurance_returns_expected(self) -> None:
+        """Tests that ePA mode returns expected response"""
+
+        channel = self.make_request(
+            method="GET",
+            path="/_synapse/client/com.famedly/tim/tim-information/v1/server/isInsurance?serverName=cirosec.de",
+        )
+
+        assert channel.code == 401, channel.result
+
+        channel = self.make_request(
+            method="GET",
+            path="/_synapse/client/com.famedly/tim/tim-information/v1/server/isInsurance?serverName=timo.staging.famedly.de",
+        )
+
+        assert channel.code == 401, channel.result

@@ -37,6 +37,7 @@ modules:
         federation_localization_url: "https://localhost:8080/localization", # Full url where to fetch the federation localization from, required. Should be the same host as federation list.
         federation_list_client_cert: "tests/certs/client.pem", # path to a pem encoded client certificate for mtls, required if federation list url is https
         gematik_ca_baseurl: "https://download-ref.tsl.ti-dienste.de/", # the baseurl to the ca to use for the federation list, required
+        tim-type: "epa" or "pro", # Patient/Insurance or Professional mode, defaults to "pro" mode. Optional currently, but will be required in a later release
 ```
 
 ## Testing

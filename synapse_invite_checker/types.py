@@ -12,9 +12,10 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+from enum import Enum, auto
+from functools import cached_property
 
-
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class InviteSettings(BaseModel):
@@ -61,3 +62,40 @@ class FederationList(BaseModel):
     )
 
     domainList: list[FederationDomain]  # noqa: N815
+
+    @computed_field
+    @cached_property
+    def _domains_on_list(self) -> set[str]:
+        """
+        The deduplicated domains found on the Federation List
+        """
+        return {domain_data.domain for domain_data in self.domainList}
+
+    @computed_field
+    @cached_property
+    def _insurance_domains_on_list(self) -> set[str]:
+        """
+        Only the domains that are also type 'isInsurance'
+        """
+        return {
+            domain_data.domain
+            for domain_data in self.domainList
+            if domain_data.isInsurance
+        }
+
+    def allowed(self, domain: str) -> bool:
+        """
+        Compare against the domains from the Federation List to determine if they are allowed
+        """
+        return domain in self._domains_on_list
+
+    def is_insurance(self, domain: str) -> bool:
+        """
+        Is this domain specifically designated as 'isInsurance'
+        """
+        return domain in self._insurance_domains_on_list
+
+
+class TimType(Enum):
+    PRO = auto()
+    EPA = auto()
