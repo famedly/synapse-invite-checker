@@ -5,6 +5,7 @@ _trial_temp
 venv
 dist
 .coverage
+coverage.xml
 base.lcov
 head.lcov
 lcov.info

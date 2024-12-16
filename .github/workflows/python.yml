@@ -2,10 +2,10 @@ name: Python
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "*" ]
+    branches: ["main"]
+    tags: ["*"]
   pull_request:
-    branches: [ "*" ]
+    branches: ["*"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,7 +22,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        python-version: [ "3.9", "3.10", "3.11" ]
+        python-version: ["3.9", "3.10", "3.11"]
     steps:
       - uses: actions/checkout@v4
 
@@ -41,7 +41,7 @@ jobs:
         uses: famedly/black@stable
         with:
           options: "--check --verbose"
-      
+
       - name: Prepare lint
         shell: bash
         run: echo PYTHON_TARGET="py${{ matrix.python-version }}" | sed -r "s/\.//" >> $GITHUB_ENV
@@ -53,6 +53,9 @@ jobs:
 
       - name: Tests and coverage
         run: hatch run cov
+        env:
+          # to ensure we run ci:cov instead of default:cov, where the former generates more coverage files
+          HATCH_ENV: "ci"
 
       - name: Codecov - Upload coverage
         uses: codecov/codecov-action@v4
