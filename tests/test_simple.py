@@ -922,3 +922,19 @@ class FederationDomainSchemaTest(ModuleApiTestCase):
         assert test_entry.telematikID == "1-SMC-B-Testkarte-883110000096089"
         assert test_entry.timAnbieter is None
         assert test_entry.isInsurance is False
+
+
+class MessengerInfoTestCase(ModuleApiTestCase):
+    async def test_operator_contact_info_resource(self) -> None:
+        """Tests that the messenger operator contact info resource is accessible"""
+
+        channel = self.make_request(
+            method="GET",
+            path="/_synapse/client/com.famedly/tim/v2/tim-information",
+        )
+
+        assert channel.code == 200, channel.result
+        assert channel.json_body["title"] == "Invite Checker module by Famedly"
+        assert channel.json_body["description"] == "Invite Checker module by Famedly"
+        assert channel.json_body["contact"] == "info@famedly.com"
+        assert channel.json_body["version"], "Version returned"

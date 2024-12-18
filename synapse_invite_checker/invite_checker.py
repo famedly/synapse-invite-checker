@@ -50,6 +50,7 @@ from synapse_invite_checker.rest.contacts import (
     ContactResource,
     ContactsResource,
 )
+from synapse_invite_checker.rest.messenger_info import MessengerInfoResource
 
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import FederationList
@@ -146,6 +147,7 @@ BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
 class InviteChecker:
     __version__ = "0.2.0"
     _TMCM_schema_version = "1.0.2"
+    _TMI_schema_version = "1.0.0"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
@@ -177,6 +179,10 @@ class InviteChecker:
         )
         ContactsResource(self.api, self.store).register(self.resource)
         ContactResource(self.api, self.store).register(self.resource)
+
+        MessengerInfoResource(self.config, self._TMI_schema_version).register(
+            self.resource
+        )
 
         self.api.register_web_resource(BASE_API_PREFIX, self.resource)
         logger.info("Module initialized at %s", BASE_API_PREFIX)
