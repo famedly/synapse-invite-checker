@@ -15,6 +15,7 @@
 """
 Utilities for running the unit tests
 """
+
 import json
 import sys
 import warnings
@@ -36,6 +37,9 @@ if TYPE_CHECKING:
     from sys import UnraisableHookArgs
 
 TV = TypeVar("TV")
+
+# Use a domain found in our raw fedlist data instead of inserting a fake one
+DOMAIN_IN_LIST = "timo.staging.famedly.de"
 
 
 def get_awaitable_result(awaitable: Awaitable[TV]) -> TV:
