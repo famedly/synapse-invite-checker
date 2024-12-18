@@ -252,55 +252,6 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         return conf
 
 
-class InfoResourceTest(ModuleApiTestCase):
-    async def test_registered_default_info_resource(self) -> None:
-        """Tests that the registered info resource is accessible"""
-
-        channel = self.make_request(
-            method="GET",
-            path="/_synapse/client/com.famedly/tim/v1",
-        )
-
-        assert channel.code == 200, channel.result
-        assert channel.json_body["title"] == "Invite Checker module by Famedly"
-        assert channel.json_body["description"] == "Invite Checker module by Famedly"
-        assert channel.json_body["contact"] == "info@famedly.com"
-        assert channel.json_body["version"], "Version returned"
-
-    @synapsetest.override_config(
-        {
-            "modules": [
-                {
-                    "module": "synapse_invite_checker.InviteChecker",
-                    "config": {
-                        "api_prefix": "/_synapse/client/test",
-                        "title": "abc",
-                        "description": "def",
-                        "contact": "ghi",
-                        "federation_list_url": "https://localhost:8080",
-                        "federation_localization_url": "https://localhost:8000/localization",
-                        "federation_list_client_cert": "tests/certs/client.pem",
-                        "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
-                    },
-                }
-            ]
-        }
-    )
-    def test_registered_custom_info_resource(self) -> None:
-        """Tests that the registered info resource is accessible and has the configured values"""
-
-        channel = self.make_request(
-            method="GET",
-            path="/_synapse/client/test",
-        )
-
-        assert channel.code == 200, channel.result
-        assert channel.json_body["title"] == "abc"
-        assert channel.json_body["description"] == "def"
-        assert channel.json_body["contact"] == "ghi"
-        assert channel.json_body["version"], "Version returned"
-
-
 class LocalInviteTest(ModuleApiTestCase):
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -578,6 +529,20 @@ class ContactsApiTest(ModuleApiTestCase):
 
         # authenticated as user_a
         self.helper.auth_user_id = self.user_a
+
+    async def test_contact_management_info_resource(self) -> None:
+        """Tests that the registered info resource is accessible"""
+
+        channel = self.make_request(
+            method="GET",
+            path="/_synapse/client/com.famedly/tim/v1",
+        )
+
+        assert channel.code == 200, channel.result
+        assert channel.json_body["title"] == "Invite Checker module by Famedly"
+        assert channel.json_body["description"] == "Invite Checker module by Famedly"
+        assert channel.json_body["contact"] == "info@famedly.com"
+        assert channel.json_body["version"], "Version returned"
 
     def test_list_contacts(self) -> None:
         # Requires authentication
@@ -957,3 +922,51 @@ class FederationDomainSchemaTest(ModuleApiTestCase):
         assert test_entry.telematikID == "1-SMC-B-Testkarte-883110000096089"
         assert test_entry.timAnbieter is None
         assert test_entry.isInsurance is False
+
+
+class MessengerInfoTestCase(ModuleApiTestCase):
+    async def test_default_operator_contact_info_resource(self) -> None:
+        """Tests that the messenger operator contact info resource is accessible"""
+
+        channel = self.make_request(
+            method="GET",
+            path="/_synapse/client/com.famedly/tim/tim-information",
+        )
+
+        assert channel.code == 200, channel.result
+        assert channel.json_body["title"] == "Invite Checker module by Famedly"
+        assert channel.json_body["description"] == "Invite Checker module by Famedly"
+        assert channel.json_body["contact"] == "info@famedly.com"
+        assert channel.json_body["version"], "Version returned"
+
+    @synapsetest.override_config(
+        {
+            "modules": [
+                {
+                    "module": "synapse_invite_checker.InviteChecker",
+                    "config": {
+                        "title": "abc",
+                        "description": "def",
+                        "contact": "ghi",
+                        "federation_list_url": "https://localhost:8080",
+                        "federation_localization_url": "https://localhost:8000/localization",
+                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
+                    },
+                }
+            ]
+        }
+    )
+    def test_custom_operator_contact_info_resource(self) -> None:
+        """Tests that the registered info resource is accessible and has the configured values"""
+
+        channel = self.make_request(
+            method="GET",
+            path="/_synapse/client/com.famedly/tim/tim-information",
+        )
+
+        assert channel.code == 200, channel.result
+        assert channel.json_body["title"] == "abc"
+        assert channel.json_body["description"] == "def"
+        assert channel.json_body["contact"] == "ghi"
+        assert channel.json_body["version"], "Version returned"

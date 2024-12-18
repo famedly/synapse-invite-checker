@@ -45,17 +45,19 @@ from twisted.web.iweb import IPolicyForHTTPS
 from zope.interface import implementer
 
 from synapse_invite_checker.config import InviteCheckerConfig
-from synapse_invite_checker.handlers import (
+from synapse_invite_checker.rest.contacts import (
+    ContactManagementInfoResource,
     ContactResource,
     ContactsResource,
-    InfoResource,
 )
+from synapse_invite_checker.rest.messenger_info import MessengerInfoResource
+
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import FederationList
 
 logger = logging.getLogger(__name__)
 
-# We need to acces the private API in some places, in particular the store and the homeserver
+# We need to access the private API in some places, in particular the store and the homeserver
 # ruff: noqa: SLF001
 
 
@@ -139,6 +141,9 @@ class FederationAllowListClient(BaseHttpClient):
         )
 
 
+BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
+
+
 class InviteChecker:
     __version__ = "0.2.0"
 
@@ -167,21 +172,24 @@ class InviteChecker:
         ) as db_conn:
             self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
-        InfoResource(self.config, self.__version__).register(self.resource)
-        ContactsResource(self.api, self.store, self.config).register(self.resource)
-        ContactResource(self.api, self.store, self.config).register(self.resource)
+        # The Contact Management API resources
+        ContactManagementInfoResource(self.config).register(self.resource)
+        ContactsResource(self.api, self.store).register(self.resource)
+        ContactResource(self.api, self.store).register(self.resource)
 
-        self.api.register_web_resource(f"{config.api_prefix}", self.resource)
-        logger.info("Module initialized at %s", config.api_prefix)
+        # The TiMessengerInformation API resource
+        MessengerInfoResource(self.config).register(self.resource)
+
+        # Register everything at the root of our namespace/app, to avoid complicating
+        # Synapse's regex http registration
+        self.api.register_web_resource(BASE_API_PREFIX, self.resource)
+        logger.info("Module initialized at %s", BASE_API_PREFIX)
 
     @staticmethod
     def parse_config(config):
         logger.error("PARSE CONFIG")
         _config = InviteCheckerConfig()
 
-        _config.api_prefix = config.get(
-            "api_prefix", "/_synapse/client/com.famedly/tim/v1"
-        )
         _config.title = config.get("title", _config.title)
         _config.description = config.get("description", _config.description)
         _config.contact = config.get("contact", _config.contact)

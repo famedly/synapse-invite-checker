@@ -1,4 +1,4 @@
-# Copyright (C) 2020,2023 Famedly
+# Copyright (C) 2020,2024 Famedly
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import re
 from http import HTTPStatus
+from typing import List
 
 from pydantic import ValidationError
 from synapse.http.servlet import (
@@ -25,28 +26,28 @@ from synapse.module_api import ModuleApi, errors
 from synapse.types import JsonDict
 
 from synapse_invite_checker.config import InviteCheckerConfig
+from synapse_invite_checker.rest.base import invite_checker_pattern
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import Contact
 
+# Version of the TiMessengerContactManagement interface. See:
+# https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerContactManagement.yaml
+_TMCM_schema_version = "1.0.2"
 
-def invite_checker_pattern(path_regex: str, config: InviteCheckerConfig):
-    path = path_regex.removeprefix("/")
-    root = config.api_prefix.removesuffix("/")
-    raw_regex = f"^{root}/{path}"
-
-    # we need to strip the /$, otherwise we can't register for the root of the prefix in a handler...
-    if raw_regex.endswith("/$"):
-        raw_regex = raw_regex.replace("/$", "$")
-
-    return [re.compile(raw_regex)]
+# This API prefix will probably be deprecated in the future
+CONTACT_MANAGEMENT_API_PREFIX = "/_synapse/client/com.famedly/tim/v1"
 
 
-class InfoResource(RestServlet):
-    def __init__(self, config: InviteCheckerConfig, version: str):
+def contact_mgmt_patterns(pattern: str) -> List[re.Pattern]:
+    return invite_checker_pattern(CONTACT_MANAGEMENT_API_PREFIX, pattern)
+
+
+class ContactManagementInfoResource(RestServlet):
+    def __init__(self, config: InviteCheckerConfig):
         super().__init__()
         self.config = config
-        self.version = version
-        self.PATTERNS = invite_checker_pattern("$", self.config)
+        self.version = _TMCM_schema_version
+        self.PATTERNS = contact_mgmt_patterns("/$")
 
     # @override
     async def on_GET(self, _: SynapseRequest) -> tuple[int, JsonDict]:
@@ -59,13 +60,11 @@ class InfoResource(RestServlet):
 
 
 class ContactsResource(RestServlet):
-    def __init__(
-        self, api: ModuleApi, store: InviteCheckerStore, config: InviteCheckerConfig
-    ):
+    def __init__(self, api: ModuleApi, store: InviteCheckerStore):
         super().__init__()
         self.store = store
         self.api = api
-        self.PATTERNS = invite_checker_pattern("/contacts$", config)
+        self.PATTERNS = contact_mgmt_patterns("/contacts$")
 
     # @override
     async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
@@ -95,13 +94,11 @@ class ContactsResource(RestServlet):
 
 
 class ContactResource(RestServlet):
-    def __init__(
-        self, api: ModuleApi, store: InviteCheckerStore, config: InviteCheckerConfig
-    ):
+    def __init__(self, api: ModuleApi, store: InviteCheckerStore):
         super().__init__()
         self.store = store
         self.api = api
-        self.PATTERNS = invite_checker_pattern("/contacts/(?P<mxid>[^/]*)$", config)
+        self.PATTERNS = contact_mgmt_patterns("/contacts/(?P<mxid>[^/]*)$")
 
     # @override
     async def on_GET(self, request: SynapseRequest, mxid: str) -> tuple[int, JsonDict]:
