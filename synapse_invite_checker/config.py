@@ -17,7 +17,6 @@ from dataclasses import dataclass
 
 @dataclass
 class InviteCheckerConfig:
-    api_prefix: str = "/_synapse/client/com.famedly/tim/v1"
     title: str = "Invite Checker module by Famedly"
     description: str = "Invite Checker module by Famedly"
     contact: str = "info@famedly.com"

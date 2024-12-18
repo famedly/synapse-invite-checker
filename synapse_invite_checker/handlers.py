@@ -29,9 +29,13 @@ from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import Contact
 
 
-def invite_checker_pattern(path_regex: str, config: InviteCheckerConfig):
+CONTACT_MANAGEMENT_API_PREFIX = "/_synapse/client/com.famedly/tim/v1"
+INFO_API_PREFIX = "/_synapse/client/com.famedly/tim/v2/tim-information"
+
+
+def invite_checker_pattern(path_regex: str, root_prefix: str):
     path = path_regex.removeprefix("/")
-    root = config.api_prefix.removesuffix("/")
+    root = root_prefix.removesuffix("/")
     raw_regex = f"^{root}/{path}"
 
     # we need to strip the /$, otherwise we can't register for the root of the prefix in a handler...
@@ -41,12 +45,12 @@ def invite_checker_pattern(path_regex: str, config: InviteCheckerConfig):
     return [re.compile(raw_regex)]
 
 
-class InfoResource(RestServlet):
+class ContactManagementInfoResource(RestServlet):
     def __init__(self, config: InviteCheckerConfig, version: str):
         super().__init__()
         self.config = config
         self.version = version
-        self.PATTERNS = invite_checker_pattern("$", self.config)
+        self.PATTERNS = invite_checker_pattern("$", CONTACT_MANAGEMENT_API_PREFIX)
 
     # @override
     async def on_GET(self, _: SynapseRequest) -> tuple[int, JsonDict]:
@@ -59,13 +63,13 @@ class InfoResource(RestServlet):
 
 
 class ContactsResource(RestServlet):
-    def __init__(
-        self, api: ModuleApi, store: InviteCheckerStore, config: InviteCheckerConfig
-    ):
+    def __init__(self, api: ModuleApi, store: InviteCheckerStore):
         super().__init__()
         self.store = store
         self.api = api
-        self.PATTERNS = invite_checker_pattern("/contacts$", config)
+        self.PATTERNS = invite_checker_pattern(
+            "/contacts$", CONTACT_MANAGEMENT_API_PREFIX
+        )
 
     # @override
     async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
@@ -95,13 +99,13 @@ class ContactsResource(RestServlet):
 
 
 class ContactResource(RestServlet):
-    def __init__(
-        self, api: ModuleApi, store: InviteCheckerStore, config: InviteCheckerConfig
-    ):
+    def __init__(self, api: ModuleApi, store: InviteCheckerStore):
         super().__init__()
         self.store = store
         self.api = api
-        self.PATTERNS = invite_checker_pattern("/contacts/(?P<mxid>[^/]*)$", config)
+        self.PATTERNS = invite_checker_pattern(
+            "/contacts/(?P<mxid>[^/]*)$", CONTACT_MANAGEMENT_API_PREFIX
+        )
 
     # @override
     async def on_GET(self, request: SynapseRequest, mxid: str) -> tuple[int, JsonDict]:
