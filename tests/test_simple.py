@@ -18,7 +18,7 @@ import json
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
-from synapse.module_api import NOT_SPAM, errors
+from synapse.module_api import errors
 from synapse.rest import admin
 from synapse.rest.client import (
     account_data,
@@ -30,13 +30,13 @@ from synapse.rest.client import (
 )
 from synapse.server import HomeServer
 from synapse.util import Clock
-from twisted.internet import defer
 from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
 import tests.unittest as synapsetest
 from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import FederationDomain
+from tests.test_utils import DOMAIN_IN_LIST
 
 # ruff: noqa: E501
 # We don't care about long lines in our testdata
@@ -125,10 +125,6 @@ def return_gem_cert(cn: str) -> bytes:
     if cn == "GEM.KOMP-CA50 TEST-ONLY":
         return base64.b64decode(gem_komp_ca50_cert)
     raise Exception("Could not find cert" + cn)
-
-
-# Use a domain found in our raw fedlist data instead of inserting a fake one
-DOMAIN_IN_LIST = "timo.staging.famedly.de"
 
 
 def return_localization(mxid: str) -> str:
@@ -250,273 +246,6 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
                 }
             ]
         return conf
-
-
-class LocalInviteTest(ModuleApiTestCase):
-    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
-        super().prepare(reactor, clock, homeserver)
-        self.user_a = self.register_user("a", "password")
-        self.access_token = self.login("a", "password")
-        self.user_b = self.register_user("b", "password")
-        self.user_c = self.register_user("c", "password")
-
-        # authenticated as user_a
-        self.helper.auth_user_id = self.user_a
-
-    def test_invite_to_dm(self) -> None:
-        """Tests that a dm with a local user can be created, but nobody else invited"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
-        assert room_id, "Room created"
-
-        # create DM event
-        channel = self.make_request(
-            "PUT",
-            f"/user/{self.user_a}/account_data/m.direct",
-            {
-                self.user_b: [room_id],
-            },
-            access_token=self.access_token,
-        )
-        assert channel.code == 200, channel.result
-
-        # Can't invite other users
-        self.helper.invite(
-            room=room_id,
-            src=self.user_a,
-            targ=self.user_c,
-            tok=self.access_token,
-            expect_code=403,
-        )
-        # But can invite the dm user
-        self.helper.invite(
-            room=room_id,
-            src=self.user_a,
-            targ=self.user_b,
-            tok=self.access_token,
-            expect_code=200,
-        )
-
-    def test_invite_to_group(self) -> None:
-        """Tests that a group with local users works normally"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
-        assert room_id, "Room created"
-
-        # create DM event
-        channel = self.make_request(
-            "PUT",
-            f"/user/{self.user_a}/account_data/m.direct",
-            {
-                self.user_b: ["!not:existing.example.com"],
-            },
-            access_token=self.access_token,
-        )
-        assert channel.code == 200, channel.result
-
-        # Can invite other users
-        self.helper.invite(
-            room=room_id,
-            src=self.user_a,
-            targ=self.user_c,
-            tok=self.access_token,
-            expect_code=200,
-        )
-        self.helper.invite(
-            room=room_id,
-            src=self.user_a,
-            targ=self.user_b,
-            tok=self.access_token,
-            expect_code=200,
-        )
-
-    def test_invite_to_group_without_dm_event(self) -> None:
-        """Tests that a group with local users works normally in case the user has no m.direct set"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
-        assert room_id, "Room created"
-
-        # Can invite other users
-        self.helper.invite(
-            room=room_id,
-            src=self.user_a,
-            targ=self.user_c,
-            tok=self.access_token,
-            expect_code=200,
-        )
-        self.helper.invite(
-            room=room_id,
-            src=self.user_a,
-            targ=self.user_b,
-            tok=self.access_token,
-            expect_code=200,
-        )
-
-
-class RemoteInviteTest(ModuleApiTestCase):
-    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
-        super().prepare(reactor, clock, homeserver)
-        self.user_a = self.register_user("a", "password")
-        self.access_token = self.login("a", "password")
-        self.user_b = self.register_user("b", "password")
-        self.user_c = self.register_user("c", "password")
-
-        # authenticated as user_a
-        self.helper.auth_user_id = self.user_a
-
-    async def may_invite(self, inviter: str, invitee: str, roomid: str):
-        req = defer.ensureDeferred(
-            self.hs.get_module_api()._callbacks.spam_checker.user_may_invite(
-                inviter, invitee, roomid
-            )
-        )
-        self.wait_on_thread(req)
-        ret = self.get_success(req)
-        if ret == NOT_SPAM:
-            return NOT_SPAM
-        return ret[0]  # return first code instead of all of them to make assert easier
-
-    async def test_invite_from_remote_outside_of_fed_list(self) -> None:
-        """Tests that an invite from a remote server not in the federation list gets denied"""
-
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": "Test User",
-                "mxid": f"@example:{DOMAIN_IN_LIST}",
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=self.access_token,
-        )
-        assert channel.code == 200, channel.result
-
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": "Test User",
-                "mxid": f"@example:not-{DOMAIN_IN_LIST}",
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=self.access_token,
-        )
-        assert channel.code == 200, channel.result
-
-        assert (
-            await self.may_invite(
-                f"@example:not-{DOMAIN_IN_LIST}", self.user_a, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        )
-        # currently not testing modifying the fed list atm
-        assert (
-            await self.may_invite(
-                "@example:messenger.spilikin.dev", self.user_a, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        )
-        assert (
-            await self.may_invite(
-                f"@example:{DOMAIN_IN_LIST}", self.user_a, "!madeup:example.com"
-            )
-            == NOT_SPAM
-        )
-        assert (
-            await self.may_invite(
-                f"@example2:not-{DOMAIN_IN_LIST}", self.user_a, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        )
-        assert (
-            await self.may_invite(
-                f"@example2:{DOMAIN_IN_LIST}", self.user_a, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        )
-
-    async def test_invite_from_publicly_listed_practitioners(self) -> None:
-        """Tests that an invite from a remote server gets accepted when in the federation list and both practitioners are public"""
-        for inviter in {
-            f"@mxid:{DOMAIN_IN_LIST}",
-            f"@matrixuri:{DOMAIN_IN_LIST}",
-            f"@matrixuri2:{DOMAIN_IN_LIST}",
-            f"@gematikuri:{DOMAIN_IN_LIST}",
-            f"@gematikuri2:{DOMAIN_IN_LIST}",
-            f"@mxidorgpract:{DOMAIN_IN_LIST}",
-            f"@matrixuriorgpract:{DOMAIN_IN_LIST}",
-            f"@matrixuri2orgpract:{DOMAIN_IN_LIST}",
-            f"@gematikuriorgpract:{DOMAIN_IN_LIST}",
-            f"@gematikuri2orgpract:{DOMAIN_IN_LIST}",
-        }:
-            assert (
-                await self.may_invite(inviter, self.user_a, "!madeup:example.com")
-                == NOT_SPAM
-            )
-            assert (
-                await self.may_invite(inviter, self.user_c, "!madeup:example.com")
-                == NOT_SPAM
-            )
-
-        for inviter in {
-            f"@mxid404:{DOMAIN_IN_LIST}",
-            f"@matrixuri404:{DOMAIN_IN_LIST}",
-            f"@matrixuri2404:{DOMAIN_IN_LIST}",
-            f"@gematikuri404:{DOMAIN_IN_LIST}",
-            f"@gematikuri2404:{DOMAIN_IN_LIST}",
-        }:
-            assert (
-                await self.may_invite(inviter, self.user_a, "!madeup:example.com")
-                == errors.Codes.FORBIDDEN
-            )
-
-    async def test_invite_from_remote_to_local_org(self) -> None:
-        """Tests that an invite from a remote server gets accepted when in the federation list and the invite is to an orgPract"""
-        for inviter in {
-            f"@mxid:{DOMAIN_IN_LIST}",
-            f"@matrixuri:{DOMAIN_IN_LIST}",
-            f"@matrixuri2:{DOMAIN_IN_LIST}",
-            f"@gematikuri:{DOMAIN_IN_LIST}",
-            f"@gematikuri2:{DOMAIN_IN_LIST}",
-            f"@mxidorgpract:{DOMAIN_IN_LIST}",
-            f"@matrixuriorgpract:{DOMAIN_IN_LIST}",
-            f"@matrixuri2orgpract:{DOMAIN_IN_LIST}",
-            f"@gematikuriorgpract:{DOMAIN_IN_LIST}",
-            f"@gematikuri2orgpract:{DOMAIN_IN_LIST}",
-            f"@mxid404:{DOMAIN_IN_LIST}",
-            f"@matrixuri404:{DOMAIN_IN_LIST}",
-            f"@matrixuri2404:{DOMAIN_IN_LIST}",
-            f"@gematikuri404:{DOMAIN_IN_LIST}",
-            f"@gematikuri2404:{DOMAIN_IN_LIST}",
-        }:
-            assert (
-                await self.may_invite(inviter, self.user_b, "!madeup:example.com")
-                == NOT_SPAM
-            )
-            assert (
-                await self.may_invite(inviter, self.user_c, "!madeup:example.com")
-                == NOT_SPAM
-            )
-
-        assert (
-            await self.may_invite(
-                "@unknown:not.in.fed", self.user_b, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        )
-        assert (
-            await self.may_invite(
-                "@unknown:not.in.fed", self.user_c, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        )
 
 
 class ContactsApiTest(ModuleApiTestCase):
