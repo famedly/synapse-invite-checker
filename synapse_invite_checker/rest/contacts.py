@@ -1,4 +1,4 @@
-# Copyright (C) 2020,2023 Famedly
+# Copyright (C) 2020,2024 Famedly
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -12,7 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-import re
 from http import HTTPStatus
 
 from pydantic import ValidationError
@@ -25,24 +24,12 @@ from synapse.module_api import ModuleApi, errors
 from synapse.types import JsonDict
 
 from synapse_invite_checker.config import InviteCheckerConfig
+from synapse_invite_checker.rest.base import (
+    CONTACT_MANAGEMENT_API_PREFIX,
+    invite_checker_pattern,
+)
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import Contact
-
-
-CONTACT_MANAGEMENT_API_PREFIX = "/_synapse/client/com.famedly/tim/v1"
-INFO_API_PREFIX = "/_synapse/client/com.famedly/tim/v2/tim-information"
-
-
-def invite_checker_pattern(path_regex: str, root_prefix: str):
-    path = path_regex.removeprefix("/")
-    root = root_prefix.removesuffix("/")
-    raw_regex = f"^{root}/{path}"
-
-    # we need to strip the /$, otherwise we can't register for the root of the prefix in a handler...
-    if raw_regex.endswith("/$"):
-        raw_regex = raw_regex.replace("/$", "$")
-
-    return [re.compile(raw_regex)]
 
 
 class ContactManagementInfoResource(RestServlet):

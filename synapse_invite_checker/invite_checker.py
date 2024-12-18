@@ -45,11 +45,12 @@ from twisted.web.iweb import IPolicyForHTTPS
 from zope.interface import implementer
 
 from synapse_invite_checker.config import InviteCheckerConfig
-from synapse_invite_checker.handlers import (
+from synapse_invite_checker.rest.contacts import (
     ContactManagementInfoResource,
     ContactResource,
     ContactsResource,
 )
+
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import FederationList
 
