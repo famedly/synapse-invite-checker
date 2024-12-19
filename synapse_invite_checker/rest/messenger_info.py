@@ -20,13 +20,12 @@ from synapse.http.site import SynapseRequest
 from synapse.types import JsonDict
 
 from synapse_invite_checker.config import InviteCheckerConfig
-from synapse_invite_checker.rest.base import (
-    INFO_API_PREFIX,
-)
 
 # Version of TiMessengerInformation interface. See:
 # https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerInformation.yaml
 _TMI_schema_version = "1.0.0"
+
+INFO_API_PREFIX = "/_synapse/client/com.famedly/tim/v2/tim-information"
 
 
 class MessengerInfoResource(RestServlet):

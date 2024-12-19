@@ -25,15 +25,15 @@ from synapse.module_api import ModuleApi, errors
 from synapse.types import JsonDict
 
 from synapse_invite_checker.config import InviteCheckerConfig
-from synapse_invite_checker.rest.base import (
-    CONTACT_MANAGEMENT_API_PREFIX,
-)
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import Contact
 
 # Version of the TiMessengerContactManagement interface. See:
 # https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerContactManagement.yaml
 _TMCM_schema_version = "1.0.2"
+
+# This API prefix will probably be deprecated in the future
+CONTACT_MANAGEMENT_API_PREFIX = "/_synapse/client/com.famedly/tim/v1"
 
 
 class ContactManagementInfoResource(RestServlet):

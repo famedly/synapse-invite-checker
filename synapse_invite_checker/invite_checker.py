@@ -172,12 +172,16 @@ class InviteChecker:
         ) as db_conn:
             self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
+        # The Contact Management API resources
         ContactManagementInfoResource(self.config).register(self.resource)
         ContactsResource(self.api, self.store).register(self.resource)
         ContactResource(self.api, self.store).register(self.resource)
 
+        # The TiMessengerInformation API resource
         MessengerInfoResource(self.config).register(self.resource)
 
+        # Register everything at the root of our namespace/app, to avoid complicating
+        # Synapse's regex http registration
         self.api.register_web_resource(BASE_API_PREFIX, self.resource)
         logger.info("Module initialized at %s", BASE_API_PREFIX)
 
