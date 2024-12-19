@@ -25,7 +25,7 @@ from synapse_invite_checker.config import InviteCheckerConfig
 # https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerInformation.yaml
 _TMI_schema_version = "1.0.0"
 
-INFO_API_PREFIX = "/_synapse/client/com.famedly/tim/v2/tim-information"
+INFO_API_PREFIX = "/_synapse/client/com.famedly/tim/tim-information"
 
 
 class MessengerInfoResource(RestServlet):

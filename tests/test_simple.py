@@ -930,7 +930,7 @@ class MessengerInfoTestCase(ModuleApiTestCase):
 
         channel = self.make_request(
             method="GET",
-            path="/_synapse/client/com.famedly/tim/v2/tim-information",
+            path="/_synapse/client/com.famedly/tim/tim-information",
         )
 
         assert channel.code == 200, channel.result
@@ -962,7 +962,7 @@ class MessengerInfoTestCase(ModuleApiTestCase):
 
         channel = self.make_request(
             method="GET",
-            path="/_synapse/client/com.famedly/tim/v2/tim-information",
+            path="/_synapse/client/com.famedly/tim/tim-information",
         )
 
         assert channel.code == 200, channel.result
