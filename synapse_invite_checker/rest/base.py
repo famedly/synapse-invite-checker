@@ -1,4 +1,4 @@
-# Copyright (C) 2020,2023 Famedly
+# Copyright (C) 2020,2024 Famedly
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -12,15 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-from dataclasses import dataclass
 
-
-@dataclass
-class InviteCheckerConfig:
-    title: str = "Invite Checker module by Famedly"
-    description: str = "Invite Checker module by Famedly"
-    contact: str = "info@famedly.com"
-    federation_list_url: str = ""
-    federation_list_client_cert: str = ""
-    federation_localization_url: str = ""
-    gematik_ca_baseurl: str = ""
+CONTACT_MANAGEMENT_API_PREFIX = "/_synapse/client/com.famedly/tim/v1"
+INFO_API_PREFIX = "/_synapse/client/com.famedly/tim/v2/tim-information"
