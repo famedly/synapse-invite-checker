@@ -146,8 +146,6 @@ BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
 
 class InviteChecker:
     __version__ = "0.2.0"
-    _TMCM_schema_version = "1.0.2"
-    _TMI_schema_version = "1.0.0"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
@@ -174,15 +172,11 @@ class InviteChecker:
         ) as db_conn:
             self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
-        ContactManagementInfoResource(self.config, self._TMCM_schema_version).register(
-            self.resource
-        )
+        ContactManagementInfoResource(self.config).register(self.resource)
         ContactsResource(self.api, self.store).register(self.resource)
         ContactResource(self.api, self.store).register(self.resource)
 
-        MessengerInfoResource(self.config, self._TMI_schema_version).register(
-            self.resource
-        )
+        MessengerInfoResource(self.config).register(self.resource)
 
         self.api.register_web_resource(BASE_API_PREFIX, self.resource)
         logger.info("Module initialized at %s", BASE_API_PREFIX)

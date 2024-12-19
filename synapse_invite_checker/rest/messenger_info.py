@@ -24,12 +24,17 @@ from synapse_invite_checker.rest.base import (
     INFO_API_PREFIX,
 )
 
+# Version of TiMessengerInformation interface. See:
+# https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerInformation.yaml
+_TMI_schema_version = "1.0.0"
+
 
 class MessengerInfoResource(RestServlet):
-    def __init__(self, config: InviteCheckerConfig, version: str):
+    def __init__(self, config: InviteCheckerConfig):
         super().__init__()
         self.config = config
-        self.version = version
+        self.version = _TMI_schema_version
+
         self.PATTERNS = [re.compile(f"{INFO_API_PREFIX}$")]
 
     # @override

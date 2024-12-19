@@ -31,12 +31,16 @@ from synapse_invite_checker.rest.base import (
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import Contact
 
+# Version of the TiMessengerContactManagement interface. See:
+# https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerContactManagement.yaml
+_TMCM_schema_version = "1.0.2"
+
 
 class ContactManagementInfoResource(RestServlet):
-    def __init__(self, config: InviteCheckerConfig, version: str):
+    def __init__(self, config: InviteCheckerConfig):
         super().__init__()
         self.config = config
-        self.version = version
+        self.version = _TMCM_schema_version
         self.PATTERNS = [re.compile(f"{CONTACT_MANAGEMENT_API_PREFIX}$")]
 
     # @override
