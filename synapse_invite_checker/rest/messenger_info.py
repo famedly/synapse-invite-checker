@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+import re
 from http import HTTPStatus
 
 from synapse.http.servlet import RestServlet
@@ -21,7 +22,6 @@ from synapse.types import JsonDict
 from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.rest.base import (
     INFO_API_PREFIX,
-    invite_checker_pattern,
 )
 
 
@@ -30,7 +30,7 @@ class MessengerInfoResource(RestServlet):
         super().__init__()
         self.config = config
         self.version = version
-        self.PATTERNS = invite_checker_pattern("$", INFO_API_PREFIX)
+        self.PATTERNS = [re.compile(f"{INFO_API_PREFIX}$")]
 
     # @override
     async def on_GET(self, _: SynapseRequest) -> tuple[int, JsonDict]:

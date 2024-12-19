@@ -12,19 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-import re
 
 CONTACT_MANAGEMENT_API_PREFIX = "/_synapse/client/com.famedly/tim/v1"
 INFO_API_PREFIX = "/_synapse/client/com.famedly/tim/v2/tim-information"
-
-
-def invite_checker_pattern(path_regex: str, root_prefix: str):
-    path = path_regex.removeprefix("/")
-    root = root_prefix.removesuffix("/")
-    raw_regex = f"^{root}/{path}"
-
-    # we need to strip the /$, otherwise we can't register for the root of the prefix in a handler...
-    if raw_regex.endswith("/$"):
-        raw_regex = raw_regex.replace("/$", "$")
-
-    return [re.compile(raw_regex)]

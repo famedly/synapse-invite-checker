@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+import re
 from http import HTTPStatus
 
 from pydantic import ValidationError
@@ -26,7 +27,6 @@ from synapse.types import JsonDict
 from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.rest.base import (
     CONTACT_MANAGEMENT_API_PREFIX,
-    invite_checker_pattern,
 )
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import Contact
@@ -37,7 +37,7 @@ class ContactManagementInfoResource(RestServlet):
         super().__init__()
         self.config = config
         self.version = version
-        self.PATTERNS = invite_checker_pattern("$", CONTACT_MANAGEMENT_API_PREFIX)
+        self.PATTERNS = [re.compile(f"{CONTACT_MANAGEMENT_API_PREFIX}$")]
 
     # @override
     async def on_GET(self, _: SynapseRequest) -> tuple[int, JsonDict]:
@@ -54,9 +54,7 @@ class ContactsResource(RestServlet):
         super().__init__()
         self.store = store
         self.api = api
-        self.PATTERNS = invite_checker_pattern(
-            "/contacts$", CONTACT_MANAGEMENT_API_PREFIX
-        )
+        self.PATTERNS = [re.compile(f"{CONTACT_MANAGEMENT_API_PREFIX}/contacts$")]
 
     # @override
     async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
@@ -90,9 +88,9 @@ class ContactResource(RestServlet):
         super().__init__()
         self.store = store
         self.api = api
-        self.PATTERNS = invite_checker_pattern(
-            "/contacts/(?P<mxid>[^/]*)$", CONTACT_MANAGEMENT_API_PREFIX
-        )
+        self.PATTERNS = [
+            re.compile(f"{CONTACT_MANAGEMENT_API_PREFIX}/contacts/(?P<mxid>[^/]*)$")
+        ]
 
     # @override
     async def on_GET(self, request: SynapseRequest, mxid: str) -> tuple[int, JsonDict]:
