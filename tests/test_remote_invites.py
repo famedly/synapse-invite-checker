@@ -18,7 +18,7 @@ from synapse.util import Clock
 from twisted.internet import defer
 from twisted.internet.testing import MemoryReactor
 
-from tests.test_simple import ModuleApiTestCase
+from tests.base import ModuleApiTestCase
 from tests.test_utils import DOMAIN_IN_LIST
 
 

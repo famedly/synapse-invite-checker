@@ -16,7 +16,7 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.test_simple import ModuleApiTestCase
+from tests.base import ModuleApiTestCase
 
 
 class ContactsApiTest(ModuleApiTestCase):

@@ -18,7 +18,7 @@ from twisted.internet.testing import MemoryReactor
 
 from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import FederationDomain
-from tests.test_simple import ModuleApiTestCase
+from tests.base import ModuleApiTestCase
 
 
 class FederationDomainSchemaTest(ModuleApiTestCase):
