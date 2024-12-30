@@ -34,7 +34,8 @@ from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
 import tests.unittest as synapsetest
-from tests.test_utils import DOMAIN_IN_LIST
+from tests.test_utils import DOMAIN_IN_LIST, SERVER_NAME_FROM_LIST
+
 
 # ruff: noqa: E501
 # We don't care about long lines in our testdata
@@ -135,7 +136,7 @@ def return_localization(mxid: str) -> str:
         f"matrix:u/matrixuri2:{DOMAIN_IN_LIST}",
         f"matrix:user/gematikuri%3A{DOMAIN_IN_LIST}",
         f"matrix:user/gematikuri2:{DOMAIN_IN_LIST}",
-        "matrix:u/a%3Atest",
+        f"matrix:u/a%3A{SERVER_NAME_FROM_LIST}",
     }:
         return "pract"
     if mxid in {
@@ -144,7 +145,7 @@ def return_localization(mxid: str) -> str:
         f"matrix:u/matrixuri2org:{DOMAIN_IN_LIST}",
         f"matrix:user/gematikuriorg%3A{DOMAIN_IN_LIST}",
         f"matrix:user/gematikuri2org:{DOMAIN_IN_LIST}",
-        "matrix:u/b%3Atest",
+        f"matrix:u/b%3A{SERVER_NAME_FROM_LIST}",
     }:
         return "org"
     if mxid in {
@@ -153,7 +154,7 @@ def return_localization(mxid: str) -> str:
         f"matrix:u/matrixuri2orgpract:{DOMAIN_IN_LIST}",
         f"matrix:user/gematikuriorgpract%3A{DOMAIN_IN_LIST}",
         f"matrix:user/gematikuri2orgpract:{DOMAIN_IN_LIST}",
-        "matrix:u/c%3Atest",
+        f"matrix:u/c%3A{SERVER_NAME_FROM_LIST}",
     }:
         return "orgPract"
     if mxid in {
@@ -165,6 +166,75 @@ def return_localization(mxid: str) -> str:
     }:
         raise errors.HttpResponseException(404, "Not found", b"")
     return "none"
+
+
+# Namespaced various room related strings for state events as defined by gematik in:
+# https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#5.5
+#
+# These are passed to the 'creation_content' part of createRoom and are to define the
+# 'type' of the room being created
+GEMATIK_DEFAULT_ROOM_CREATE_TYPE = "de.gematik.tim.roomtype.default.v1"
+GEMATIK_CASE_ROOM_CREATE_TYPE = "de.gematik.tim.roomtype.casereference.v1"
+# These define 'State Event' types to use for 'initial_state' in createRoom
+GEMATIK_DEFAULT_ROOM_TYPE = "de.gematik.tim.room.default.v1"
+GEMATIK_CASE_STATE_EVENT_TYPE = "de.gematik.tim.room.casereference.v1"
+# These are included, but are listed as 'soon-to-be-deprecated' as they were implemented
+# too soon. See:
+# https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#5.5.1.1
+GEMATIK_ROOM_NAME = "de.gematik.tim.room.name"
+GEMATIK_ROOM_TOPIC = "de.gematik.tim.room.topic"
+
+
+def construct_initial_state_events_for_room_creation(
+    sender_id: str,
+    room_type: str = GEMATIK_DEFAULT_ROOM_TYPE,
+    room_name: str = "Room Name",
+    room_topic: str = "Room Topic",
+) -> list[dict[str, Any]]:
+    """
+    A simple dict construction helper that ensures the required 'initial_state' is
+    passed when calling the 'createRoom' endpoint during testing
+    """
+
+    room_event = {
+        "type": room_type,
+        "state_key": sender_id,
+        "content": {},
+    }
+    name_event = {
+        "type": GEMATIK_ROOM_NAME,
+        "state_key": "",
+        "content": {"name": room_name},
+    }
+    topic_event = {
+        "type": GEMATIK_ROOM_TOPIC,
+        "state_key": "",
+        "content": {"topic": room_topic},
+    }
+    return [room_event, name_event, topic_event]
+
+
+def construct_extra_content(
+    inviter: str, invitee_list: list[str], is_direct: bool = False
+) -> dict[str, Any]:
+    """
+    Helper to include all the boilerplate expected by the gematik spec during the
+    process of room creation.
+    """
+    return {
+        "invite": invitee_list,
+        "type": GEMATIK_DEFAULT_ROOM_CREATE_TYPE,
+        "initial_state": construct_initial_state_events_for_room_creation(inviter),
+        "name": "Room Name",
+        "topic": "Room Topic",
+        "is_direct": is_direct,
+    }
+
+
+class FakeInviteResponse:
+    signatures: dict[str, dict[str, str]] = {
+        "example.com": {"test_key": "whateversomethingstupidlongsoitlooksgood"}
+    }
 
 
 class ModuleApiTestCase(synapsetest.HomeserverTestCase):
@@ -224,9 +294,17 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         # Mock out the calls over federation.
         self.fed_transport_client = Mock(spec=["send_transaction"])
         self.fed_transport_client.send_transaction = AsyncMock(return_value={})
+        # Hijack the federation invitation infrastructure in the handler so do not have
+        # to do things like check signature validation and event structure
+        self.fed_handler = Mock(spec=["send_invite"])
+        self.fed_handler.send_invite = AsyncMock(return_value=FakeInviteResponse())
 
         return self.setup_test_homeserver(
+            # Masquerade as a domain found on the federation list, then we can pass
+            # tests that verify that fact
+            SERVER_NAME_FROM_LIST,
             federation_transport_client=self.fed_transport_client,
+            federation_handler=self.fed_handler,
         )
 
     def default_config(self) -> dict[str, Any]:
@@ -245,3 +323,20 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
                 }
             ]
         return conf
+
+    def add_a_contact_to_user_by_token(
+        self, contact_user: str, tok: str, display_name: str = "Test User"
+    ) -> None:
+        channel = self.make_request(
+            "PUT",
+            "/_synapse/client/com.famedly/tim/v1/contacts",
+            {
+                "displayName": display_name,
+                "mxid": contact_user,
+                "inviteSettings": {
+                    "start": 0,
+                },
+            },
+            access_token=tok,
+        )
+        assert channel.code == 200, channel.result

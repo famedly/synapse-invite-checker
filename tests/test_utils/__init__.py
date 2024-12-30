@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 TV = TypeVar("TV")
 
+SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
 # Use a domain found in our raw fedlist data instead of inserting a fake one
 DOMAIN_IN_LIST = "timo.staging.famedly.de"
 # Also borrow an 'isInsurance' domain for testing

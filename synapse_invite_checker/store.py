@@ -120,11 +120,11 @@ class InviteCheckerStore(SQLBaseStore):
             desc="famedly_invite_checker_add_contact",
         )
 
-    async def get_contact(self, user: UserID, mxid: str) -> Contact | None:
+    async def get_contact(self, user: UserID, contact_mxid: str) -> Contact | None:
         await self.ensure_table_exists()
         contact = await self.db_pool.simple_select_one(
             "famedly_invite_checker_contacts",
-            keyvalues={"owning_user": user.to_string(), "contact_mxid": mxid},
+            keyvalues={"owning_user": user.to_string(), "contact_mxid": contact_mxid},
             retcols=(
                 "contact_display_name",
                 "contact_mxid",
@@ -135,10 +135,10 @@ class InviteCheckerStore(SQLBaseStore):
             allow_none=True,
         )
         if contact:
-            (name, mxid, start, end) = contact
+            (name, contact_mxid, start, end) = contact
             return Contact(
                 displayName=name,
-                mxid=mxid,
+                mxid=contact_mxid,
                 inviteSettings=InviteSettings(start=start, end=end),
             )
         return None

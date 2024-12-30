@@ -43,6 +43,7 @@ dependencies = [
   "pytest",
   "pytest-cov",
   "mock",
+  "parameterized",
   "matrix-synapse" # we don't depend on synapse directly to prevent pip from pulling the wrong synapse, when we just want to install the module
 ]
 [tool.hatch.envs.default.scripts]

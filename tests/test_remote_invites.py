@@ -59,34 +59,12 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
 
     async def test_invite_from_remote_outside_of_fed_list(self) -> None:
         """Tests that an invite from a remote server not in the federation list gets denied"""
-
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": "Test User",
-                "mxid": f"@example:{DOMAIN_IN_LIST}",
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=self.access_token,
+        self.add_a_contact_to_user_by_token(
+            f"@example:{DOMAIN_IN_LIST}", self.access_token
         )
-        assert channel.code == 200, channel.result
-
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": "Test User",
-                "mxid": f"@example:not-{DOMAIN_IN_LIST}",
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=self.access_token,
+        self.add_a_contact_to_user_by_token(
+            f"@example:not-{DOMAIN_IN_LIST}", self.access_token
         )
-        assert channel.code == 200, channel.result
 
         # 'pract' sequence of tests. The practitioner tested is publicly listed and
         # therefore doesn't need to have contact details
@@ -158,19 +136,10 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
             == errors.Codes.FORBIDDEN
         ), f"inviter '@example:{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_d} without contact details"
 
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": "Test User",
-                "mxid": f"@example:{DOMAIN_IN_LIST}",
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=self.access_token_d,
+        self.add_a_contact_to_user_by_token(
+            f"@example:{DOMAIN_IN_LIST}", self.access_token_d
         )
-        assert channel.code == 200, channel.result
+
         # Now it should work
         assert (
             await self.may_invite(
@@ -196,15 +165,15 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
             assert (
                 await self.may_invite(inviter, self.user_a, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN from {self.user_a}"
+            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_a}"
             assert (
                 await self.may_invite(inviter, self.user_c, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN from {self.user_c}"
+            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_c}"
             assert (
                 await self.may_invite(inviter, self.user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED from {self.user_d} without contact details"
+            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d} without contact details"
 
         for inviter in {
             f"@mxid404:{DOMAIN_IN_LIST}",
@@ -216,11 +185,11 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
             assert (
                 await self.may_invite(inviter, self.user_a, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED from {self.user_a}"
+            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_a}"
             assert (
                 await self.may_invite(inviter, self.user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED from {self.user_d} without contact details"
+            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d} without contact details"
 
     async def test_invite_from_remote_to_local_org_various(self) -> None:
         """Tests that an invite from a remote server gets accepted when in the
@@ -246,34 +215,34 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
             assert (
                 await self.may_invite(inviter, self.user_b, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN from {self.user_b}"
+            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_b}"
             assert (
                 await self.may_invite(inviter, self.user_c, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN from {self.user_c}"
+            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_c}"
             assert (
                 await self.may_invite(inviter, self.user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED from {self.user_d} without contact details"
+            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d} without contact details"
 
         assert (
             await self.may_invite(
                 "@unknown:not.in.fed", self.user_b, "!madeup:example.com"
             )
             == errors.Codes.FORBIDDEN
-        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED from {self.user_b}"
+        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED to invite {self.user_b}"
         assert (
             await self.may_invite(
                 "@unknown:not.in.fed", self.user_c, "!madeup:example.com"
             )
             == errors.Codes.FORBIDDEN
-        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED from {self.user_c}"
+        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED to invite {self.user_c}"
         assert (
             await self.may_invite(
                 "@unknown:not.in.fed", self.user_d, "!madeup:example.com"
             )
             == errors.Codes.FORBIDDEN
-        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED from {self.user_d}"
+        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED to invite {self.user_d}"
 
     async def test_remote_invite_from_an_insurance_domain(self) -> None:
         """
@@ -287,15 +256,15 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
             assert (
                 await self.may_invite(inviter, self.user_b, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN from {self.user_a}"
+            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_b}"
             assert (
                 await self.may_invite(inviter, self.user_c, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN from {self.user_b}"
+            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_b}"
             assert (
                 await self.may_invite(inviter, self.user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED from {self.user_d} without contact details"
+            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d} without contact details"
 
 
 class RemoteEpaModeInviteTest(ModuleApiTestCase):
@@ -354,34 +323,12 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
 
     async def test_invite_from_remote_not_on_fed_list(self) -> None:
         """Tests that an invite from a remote server not in the federation list gets denied"""
-
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": "Test User",
-                "mxid": f"@example:{DOMAIN_IN_LIST}",
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=self.access_token_d,
+        self.add_a_contact_to_user_by_token(
+            f"@example:{DOMAIN_IN_LIST}", self.access_token_d
         )
-        assert channel.code == 200, channel.result
-
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": "Test User",
-                "mxid": f"@example:not-{DOMAIN_IN_LIST}",
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=self.access_token_d,
+        self.add_a_contact_to_user_by_token(
+            f"@example:not-{DOMAIN_IN_LIST}", self.access_token_d
         )
-        assert channel.code == 200, channel.result
 
         for inviter in {
             f"@example:not-{DOMAIN_IN_LIST}",
@@ -404,19 +351,9 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
         ), f"inviter '@example:{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_d}"
 
         # Now add in the contact details and try again
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": "Test User",
-                "mxid": f"@example:{DOMAIN_IN_LIST}",
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=self.access_token_d,
+        self.add_a_contact_to_user_by_token(
+            f"@example:{DOMAIN_IN_LIST}", self.access_token_d
         )
-        assert channel.code == 200, channel.result
 
         assert (
             await self.may_invite(
@@ -450,28 +387,16 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
             assert (
                 await self.may_invite(inviter, self.user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED from {self.user_d}(step one)"
+            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d}(step one)"
 
             # Now add in the contact details...
-            channel = self.make_request(
-                "PUT",
-                "/_synapse/client/com.famedly/tim/v1/contacts",
-                {
-                    "displayName": "Test User",
-                    "mxid": f"{inviter}",
-                    "inviteSettings": {
-                        "start": 0,
-                    },
-                },
-                access_token=self.access_token_d,
-            )
-            assert channel.code == 200, channel.result
+            self.add_a_contact_to_user_by_token(inviter, self.access_token_d)
 
             # ...and try again
             assert (
                 await self.may_invite(inviter, self.user_d, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN from {self.user_d}(step two)"
+            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_d}(step two)"
 
     async def test_remote_invite_from_an_insured_domain_fails(self) -> None:
         """
@@ -485,25 +410,13 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
             assert (
                 await self.may_invite(inviter, self.user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED from {self.user_d}"
+            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d}"
 
             # Now add in the contact details...
-            channel = self.make_request(
-                "PUT",
-                "/_synapse/client/com.famedly/tim/v1/contacts",
-                {
-                    "displayName": "Test User",
-                    "mxid": f"{inviter}",
-                    "inviteSettings": {
-                        "start": 0,
-                    },
-                },
-                access_token=self.access_token_d,
-            )
-            assert channel.code == 200, channel.result
+            self.add_a_contact_to_user_by_token(inviter, self.access_token_d)
 
             # ...and try again
             assert (
                 await self.may_invite(inviter, self.user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED from {self.user_d}"
+            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d}"

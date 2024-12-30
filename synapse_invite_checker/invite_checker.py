@@ -32,6 +32,7 @@ from OpenSSL.crypto import (
     load_certificate,
 )
 from synapse.api.constants import AccountDataTypes
+from synapse.api.errors import SynapseError
 from synapse.config import ConfigError
 from synapse.http.client import BaseHttpClient
 from synapse.http.proxyagent import ProxyAgent
@@ -39,7 +40,7 @@ from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import make_conn
-from synapse.types import UserID
+from synapse.types import Requester, UserID
 from twisted.internet.defer import Deferred
 from twisted.internet.ssl import PrivateCertificate, optionsForClientTLS, platformTrust
 from twisted.web.client import HTTPConnectionPool
@@ -161,6 +162,9 @@ class InviteChecker:
         self.federation_list_client = FederationAllowListClient(api._hs, self.config)
 
         self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
+        self.api.register_third_party_rules_callbacks(
+            on_create_room=self.on_create_room
+        )
 
         self.resource = JsonResource(api._hs)
 
@@ -393,7 +397,8 @@ class InviteChecker:
 
         # Per A_25537:
         # The domain wasn't found but the list may have changed since the last look.
-        # Re-fetch the list and try again
+        # Re-fetch the list and try again. See:
+        # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#A_25537
         self._fetch_federation_list.cache_clear()
         fed_list = await self._fetch_federation_list()
         return check(fed_list)
@@ -404,8 +409,45 @@ class InviteChecker:
     async def is_domain_insurance(self, domain: str) -> bool:
         return await self._domain_list_check(lambda fl: fl.is_insurance(domain))
 
+    async def on_create_room(
+        self,
+        requester: Requester,
+        request_content: dict[str, Any],
+        is_request_admin: bool,
+    ) -> None:
+        """
+        Raise a SynapseError if creating a room with invites should be denied
+        """
+        # Unlike `user_may_invite()`, `on_create_room()` only runs with the inviter being
+        # a local user and the invitee is remote. Unfortunately, the spam check module
+        # function `user_may_create_room()` only accepts the user creating the room and
+        # has no other information provided.
+
+        invite_list: list[str] = request_content.get("invite", [])
+        # Per A_25538, only a single additional user may be invited to a room during
+        # creation. See:
+        # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#A_25538
+        # Interesting potential error here, they display an http error code of 400, but
+        # then say to use "M_FORBIDDEN". Pretty sure that is a typo
+        if len(invite_list) > 1:
+            raise SynapseError(
+                403,
+                "When creating a room, a maximum of one participant can be invited directly",
+                errors.Codes.FORBIDDEN,
+            )
+
+        inviter = requester.user.to_string()
+        for invitee in invite_list:
+            res = await self.user_may_invite(inviter, invitee)
+            if res != "NOT_SPAM":
+                raise SynapseError(
+                    403,
+                    f"Room not created as user ({invitee}) is not allowed to be invited",
+                    errors.Codes.FORBIDDEN,
+                )
+
     async def user_may_invite(
-        self, inviter: str, invitee: str, room_id: str
+        self, inviter: str, invitee: str, room_id: str | None = None
     ) -> Literal["NOT_SPAM"] | errors.Codes:
         # Check local invites first, no need to check federation invites for those
         if self.api.is_mine(inviter):
@@ -414,33 +456,45 @@ class InviteChecker:
                 if self.api.is_mine(invitee):
                     return errors.Codes.FORBIDDEN
 
-            # Verify that local users can't invite into their DMs as verified by a few tests in the Testsuite
-            direct = await self.api.account_data_manager.get_global(
-                inviter, AccountDataTypes.DIRECT
-            )
-            if direct:
-                for user, roomids in direct.items():
-                    if room_id in roomids and user != invitee:
-                        # Can't invite to DM!
-                        logger.debug(
-                            "Preventing invite since %s already has a DM with %s",
-                            inviter,
-                            invitee,
-                        )
-                        return errors.Codes.FORBIDDEN
+            # Verify that local users can't invite into their DMs as verified by a few
+            # tests in the Testsuite. In the context of calling this directly from
+            # `on_create_room()` above, there may not be a room_id yet.
+            if room_id:
+                direct = await self.api.account_data_manager.get_global(
+                    inviter, AccountDataTypes.DIRECT
+                )
+                if direct:
+                    for user, roomids in direct.items():
+                        if room_id in roomids and user != invitee:
+                            # Can't invite to DM!
+                            logger.debug(
+                                "Preventing invite since %s already has a DM with %s",
+                                inviter,
+                                invitee,
+                            )
+                            return errors.Codes.FORBIDDEN
 
-            # local invites are always valid, if they are not to a dm.
-            # There are no checks done for outgoing invites apart from in the federation proxy,
-            # which checks all requests.
-            logger.debug("Local invite from %s to %s allowed", inviter, invitee)
-            return NOT_SPAM
+            # local invites are always valid, if they are not to a dm (and not in EPA mode).
+            if self.api.is_mine(invitee):
+                logger.debug("Local invite from %s to %s allowed", inviter, invitee)
+                return NOT_SPAM
 
         inviter_id = UserID.from_string(inviter)
         inviter_domain = inviter_id.domain
+        invitee_id = UserID.from_string(invitee)
+        invitee_domain = invitee_id.domain
 
-        # Step 1a, check federation allow list
-        if not await self.is_domain_allowed(inviter_domain):
-            logger.warning("Discarding invite from domain: %s", inviter_domain)
+        # Step 1a, check federation allow list. See:
+        # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#A_25534
+        if not (
+            await self.is_domain_allowed(inviter_domain)
+            and await self.is_domain_allowed(invitee_domain)
+        ):
+            logger.warning(
+                "Discarding invite between domains: (%s) and (%s)",
+                inviter_domain,
+                invitee_domain,
+            )
             return errors.Codes.FORBIDDEN
 
         # Step 1b
@@ -460,7 +514,12 @@ class InviteChecker:
         # Step 2, check invite settings
         # TODO: This section checks for "Block all but allow exceptions" behavior. Need
         #  to develop the inverse as well, "Allow all but block exceptions"
-        contact = await self.store.get_contact(UserID.from_string(invitee), inviter)
+        # Get the local user contacts, because our server doesn't have the remote users
+        remote_user_id = inviter if not self.api.is_mine(inviter) else invitee
+        local_user_id = invitee if self.api.is_mine(invitee) else inviter
+        contact = await self.store.get_contact(
+            UserID.from_string(local_user_id), remote_user_id
+        )
         seconds_since_epoch = int(time.time())
         if (
             contact
