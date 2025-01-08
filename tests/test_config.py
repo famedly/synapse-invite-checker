@@ -53,3 +53,57 @@ class ConfigParsingTestCase(TestCase):
         test_config = self.config.copy()
         test_config.update({"tim-type": "fake"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+    def test_missing_fed_list_or_gematik_ca_url_raises(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"federation_list_url": ""})
+        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+
+        test_config = self.config.copy()
+        test_config.update({"gematik_ca_baseurl": ""})
+        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+
+    def test_missing_fed_localization_url_raises(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"federation_localization_url": ""})
+        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+
+    def test_missing_fed_list_client_certs_raises(self) -> None:
+        """
+        Test that missing client certs for the Federation List only raises
+        if the scheme on the 'federation_list_url' is 'https'
+        """
+        test_config = self.config.copy()
+        test_config.update({"federation_list_client_cert": ""})
+        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+
+    def test_missing_fed_list_client_certs_is_accepted_if_fed_scheme_is_http(
+        self,
+    ) -> None:
+        """
+        Both 'federation_list_url' and 'federation_localization_url' must be 'http'
+        if Federation List Client certs are missing.
+
+        The schemes matching is a separate test
+        """
+        test_config = self.config.copy()
+        test_config.update(
+            {
+                "federation_list_client_cert": "",
+                "federation_list_url": "http://localhost:8080",
+                "federation_localization_url": "http://localhost:8080/localization",
+            }
+        )
+        # self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+        assert InviteChecker.parse_config(test_config), "Exception maybe?"
+
+    def test_mismatch_scheme_between_fedlist_and_fedloc_raises(self) -> None:
+        """Test that one scheme is set to 'http' while another is 'https'"""
+        test_config = self.config.copy()
+        test_config.update({"federation_list_url": "http://localhost:8080"})
+
+        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+
+        test_config = self.config.copy()
+        test_config.update({"federation_list_url": "https://fake-localhost:8080"})
+        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
