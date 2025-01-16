@@ -41,8 +41,10 @@ TV = TypeVar("TV")
 SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
 # Use a domain found in our raw fedlist data instead of inserting a fake one
 DOMAIN_IN_LIST = "timo.staging.famedly.de"
-# Also borrow an 'isInsurance' domain for testing
+# Also borrow an 'isInsurance' domain for testing remotes
 INSURANCE_DOMAIN_IN_LIST = "cirosec.de"
+# And another 'isInsurance' domain for testing local
+INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL = "ti-messengertest.dev.ccs.gematik.solutions"
 
 
 def get_awaitable_result(awaitable: Awaitable[TV]) -> TV:

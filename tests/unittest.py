@@ -81,8 +81,10 @@ from tests.server import (
 )
 from tests.test_utils import event_injection, setup_awaitable_errors
 from tests.test_utils.logging_setup import setup_logging
-from tests.utils import checked_cast, default_config
+from tests.utils import checked_cast, default_config, setupdb
 
+
+setupdb()
 setup_logging()
 
 TV = TypeVar("TV")

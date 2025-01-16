@@ -15,7 +15,6 @@
 import base64
 import functools
 import logging
-import time
 from contextlib import suppress
 from typing import Any, Callable, Dict, Literal, cast
 from urllib.parse import quote, urlparse
@@ -48,6 +47,9 @@ from twisted.web.iweb import IPolicyForHTTPS
 from zope.interface import implementer
 
 from synapse_invite_checker.config import InviteCheckerConfig
+from synapse_invite_checker.permissions import (
+    InviteCheckerPermissionsHandler,
+)
 from synapse_invite_checker.rest.contacts import (
     ContactManagementInfoResource,
     ContactResource,
@@ -182,10 +184,20 @@ class InviteChecker:
         ) as db_conn:
             self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
+        self.permissions_handler = InviteCheckerPermissionsHandler(
+            self.api,
+            self.fetch_localization_for_mxid,
+            self.is_domain_insurance,
+        )
+
         # The Contact Management API resources
         ContactManagementInfoResource(self.config).register(self.resource)
-        ContactsResource(self.api, self.store).register(self.resource)
-        ContactResource(self.api, self.store).register(self.resource)
+        ContactsResource(self.api, self.store, self.permissions_handler).register(
+            self.resource
+        )
+        ContactResource(self.api, self.store, self.permissions_handler).register(
+            self.resource
+        )
 
         # The TiMessengerInformation API resource
         MessengerInfoResource(self.config).register(self.resource)
@@ -261,8 +273,9 @@ class InviteChecker:
 
     def after_startup(self) -> None:
         """
-        To be called when the rector is running. Validates that the epa setting matches
-        the insurance setting in the federation list.
+        To be called when the reactor is running. Validates that the epa setting matches
+        the insurance setting in the federation list and *might* perform forced contact
+        migration.
         """
         fetch_deferred = Deferred.fromCoroutine(self._fetch_federation_list())
         fed_list = cast(FederationList, fetch_deferred.result)
@@ -274,7 +287,41 @@ class InviteChecker:
                 "the Federation List as an Insurance Domain!"
             )
 
-    async def _raw_localization_fetch(self, mxid: str) -> str:
+        _ = Deferred.fromCoroutine(self.run_migration())
+
+    async def run_migration(self) -> None:
+        """
+        Migrate Contacts from the database to Account Data in Synapse, one owning user at
+        a time. This WILL delete the contacts table after it has completed!
+
+        Safe to run multiple times
+        """
+        contact_owners = await self.store.get_all_contact_owners_for_migration()
+        if not contact_owners:
+            logger.warning("No Contacts to migrate. Skipping")
+            return
+
+        logger.warning("BEGINNING MASS MIGRATION OF CONTACTS")
+
+        while contact_owners:
+            # Recursively process, in the extremely unlikely event that new data was found
+            for owner in contact_owners:
+                contacts = await self.store.get_contacts(owner)
+
+                permissions = await self.permissions_handler.get_permissions(owner)
+                for contact in contacts.contacts:
+                    permissions.userExceptions.setdefault(contact.mxid, {})
+
+                await self.permissions_handler.update_permissions(owner, permissions)
+                await self.store.del_contacts(owner)
+
+            # This will reset contact_owners and break if there are none
+            contact_owners = await self.store.get_all_contact_owners_for_migration()
+
+        logger.warning("FINISHED MASS MIGRATION OF CONTACTS. DROPPING CONTACT TABLE!!")
+        await self.store.drop_table()
+
+    async def _raw_localization_fetch(self, mxid: str) -> str:  # pragma: no cover
         resp = await self.federation_list_client.get_raw(
             self.config.federation_localization_url, {"mxid": mxid}
         )
@@ -479,60 +526,44 @@ class InviteChecker:
                 logger.debug("Local invite from %s to %s allowed", inviter, invitee)
                 return NOT_SPAM
 
-        inviter_id = UserID.from_string(inviter)
-        inviter_domain = inviter_id.domain
-        invitee_id = UserID.from_string(invitee)
-        invitee_domain = invitee_id.domain
+        remote_user_id = inviter if not self.api.is_mine(inviter) else invitee
+        remote_domain = UserID.from_string(remote_user_id).domain
+        local_user_id = invitee if self.api.is_mine(invitee) else inviter
+        local_domain = UserID.from_string(local_user_id).domain
 
         # Step 1a, check federation allow list. See:
         # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#A_25534
         if not (
-            await self.is_domain_allowed(inviter_domain)
-            and await self.is_domain_allowed(invitee_domain)
+            await self.is_domain_allowed(remote_domain)
+            and await self.is_domain_allowed(local_domain)
         ):
             logger.warning(
                 "Discarding invite between domains: (%s) and (%s)",
-                inviter_domain,
-                invitee_domain,
+                remote_domain,
+                local_domain,
             )
             return errors.Codes.FORBIDDEN
 
         # Step 1b
         # Per AF_10233: Deny incoming remote invites if in ePA mode(which means the
         # local user is an 'insured') and if the remote domain is type 'insurance'.
-
-        # TODO: stop trusting our local setting and instead check the federation list
-        #  data to see if *this* server is of type `isInsurance`
-        if self.config.tim_type == TimType.EPA and await self.is_domain_insurance(
-            inviter_domain
-        ):
+        if await self.is_domain_insurance(
+            local_domain
+        ) and await self.is_domain_insurance(remote_domain):
             logger.warning(
-                "Discarding invite from remote insurance domain: %s", inviter_domain
+                "Discarding invite from remote insurance domain: %s", remote_domain
             )
             return errors.Codes.FORBIDDEN
 
         # Step 2, check invite settings
-        # TODO: This section checks for "Block all but allow exceptions" behavior. Need
-        #  to develop the inverse as well, "Allow all but block exceptions"
-        # Get the local user contacts, because our server doesn't have the remote users
-        remote_user_id = inviter if not self.api.is_mine(inviter) else invitee
-        local_user_id = invitee if self.api.is_mine(invitee) else inviter
-        contact = await self.store.get_contact(
-            UserID.from_string(local_user_id), remote_user_id
-        )
-        seconds_since_epoch = int(time.time())
-        if (
-            contact
-            and contact.inviteSettings.start <= seconds_since_epoch
-            and (
-                contact.inviteSettings.end is None
-                or contact.inviteSettings.end >= seconds_since_epoch
-            )
+        # Get the local user permissions, because our server doesn't have the remote users
+        if await self.permissions_handler.is_user_allowed(
+            local_user_id, remote_user_id
         ):
             logger.debug(
-                "Allowing invite since invitee %s allowed the inviter %s in their contact settings",
-                invitee,
-                inviter,
+                "Allowing invite since local user (%s) allowed the remote user (%s) in their permissions",
+                local_user_id,
+                remote_user_id,
             )
             return NOT_SPAM
 

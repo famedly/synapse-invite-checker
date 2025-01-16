@@ -37,6 +37,17 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install hatch
 
+      - name: Set up PostgreSQL 15
+        # 1. Mount postgres data files onto a tmpfs in-memory filesystem to reduce overhead of docker's overlayfs layer.
+        # 2. Expose the unix socket for postgres. This removes latency of using docker-proxy for connections.
+        run: |
+          docker run -d -p 5432:5432 \
+            --tmpfs /var/lib/postgres:rw,size=6144m \
+            --mount 'type=bind,src=/var/run/postgresql,dst=/var/run/postgresql' \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_INITDB_ARGS="--lc-collate C --lc-ctype C --encoding UTF8" \
+            postgres:15
+
       - name: Formatting
         uses: famedly/black@stable
         with:

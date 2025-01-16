@@ -21,7 +21,12 @@ from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
 from tests.base import ModuleApiTestCase, construct_extra_content
-from tests.test_utils import DOMAIN_IN_LIST, INSURANCE_DOMAIN_IN_LIST
+from tests.test_utils import (
+    DOMAIN_IN_LIST,
+    INSURANCE_DOMAIN_IN_LIST,
+    INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL,
+)
+
 
 """
 These tests all focus on room creation at the API level. This allows us to test:
@@ -289,6 +294,7 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
     remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
+    server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -298,7 +304,7 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         #  @c:test is an 'orgPract'
         # as they should not exist on an 'ePA' mode server backend
 
-        # @d:test is non of these things and should be just a 'User'
+        # @d:test is none of these things and should be just a 'User'
         self.user_d = self.register_user("d", "password")
         self.user_e = self.register_user("e", "password")
         self.access_token_d = self.login("d", "password")

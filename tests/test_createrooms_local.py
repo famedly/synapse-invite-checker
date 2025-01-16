@@ -24,6 +24,7 @@ from tests.base import (
     ModuleApiTestCase,
     construct_extra_content,
 )
+from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 
 class LocalProModeCreateRoomTest(ModuleApiTestCase):
@@ -176,6 +177,8 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
     ePA mode configurations should never have 'pract', 'org' or 'orgPract' Users, so
     they are not included in these tests
     """
+
+    server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)

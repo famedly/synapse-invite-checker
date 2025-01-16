@@ -94,7 +94,7 @@ class ConfigParsingTestCase(TestCase):
                 "federation_localization_url": "http://localhost:8080/localization",
             }
         )
-        # self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+
         assert InviteChecker.parse_config(test_config), "Exception maybe?"
 
     def test_mismatch_scheme_between_fedlist_and_fedloc_raises(self) -> None:

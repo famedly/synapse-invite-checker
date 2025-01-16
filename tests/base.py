@@ -238,6 +238,8 @@ class FakeInviteResponse:
 
 
 class ModuleApiTestCase(synapsetest.HomeserverTestCase):
+    server_name_for_this_server = SERVER_NAME_FROM_LIST
+
     @classmethod
     def setUpClass(cls):
         cls._patcher1 = patch(
@@ -302,7 +304,7 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         return self.setup_test_homeserver(
             # Masquerade as a domain found on the federation list, then we can pass
             # tests that verify that fact
-            SERVER_NAME_FROM_LIST,
+            self.server_name_for_this_server,
             federation_transport_client=self.fed_transport_client,
             federation_handler=self.fed_handler,
         )

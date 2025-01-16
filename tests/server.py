@@ -21,6 +21,7 @@ import logging
 import os
 import os.path
 import sqlite3
+import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, MutableMapping, Sequence
 from io import SEEK_END, BytesIO
@@ -47,11 +48,12 @@ from synapse.module_api.callbacks.third_party_event_rules_callbacks import (
 )
 from synapse.server import HomeServer
 from synapse.storage import DataStore
-from synapse.storage.database import LoggingDatabaseConnection
-from synapse.storage.engines import create_engine
+from synapse.storage.database import LoggingDatabaseConnection, make_pool
+from synapse.storage.engines import BaseDatabaseEngine, create_engine
 from synapse.storage.prepare_database import prepare_database
 from synapse.types import ISynapseReactor, JsonDict
 from synapse.util import Clock
+from twisted.enterprise import adbapi
 from twisted.internet import address, tcp, threads, udp
 from twisted.internet._resolver import SimpleResolverComplexifier
 from twisted.internet.defer import Deferred, fail, maybeDeferred, succeed
@@ -82,8 +84,14 @@ from typing_extensions import ParamSpec
 from zope.interface import implementer
 
 from tests.utils import (
+    POSTGRES_BASE_DB,
+    POSTGRES_HOST,
+    POSTGRES_PASSWORD,
+    POSTGRES_PORT,
+    POSTGRES_USER,
     SQLITE_PERSIST_DB,
     MockClock,
+    USE_POSTGRES_FOR_TESTS,
     default_config,
 )
 
@@ -649,6 +657,53 @@ def validate_connector(connector: tcp.Connector, expected_ip: str) -> None:
         raise ValueError(msg)
 
 
+def make_fake_db_pool(
+    reactor: ISynapseReactor,
+    db_config: DatabaseConnectionConfig,
+    engine: BaseDatabaseEngine,
+) -> adbapi.ConnectionPool:
+    """Wrapper for `make_pool` which builds a pool which runs db queries synchronously.
+
+    For more deterministic testing, we don't use a regular db connection pool: instead
+    we run all db queries synchronously on the test reactor's main thread. This function
+    is a drop-in replacement for the normal `make_pool` which builds such a connection
+    pool.
+    """
+    pool = make_pool(reactor, db_config, engine)
+
+    def runWithConnection(
+        func: Callable[..., R], *args: Any, **kwargs: Any
+    ) -> Awaitable[R]:
+        return threads.deferToThreadPool(
+            pool._reactor,
+            pool.threadpool,
+            pool._runWithConnection,
+            func,
+            *args,
+            **kwargs,
+        )
+
+    def runInteraction(
+        desc: str, func: Callable[..., R], *args: Any, **kwargs: Any
+    ) -> Awaitable[R]:
+        return threads.deferToThreadPool(
+            pool._reactor,
+            pool.threadpool,
+            pool._runInteraction,
+            desc,
+            func,
+            *args,
+            **kwargs,
+        )
+
+    pool.runWithConnection = runWithConnection  # type: ignore[method-assign]
+    pool.runInteraction = runInteraction  # type: ignore[assignment]
+    # Replace the thread pool with a threadless 'thread' pool
+    pool.threadpool = ThreadPool(reactor)
+    pool.running = True
+    return pool
+
+
 class ThreadPool:
     """
     Threadless thread pool.
@@ -950,38 +1005,56 @@ def setup_test_homeserver(
     if "clock" not in kwargs:
         kwargs["clock"] = MockClock()
 
-    if SQLITE_PERSIST_DB:
-        # The current working directory is in _trial_temp, so this gets created within that directory.
-        test_db_location = os.path.abspath("test.db")
-        logger.debug("Will persist db to %s", test_db_location)
-        # Ensure each test gets a clean database.
-        try:
-            os.remove(test_db_location)
-        except FileNotFoundError:
-            pass
-        else:
-            logger.debug("Removed existing DB at %s", test_db_location)
+    if USE_POSTGRES_FOR_TESTS:
+        test_db = "synapse_test_%s" % uuid.uuid4().hex
+
+        database_config = {
+            "name": "psycopg2",
+            "args": {
+                "dbname": test_db,
+                "host": POSTGRES_HOST,
+                "password": POSTGRES_PASSWORD,
+                "user": POSTGRES_USER,
+                "port": POSTGRES_PORT,
+                "cp_min": 1,
+                "cp_max": 5,
+            },
+        }
     else:
-        test_db_location = ":memory:"
+        if SQLITE_PERSIST_DB:
+            # The current working directory is in _trial_temp, so this gets created within that directory.
+            test_db_location = os.path.abspath("test.db")
+            logger.debug("Will persist db to %s", test_db_location)
+            # Ensure each test gets a clean database.
+            try:
+                os.remove(test_db_location)
+            except FileNotFoundError:
+                pass
+            else:
+                logger.debug("Removed existing DB at %s", test_db_location)
+        else:
+            test_db_location = ":memory:"
 
-    database_config = {
-        "name": "sqlite3",
-        "args": {"database": test_db_location, "cp_min": 1, "cp_max": 1},
-    }
+        database_config = {
+            "name": "sqlite3",
+            "args": {"database": test_db_location, "cp_min": 1, "cp_max": 1},
+        }
 
-    # Check if we have set up a DB that we can use as a template.
-    global PREPPED_SQLITE_DB_CONN
-    if PREPPED_SQLITE_DB_CONN is None:
-        temp_engine = create_engine(database_config)
-        PREPPED_SQLITE_DB_CONN = LoggingDatabaseConnection(
-            sqlite3.connect(":memory:"), temp_engine, "PREPPED_CONN"
-        )
+        # Check if we have set up a DB that we can use as a template.
+        global PREPPED_SQLITE_DB_CONN
+        if PREPPED_SQLITE_DB_CONN is None:
+            temp_engine = create_engine(database_config)
+            PREPPED_SQLITE_DB_CONN = LoggingDatabaseConnection(
+                sqlite3.connect(":memory:"), temp_engine, "PREPPED_CONN"
+            )
 
-        database = DatabaseConnectionConfig("master", database_config)
-        config.database.databases = [database]
-        prepare_database(PREPPED_SQLITE_DB_CONN, create_engine(database_config), config)
+            database = DatabaseConnectionConfig("master", database_config)
+            config.database.databases = [database]
+            prepare_database(
+                PREPPED_SQLITE_DB_CONN, create_engine(database_config), config
+            )
 
-    database_config["_TEST_PREPPED_CONN"] = PREPPED_SQLITE_DB_CONN
+        database_config["_TEST_PREPPED_CONN"] = PREPPED_SQLITE_DB_CONN
 
     if "db_txn_limit" in kwargs:
         database_config["txn_limit"] = kwargs["db_txn_limit"]
@@ -989,7 +1062,26 @@ def setup_test_homeserver(
     database = DatabaseConnectionConfig("master", database_config)
     config.database.databases = [database]
 
-    create_engine(database.config)
+    db_engine = create_engine(database.config)
+
+    # Create the database before we actually try and connect to it, based off
+    # the template database we generate in setupdb()
+    if USE_POSTGRES_FOR_TESTS:
+        db_conn = db_engine.module.connect(
+            dbname=POSTGRES_BASE_DB,
+            user=POSTGRES_USER,
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+            password=POSTGRES_PASSWORD,
+        )
+        db_engine.attempt_to_set_autocommit(db_conn, True)
+        cur = db_conn.cursor()
+        cur.execute("DROP DATABASE IF EXISTS %s;" % (test_db,))
+        cur.execute(
+            "CREATE DATABASE %s WITH TEMPLATE %s;" % (test_db, POSTGRES_BASE_DB)
+        )
+        cur.close()
+        db_conn.close()
 
     hs = homeserver_to_use(
         name,

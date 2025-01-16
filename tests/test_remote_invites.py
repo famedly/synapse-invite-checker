@@ -21,7 +21,11 @@ from twisted.internet import defer
 from twisted.internet.testing import MemoryReactor
 
 from tests.base import ModuleApiTestCase
-from tests.test_utils import DOMAIN_IN_LIST, INSURANCE_DOMAIN_IN_LIST
+from tests.test_utils import (
+    DOMAIN_IN_LIST,
+    INSURANCE_DOMAIN_IN_LIST,
+    INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL,
+)
 
 
 class RemoteProModeInviteTest(ModuleApiTestCase):
@@ -283,6 +287,8 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
     which will require assuming the identity of an insurance domain to test with.
 
     """
+
+    server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)

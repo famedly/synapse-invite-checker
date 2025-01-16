@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import atexit
 import os
 from collections.abc import Callable
 from typing import Any, Literal, TypeVar, overload
@@ -24,11 +24,86 @@ from synapse.config.homeserver import HomeServerConfig
 from synapse.config.server import DEFAULT_ROOM_VERSION
 from synapse.logging.context import current_context, set_current_context
 from synapse.server import HomeServer
+from synapse.storage.database import LoggingDatabaseConnection
+from synapse.storage.engines import create_engine
+from synapse.storage.prepare_database import prepare_database
 from typing_extensions import ParamSpec
+
+# set this to True to run the tests against postgres instead of sqlite.
+#
+# When running under postgres, we first create a base database with the name
+# POSTGRES_BASE_DB and update it to the current schema. Then, for each test case, we
+# create another unique database, using the base database as a template.
+USE_POSTGRES_FOR_TESTS = os.environ.get("SYNAPSE_POSTGRES", False)
+LEAVE_DB = os.environ.get("SYNAPSE_LEAVE_DB", False)
+POSTGRES_USER = os.environ.get("SYNAPSE_POSTGRES_USER", None)
+POSTGRES_HOST = os.environ.get("SYNAPSE_POSTGRES_HOST", None)
+POSTGRES_PASSWORD = os.environ.get("SYNAPSE_POSTGRES_PASSWORD", None)
+POSTGRES_PORT = (
+    int(os.environ["SYNAPSE_POSTGRES_PORT"])
+    if "SYNAPSE_POSTGRES_PORT" in os.environ
+    else None
+)
+POSTGRES_BASE_DB = "_synapse_unit_tests_base_%s" % (os.getpid(),)
 
 # When debugging a specific test, it's occasionally useful to write the
 # DB to disk and query it with the sqlite CLI.
 SQLITE_PERSIST_DB = os.environ.get("SYNAPSE_TEST_PERSIST_SQLITE_DB") is not None
+
+# the dbname we will connect to in order to create the base database.
+POSTGRES_DBNAME_FOR_INITIAL_CREATE = "postgres"
+
+
+def setupdb() -> None:
+    # If we're using PostgreSQL, set up the db once
+    if USE_POSTGRES_FOR_TESTS:
+        # create a PostgresEngine
+        db_engine = create_engine({"name": "psycopg2", "args": {}})
+        # connect to postgres to create the base database.
+        db_conn = db_engine.module.connect(
+            user=POSTGRES_USER,
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+            password=POSTGRES_PASSWORD,
+            dbname=POSTGRES_DBNAME_FOR_INITIAL_CREATE,
+        )
+        db_engine.attempt_to_set_autocommit(db_conn, autocommit=True)
+        cur = db_conn.cursor()
+        cur.execute("DROP DATABASE IF EXISTS %s;" % (POSTGRES_BASE_DB,))
+        cur.execute(
+            "CREATE DATABASE %s ENCODING 'UTF8' LC_COLLATE='C' LC_CTYPE='C' "
+            "template=template0;" % (POSTGRES_BASE_DB,)
+        )
+        cur.close()
+        db_conn.close()
+
+        # Set up in the db
+        db_conn = db_engine.module.connect(
+            dbname=POSTGRES_BASE_DB,
+            user=POSTGRES_USER,
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+            password=POSTGRES_PASSWORD,
+        )
+        logging_conn = LoggingDatabaseConnection(db_conn, db_engine, "tests")
+        prepare_database(logging_conn, db_engine, None)
+        logging_conn.close()
+
+        def _cleanup() -> None:
+            db_conn = db_engine.module.connect(
+                user=POSTGRES_USER,
+                host=POSTGRES_HOST,
+                port=POSTGRES_PORT,
+                password=POSTGRES_PASSWORD,
+                dbname=POSTGRES_DBNAME_FOR_INITIAL_CREATE,
+            )
+            db_engine.attempt_to_set_autocommit(db_conn, autocommit=True)
+            cur = db_conn.cursor()
+            cur.execute("DROP DATABASE IF EXISTS %s;" % (POSTGRES_BASE_DB,))
+            cur.close()
+            db_conn.close()
+
+        atexit.register(_cleanup)
 
 
 @overload

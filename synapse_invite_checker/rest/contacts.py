@@ -26,9 +26,14 @@ from synapse.module_api import ModuleApi, errors
 from synapse.types import JsonDict
 
 from synapse_invite_checker.config import InviteCheckerConfig
+from synapse_invite_checker.permissions import (
+    InviteCheckerPermissionsHandler,
+)
 from synapse_invite_checker.rest.base import invite_checker_pattern
 from synapse_invite_checker.store import InviteCheckerStore
-from synapse_invite_checker.types import Contact
+from synapse_invite_checker.types import (
+    Contact,
+)
 
 # Version of the TiMessengerContactManagement interface. See:
 # https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerContactManagement.yaml
@@ -49,7 +54,6 @@ class ContactManagementInfoResource(RestServlet):
         self.version = _TMCM_schema_version
         self.PATTERNS = contact_mgmt_patterns("/$")
 
-    # @override
     async def on_GET(self, _: SynapseRequest) -> tuple[int, JsonDict]:
         return HTTPStatus.OK, {
             "title": self.config.title,
@@ -60,18 +64,34 @@ class ContactManagementInfoResource(RestServlet):
 
 
 class ContactsResource(RestServlet):
-    def __init__(self, api: ModuleApi, store: InviteCheckerStore):
+    def __init__(
+        self,
+        api: ModuleApi,
+        store: InviteCheckerStore,
+        permission_handler: InviteCheckerPermissionsHandler,
+    ):
         super().__init__()
         self.store = store
         self.api = api
+        self.permission_handler = permission_handler
         self.PATTERNS = contact_mgmt_patterns("/contacts$")
 
-    # @override
     async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
         requester = await self.api.get_user_by_req(request)
+        perms = await self.permission_handler.get_permissions(
+            requester.user.to_string()
+        )
+
+        if perms.is_allow_all() or perms.serverExceptions or perms.groupExceptions:
+            raise errors.SynapseError(
+                HTTPStatus.BAD_REQUEST,
+                "Using Contact API after Permissions migration is prohibited. Please update your client",
+                errors.Codes.FORBIDDEN,
+            )
+
         return (
             HTTPStatus.OK,
-            (await self.store.get_contacts(requester.user)).model_dump(),
+            perms.get_contacts().model_dump(),
         )
 
     async def on_POST(self, request: SynapseRequest) -> tuple[int, JsonDict]:
@@ -79,33 +99,58 @@ class ContactsResource(RestServlet):
 
     async def on_PUT(self, request: SynapseRequest) -> tuple[int, JsonDict]:
         requester = await self.api.get_user_by_req(request)
-
+        local_user_mxid = requester.user.to_string()
         try:
             contact = parse_and_validate_json_object_from_request(request, Contact)
-            await self.store.add_contact(requester.user, contact)
-        except (errors.SynapseError, ValidationError) as e:
+
+        except ValidationError as e:
             raise errors.SynapseError(
                 HTTPStatus.BAD_REQUEST,
                 "Missing required field",
                 errors.Codes.BAD_JSON,
             ) from e
 
+        perms = await self.permission_handler.get_permissions(local_user_mxid)
+        if perms.is_allow_all() or perms.serverExceptions or perms.groupExceptions:
+            raise errors.SynapseError(
+                HTTPStatus.BAD_REQUEST,
+                "Using Contact API after Permissions migration is prohibited. Please update your client",
+                errors.Codes.FORBIDDEN,
+            )
+        perms.userExceptions.setdefault(contact.mxid, {})
+        await self.permission_handler.update_permissions(local_user_mxid, perms)
+
         return HTTPStatus.OK, contact.model_dump()
 
 
 class ContactResource(RestServlet):
-    def __init__(self, api: ModuleApi, store: InviteCheckerStore):
+    def __init__(
+        self,
+        api: ModuleApi,
+        store: InviteCheckerStore,
+        permission_handler: InviteCheckerPermissionsHandler,
+    ):
         super().__init__()
         self.store = store
         self.api = api
+        self.permission_handler = permission_handler
         self.PATTERNS = contact_mgmt_patterns("/contacts/(?P<mxid>[^/]*)$")
 
-    # @override
     async def on_GET(self, request: SynapseRequest, mxid: str) -> tuple[int, JsonDict]:
         requester = await self.api.get_user_by_req(request)
 
-        contact = await self.store.get_contact(requester.user, mxid)
-        if contact:
+        perms = await self.permission_handler.get_permissions(
+            requester.user.to_string()
+        )
+
+        if perms.is_allow_all() or perms.serverExceptions or perms.groupExceptions:
+            raise errors.SynapseError(
+                HTTPStatus.BAD_REQUEST,
+                "Using Contact API after Permissions migration is prohibited. Please update your client",
+                errors.Codes.FORBIDDEN,
+            )
+
+        if contact := perms.maybe_get_contact(mxid):
             return HTTPStatus.OK, contact.model_dump()
 
         return HTTPStatus.NOT_FOUND, {}
@@ -114,10 +159,21 @@ class ContactResource(RestServlet):
         self, request: SynapseRequest, mxid: str
     ) -> tuple[int, JsonDict]:
         requester = await self.api.get_user_by_req(request)
+        local_user_mxid = requester.user.to_string()
+        perms = await self.permission_handler.get_permissions(local_user_mxid)
 
-        contact = await self.store.get_contact(requester.user, mxid)
-        if contact:
-            await self.store.del_contact(requester.user, mxid)
+        if perms.is_allow_all() or perms.serverExceptions or perms.groupExceptions:
+            raise errors.SynapseError(
+                HTTPStatus.BAD_REQUEST,
+                "Using Contact API after Permissions migration is prohibited. Please update your client",
+                errors.Codes.FORBIDDEN,
+            )
+
+        if mxid in perms.userExceptions:
+            perms.userExceptions.pop(mxid)
+
+            # The data was changed, make sure to update
+            await self.permission_handler.update_permissions(local_user_mxid, perms)
             return HTTPStatus.NO_CONTENT, {}
 
         return HTTPStatus.NOT_FOUND, {}
