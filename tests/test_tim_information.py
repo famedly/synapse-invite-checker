@@ -44,6 +44,7 @@ class MessengerInfoTestCase(ModuleApiTestCase):
                         "federation_localization_url": "https://localhost:8000/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
+                        "allowed_room_versions": ["9", "10"],
                     },
                 }
             ]
@@ -101,6 +102,7 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
                         "federation_localization_url": "https://localhost:8000/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
+                        "allowed_room_versions": ["9", "10"],
                     },
                 }
             ]

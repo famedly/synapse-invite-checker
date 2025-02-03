@@ -310,6 +310,8 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         )
 
     def default_config(self) -> dict[str, Any]:
+        # Explicitly set the 'default_room_version', as the upstream default may change
+        # and that won't be valid for gematik spec
         conf = super().default_config()
         if "modules" not in conf:
             conf["modules"] = [
@@ -321,9 +323,11 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
                         "federation_localization_url": "http://dummy.test/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
+                        "allowed_room_versions": ["9", "10"],
                     },
                 }
             ]
+        conf["default_room_version"] = "10"
         return conf
 
     def add_a_contact_to_user_by_token(

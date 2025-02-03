@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from synapse_invite_checker.types import TimType
 
@@ -27,3 +27,4 @@ class InviteCheckerConfig:
     federation_localization_url: str = ""
     gematik_ca_baseurl: str = ""
     tim_type: TimType = TimType.PRO
+    allowed_room_versions: list[str] = field(default_factory=list)

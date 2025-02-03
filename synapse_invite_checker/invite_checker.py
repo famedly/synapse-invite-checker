@@ -269,6 +269,16 @@ class InviteChecker:
                 msg = "`tim-type` setting is not a recognized value. Please fix."
                 raise ConfigError(msg)
 
+        _allowed_room_versions = config.get("allowed_room_versions", ["9", "10"])
+        if not _allowed_room_versions or not isinstance(_allowed_room_versions, list):
+            msg = "Allowed room versions must be formatted as a list."
+            raise ConfigError(msg)
+
+        _config.allowed_room_versions = [
+            # Coercing into a string, in case the yaml loader thought it was an int
+            str(_room_ver)
+            for _room_ver in _allowed_room_versions
+        ]
         return _config
 
     def after_startup(self) -> None:
@@ -463,7 +473,9 @@ class InviteChecker:
         is_request_admin: bool,
     ) -> None:
         """
-        Raise a SynapseError if creating a room with invites should be denied
+        Raise a SynapseError if creating a room should be denied. Currently, this checks
+        invites
+        room version
         """
         # Unlike `user_may_invite()`, `on_create_room()` only runs with the inviter being
         # a local user and the invitee is remote. Unfortunately, the spam check module
@@ -492,6 +504,20 @@ class InviteChecker:
                     f"Room not created as user ({invitee}) is not allowed to be invited",
                     errors.Codes.FORBIDDEN,
                 )
+
+        # The room version should always be a string to accommodate arbitrary unstable
+        # room versions. If it was not explicitly requested, the homeserver defaults
+        # will be used. Make sure to check that instance as well
+        room_version: str = request_content.get(
+            "room_version", self.api._hs.config.server.default_room_version.identifier
+        )
+
+        if room_version not in self.config.allowed_room_versions:
+            raise SynapseError(
+                400,
+                f"Room version ('{room_version}') not allowed",
+                errors.Codes.FORBIDDEN,
+            )
 
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str | None = None

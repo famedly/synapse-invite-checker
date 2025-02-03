@@ -37,6 +37,7 @@ class ConfigParsingTestCase(TestCase):
         "federation_localization_url": "https://localhost:8000/localization",
         "federation_list_client_cert": "tests/certs/client.pem",
         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
+        "allowed_room_versions": ["9", "10"],
     }
 
     def test_tim_type_is_not_case_sensitive(self) -> None:
@@ -107,3 +108,33 @@ class ConfigParsingTestCase(TestCase):
         test_config = self.config.copy()
         test_config.update({"federation_list_url": "https://fake-localhost:8080"})
         self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+
+    def test_allowed_room_versions_is_not_a_list(self) -> None:
+        test_config = self.config.copy()
+        # test_config.update({"allowed_room_versions": "['9', '10']"})
+
+        assert InviteChecker.parse_config(test_config)
+
+        # Nope, not a list
+        test_config.update({"allowed_room_versions": "9"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # Nope, not a list
+        test_config.update({"allowed_room_versions": "{9}"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # Nope, not a recognized list
+        test_config.update({"allowed_room_versions": "9, 10"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # Nope, not a list
+        test_config.update({"allowed_room_versions": "9 10"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # This one is okay, these are integers and can be coerced into strings
+        test_config.update({"allowed_room_versions": [9, 10]})  # type: ignore[arg-type]
+        assert InviteChecker.parse_config(test_config)
+
+        # This is allowed
+        test_config.update({"allowed_room_versions": ["8"]})
+        assert InviteChecker.parse_config(test_config)
