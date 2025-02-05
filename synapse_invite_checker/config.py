@@ -18,6 +18,12 @@ from synapse_invite_checker.types import TimType
 
 
 @dataclass
+class InsuredOnlyRoomScanConfig:
+    grace_period_ms: int = 0
+    enabled: bool = False
+
+
+@dataclass
 class InviteCheckerConfig:
     title: str = "Invite Checker module by Famedly"
     description: str = "Invite Checker module by Famedly"
@@ -28,3 +34,7 @@ class InviteCheckerConfig:
     gematik_ca_baseurl: str = ""
     tim_type: TimType = TimType.PRO
     allowed_room_versions: list[str] = field(default_factory=list)
+    room_scan_run_interval_ms: int = 0
+    insured_room_scan_options: InsuredOnlyRoomScanConfig = field(
+        default_factory=InsuredOnlyRoomScanConfig
+    )

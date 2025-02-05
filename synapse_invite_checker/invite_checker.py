@@ -16,7 +16,7 @@ import base64
 import functools
 import logging
 from contextlib import suppress
-from typing import Any, Callable, Dict, Literal, cast
+from typing import Any, Callable, Dict, Literal
 from urllib.parse import quote, urlparse
 
 from cachetools import TTLCache, keys
@@ -30,17 +30,23 @@ from OpenSSL.crypto import (
     dump_certificate,
     load_certificate,
 )
-from synapse.api.constants import AccountDataTypes
+from synapse.api.constants import AccountDataTypes, EventTypes, Membership
 from synapse.api.errors import SynapseError
 from synapse.api.room_versions import RoomVersion
 from synapse.config import ConfigError
+from synapse.config._base import Config
+from synapse.events import EventBase
+from synapse.handlers.pagination import SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME
 from synapse.http.client import BaseHttpClient
 from synapse.http.proxyagent import ProxyAgent
 from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
-from synapse.storage.database import make_conn
-from synapse.types import Requester, UserID
+from synapse.storage.database import LoggingTransaction, make_conn
+from synapse.types import Requester, ScheduledTask, TaskStatus, UserID
+from synapse.types.handlers import ShutdownRoomParams
+from synapse.types.state import StateFilter
+from synapse.util.metrics import measure_func
 from twisted.internet.defer import Deferred
 from twisted.internet.ssl import PrivateCertificate, optionsForClientTLS, platformTrust
 from twisted.web.client import HTTPConnectionPool
@@ -159,7 +165,8 @@ class InviteChecker:
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
-
+        # Need this for the @measure_func decorator to work
+        self.clock = api._hs.get_clock()
         self.config = config
 
         self.federation_list_client = FederationAllowListClient(api._hs, self.config)
@@ -193,6 +200,18 @@ class InviteChecker:
             self.fetch_localization_for_mxid,
             self.is_domain_insurance,
         )
+
+        self.task_scheduler = api._hs.get_task_scheduler()
+
+        if self.config.room_scan_run_interval_ms > 0:
+            # The docstring for 'looping_background_call()' is slightly incorrect
+            # > Waits msec initially before calling f for the first time.
+            # Should be
+            # > Calls f after waiting msec, then repeats. This is an inexact, "best effort"
+            # > figure when the reactor/event loop is under heavy load
+            self.api.looping_background_call(
+                self.room_scan, self.config.room_scan_run_interval_ms
+            )
 
         # The Contact Management API resources
         ContactManagementInfoResource(self.config).register(self.resource)
@@ -283,16 +302,49 @@ class InviteChecker:
             str(_room_ver)
             for _room_ver in _allowed_room_versions
         ]
+
+        run_interval = Config.parse_duration(config.get("room_scan_run_interval", "1h"))
+        clamp_minimum_to = Config.parse_duration("1h")
+
+        # If 'room_scan_run_interval' is not set to 0 for disabling the room scan
+        # completely, make sure anything less than the minimum of 1 hour is ignored
+        _config.room_scan_run_interval_ms = (
+            max(run_interval, clamp_minimum_to) if run_interval > 0 else run_interval
+        )
+
+        insured_room_scan_section = config.get("insured_only_room_scan", {})
+        if not isinstance(insured_room_scan_section, dict):
+            msg = "`insured_only_room_scan` should be configured as a dictionary"
+            raise ConfigError(msg)
+
+        # Only default enable this room scan if in EPA mode
+        enable_insured_room_scan = insured_room_scan_section.get(
+            "enabled", True if _config.tim_type == TimType.EPA else False
+        )
+        # But also prevent it running in PRO mode completely
+        enable_insured_room_scan = (
+            False if _config.tim_type == TimType.PRO else enable_insured_room_scan
+        )
+        _config.insured_room_scan_options.enabled = enable_insured_room_scan
+
+        epa_room_grace_period = Config.parse_duration(
+            insured_room_scan_section.get("grace_period", "1w")
+        )
+
+        _config.insured_room_scan_options.grace_period_ms = epa_room_grace_period
+
         return _config
 
     def after_startup(self) -> None:
+        _ = Deferred.fromCoroutine(self._after_startup())
+
+    async def _after_startup(self) -> None:
         """
         To be called when the reactor is running. Validates that the epa setting matches
         the insurance setting in the federation list and *might* perform forced contact
         migration.
         """
-        fetch_deferred = Deferred.fromCoroutine(self._fetch_federation_list())
-        fed_list = cast(FederationList, fetch_deferred.result)
+        fed_list = await self._fetch_federation_list()
         if self.config.tim_type == TimType.EPA and not fed_list.is_insurance(
             self.api._hs.config.server.server_name
         ):
@@ -301,7 +353,7 @@ class InviteChecker:
                 "the Federation List as an Insurance Domain!"
             )
 
-        _ = Deferred.fromCoroutine(self.run_migration())
+        await self.run_migration()
 
     async def run_migration(self) -> None:
         """
@@ -460,6 +512,8 @@ class InviteChecker:
         # The domain wasn't found but the list may have changed since the last look.
         # Re-fetch the list and try again. See:
         # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#A_25537
+        # TODO: want to consider a lower bound for this, as above will start to be False
+        #  a lot more often. Perhaps only re-fetch every minute or ten?
         self._fetch_federation_list.cache_clear()
         fed_list = await self._fetch_federation_list()
         return check(fed_list)
@@ -642,3 +696,141 @@ class InviteChecker:
 
         # Forbid everything else (so remote invites not matching step1, 2 or 3)
         return errors.Codes.FORBIDDEN
+
+    async def get_all_room_ids(self) -> list[str]:
+        """Retrieve all room IDS."""
+
+        # There is an PRIMARY index on room_id
+        def f(txn: LoggingTransaction) -> list[str]:
+            sql = "SELECT room_id FROM rooms"
+            txn.execute(sql)
+            result = [room_id for (room_id,) in txn.fetchall()]
+            return result
+
+        return await self.store.db_pool.runInteraction("get_rooms", f)
+
+    @measure_func("get_timestamp_from_eligible_events_for_epa_room_purge")
+    async def get_timestamp_from_eligible_events_for_epa_room_purge(
+        self, room_id
+    ) -> int:
+        """
+        Retrieve and parse the room PRO members that left into a timestamp of the
+        latest event, or the timestamp of the create event if there were no PRO members
+        in the room
+        """
+        state_mapping: dict[tuple[str, str], EventBase] = (
+            await self.api._storage_controllers.state.get_current_state(
+                room_id,
+                StateFilter.from_types(
+                    [(EventTypes.Member, None), (EventTypes.Create, None)]
+                ),
+            )
+        )
+
+        results = set()
+        create_event_ts = None
+        # The first key is "type", but it got filtered to only membership above
+        for (state_type, state_key), event in state_mapping.items():
+            if state_type == EventTypes.Create:
+                create_event_ts = event.origin_server_ts
+            elif (
+                state_type == EventTypes.Member and event.membership == Membership.LEAVE
+            ):
+                users_domain = UserID.from_string(state_key).domain
+                if not await self.is_domain_insurance(users_domain):
+                    results.add(event.origin_server_ts)
+
+        return max(results) if results else create_event_ts
+
+    async def get_delete_tasks_by_room(self, room_id: str) -> list[ScheduledTask]:
+        """Get scheduled or active delete tasks by room
+
+        Args:
+            room_id: room_id that is being targeted
+        """
+        # We specifically ignore "COMPLETED" and "FAILED" so they can be tried again
+        # if the room scan found them still hanging around. This should only occur for
+        # ridiculously complex rooms and should not be an issue in the gematik federation
+        statuses = [TaskStatus.ACTIVE, TaskStatus.SCHEDULED]
+
+        return await self.task_scheduler.get_tasks(
+            actions=[SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME],
+            resource_id=room_id,
+            statuses=statuses,
+        )
+
+    async def schedule_room_for_purge(self, room_id: str) -> None:
+        """
+        Schedules the deletion of a room from Synapse's database after kicking all users
+
+        If the room has already been scheduled or is actively being deleted, do nothing.
+        If the room was purged already in the past, but for some reason is still hanging
+        around in the database, try it again
+        """
+        if len(await self.get_delete_tasks_by_room(room_id)) > 0:
+            logger.warning("Purge already in progress or scheduled for %s" % (room_id,))
+            return
+
+        shutdown_params = ShutdownRoomParams(
+            new_room_user_id=None,
+            new_room_name=None,
+            message=None,
+            requester_user_id=None,
+            block=False,
+            purge=True,  # <- to remove the room from the database
+            force_purge=True,  # <- to force kick anyone else still in the room
+        )
+
+        delete_id = await self.task_scheduler.schedule_task(
+            SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
+            resource_id=room_id,
+            params=shutdown_params,
+            # Set the time to start to now, as we have already waited the requested time
+            timestamp=self.api._hs.get_clock().time_msec(),
+        )
+
+        logger.info(
+            "Scheduling shutdown and purge on room '%s' with delete_id '%s'",
+            room_id,
+            delete_id,
+        )
+
+    async def room_scan(self) -> None:
+        """
+        Scan all rooms for eligible conditions to shutdown and purge a room.
+        """
+        # This will be get moved when inactive rooms are checked for too
+        if self.config.insured_room_scan_options.enabled is False:
+            return
+
+        all_room_ids = await self.get_all_room_ids()
+
+        logger.debug("Detected %d total rooms", len(all_room_ids))
+
+        rooms_to_purge = set()
+        for room_id in all_room_ids:
+            # only purge rooms that only have EPA hosts in them
+            if await self.have_all_pro_hosts_left(room_id):
+                last_user_left_timestamp = (
+                    await self.get_timestamp_from_eligible_events_for_epa_room_purge(
+                        room_id
+                    )
+                )
+
+                if (
+                    last_user_left_timestamp
+                    + self.config.insured_room_scan_options.grace_period_ms
+                    <= self.api._hs.get_clock().time_msec()
+                ):
+                    rooms_to_purge.add(room_id)
+
+        for room_id in rooms_to_purge:
+            await self.schedule_room_for_purge(room_id)
+
+    async def have_all_pro_hosts_left(self, room_id: str) -> bool:
+        hosts = await self.api._store.get_current_hosts_in_room(room_id)
+        for host in hosts:
+            if not await self.is_domain_insurance(host):
+                return False
+
+        return True

@@ -41,8 +41,15 @@ modules:
         allowed_room_versions: # The list(as strings) of allowed room versions. Currently optional, defaults are listed
           - "9"
           - "10"
+        room_scan_run_interval: see 'Duration Parsing' below, # How often to scan for rooms that are eligible for deletion. Defaults to "1h". Setting to "0" completely disables all room scanning
+        insured_only_room_scan:
+          enabled: true or false  # optional switch to disable the insured-only room scan from running.  The scan is enabled by default, but only runs in EPA mode, otherwise this option is ignored and the scan is disabled.
+          grace_period: see 'Duration Parsing' below, # Length of time a room with only EPA members is allowed to exist before deletion. Ignored if `enabled` is false. Defaults to "1w"
 ```
-
+### Duration Parsing
+Settings labeled as 'duration_parsing' allow for a string representation of the value
+that is converted to milliseconds. Suffixes with 's', 'm', 'h', 'd', 'w', or 'y' may be used. For example:
+`1h` would translate to `3600000` milliseconds
 ## Testing
 
 The tests uses twisted's testing framework trial, with the development

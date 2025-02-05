@@ -39,6 +39,7 @@ from unittest.mock import Mock, patch
 import canonicaljson
 import signedjson.key
 import unpaddedbase64
+from signedjson.types import SigningKey
 from synapse import events
 from synapse.api.constants import EventTypes
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS, RoomVersion
@@ -833,24 +834,31 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
     """
 
     OTHER_SERVER_NAME = "other.example.com"
-    OTHER_SERVER_SIGNATURE_KEY = signedjson.key.generate_signing_key("test")
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, hs: HomeServer) -> None:
         super().prepare(reactor, clock, hs)
 
+        signing_key = self.inject_servers_signing_key(self.OTHER_SERVER_NAME)
+        self.map_server_name_to_signing_key = {self.OTHER_SERVER_NAME: signing_key}
+
+    def inject_servers_signing_key(self, remote_server_name: str) -> SigningKey:
         # poke the other server's signing key into the key store, so that we don't
-        # make requests for it
-        verify_key = signedjson.key.get_verify_key(self.OTHER_SERVER_SIGNATURE_KEY)
+        # make requests for it. Set it for 12 hours, because 10 seconds was silly
+        private_signature_key = signedjson.key.generate_signing_key(remote_server_name)
+
+        verify_key = signedjson.key.get_verify_key(private_signature_key)
         verify_key_id = f"{verify_key.alg}:{verify_key.version}"
 
         self.get_success(
-            hs.get_datastores().main.store_server_keys_response(
-                self.OTHER_SERVER_NAME,
-                from_server=self.OTHER_SERVER_NAME,
-                ts_added_ms=clock.time_msec(),
+            self.hs.get_datastores().main.store_server_keys_response(
+                remote_server_name,
+                from_server=remote_server_name,
+                ts_added_ms=self.hs.get_clock().time_msec(),
                 verify_keys={
                     verify_key_id: FetchKeyResult(
-                        verify_key=verify_key, valid_until_ts=clock.time_msec() + 10000
+                        verify_key=verify_key,
+                        valid_until_ts=self.hs.get_clock().time_msec()
+                        + (12 * 60 * 60 * 1000),
                     ),
                 },
                 response_json={
@@ -862,6 +870,7 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
                 },
             )
         )
+        return private_signature_key
 
     def create_resource_dict(self) -> dict[str, Resource]:
         d = super().create_resource_dict()
@@ -876,11 +885,12 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         await_result: bool = True,
         custom_headers: Iterable[CustomHeaderType] | None = None,
         client_ip: str = "127.0.0.1",
+        from_server: str = OTHER_SERVER_NAME,
     ) -> FakeChannel:
         """Make an inbound signed federation request to this server
 
-        The request is signed as if it came from "other.example.com", which our HS
-        already has the keys for.
+        The request is signed as if it came from the server name in OTHER_SERVER_NAME,
+        which our HS already has the keys for.
         """
 
         custom_headers = [] if custom_headers is None else list(custom_headers)
@@ -889,9 +899,9 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
             (
                 "Authorization",
                 _auth_header_for_request(
-                    origin=self.OTHER_SERVER_NAME,
+                    origin=from_server,
                     destination=self.hs.hostname,
-                    signing_key=self.OTHER_SERVER_SIGNATURE_KEY,
+                    signing_key=self.map_server_name_to_signing_key[from_server],
                     method=method,
                     path=path,
                     content=content,
@@ -915,6 +925,7 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         self,
         event_dict: JsonDict,
         room_version: RoomVersion = KNOWN_ROOM_VERSIONS[DEFAULT_ROOM_VERSION],
+        server_name: str = OTHER_SERVER_NAME,
     ) -> JsonDict:
         """Adds hashes and signatures to the given event dict
 
@@ -924,8 +935,8 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         add_hashes_and_signatures(
             room_version,
             event_dict,
-            signature_name=self.OTHER_SERVER_NAME,
-            signing_key=self.OTHER_SERVER_SIGNATURE_KEY,
+            signature_name=server_name,
+            signing_key=self.map_server_name_to_signing_key[server_name],
         )
         return event_dict
 

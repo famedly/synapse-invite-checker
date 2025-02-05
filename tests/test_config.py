@@ -138,3 +138,27 @@ class ConfigParsingTestCase(TestCase):
         # This is allowed
         test_config.update({"allowed_room_versions": ["8"]})
         assert InviteChecker.parse_config(test_config)
+
+    def test_parse_duration_parameters(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"room_scan_run_interval": "bad value"})
+        # After Synapse release 1.124.0, this became a TypeError
+        self.assertRaises(
+            (ValueError, TypeError), InviteChecker.parse_config, test_config
+        )
+
+        test_config = self.config.copy()
+        # Specifically use a word that has a final letter that matches one recognized
+        # by parse_duration()
+        test_config.update({"room_scan_run_interval": "why"})
+        self.assertRaises(ValueError, InviteChecker.parse_config, test_config)
+
+    def test_incorrect_insured_only_room_scan_type_raises(self) -> None:
+        test_config = self.config.copy()
+        # Shouldn't work if set to a string
+        test_config.update({"insured_only_room_scan": "bad value"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # Shouldn't work if set to a
+        test_config.update({"insured_only_room_scan": ["what", "is", "a", "list?"]})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)

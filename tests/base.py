@@ -15,9 +15,12 @@
 
 import base64
 import json
+from http import HTTPStatus
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
+from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
+from synapse.events import make_event_from_dict
 from synapse.module_api import errors
 from synapse.rest import admin
 from synapse.rest.client import (
@@ -30,12 +33,17 @@ from synapse.rest.client import (
     room_upgrade_rest_servlet,
 )
 from synapse.server import HomeServer
+from synapse.types import UserID
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
 import tests.unittest as synapsetest
-from tests.test_utils import DOMAIN_IN_LIST, SERVER_NAME_FROM_LIST
+from tests.test_utils import (
+    DOMAIN_IN_LIST,
+    INSURANCE_DOMAIN_IN_LIST,
+    SERVER_NAME_FROM_LIST,
+)
 
 
 # ruff: noqa: E501
@@ -348,3 +356,176 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
             access_token=tok,
         )
         assert channel.code == 200, channel.result
+
+
+class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
+    server_name_for_this_server = SERVER_NAME_FROM_LIST
+    OTHER_SERVER_NAME = INSURANCE_DOMAIN_IN_LIST
+    ROOM_VERSION = "10"
+
+    @classmethod
+    def setUpClass(cls):
+        cls._patcher1 = patch(
+            "synapse_invite_checker.InviteChecker._raw_federation_list_fetch",
+            new=AsyncMock(return_value=rawjwt),
+        )
+        cls._patcher2 = patch(
+            "synapse_invite_checker.InviteChecker._raw_gematik_root_ca_fetch",
+            new=AsyncMock(return_value=json.loads(raw_ca_list)),
+        )
+        cls._patcher3 = patch(
+            "synapse_invite_checker.InviteChecker._raw_gematik_intermediate_cert_fetch",
+            new=AsyncMock(side_effect=return_gem_cert),
+        )
+        cls._patcher4 = patch(
+            "synapse_invite_checker.InviteChecker._raw_localization_fetch",
+            new=AsyncMock(side_effect=return_localization),
+        )
+        cls._patcher1.start()
+        cls._patcher2.start()
+        cls._patcher3.start()
+        cls._patcher4.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._patcher1.stop()
+        cls._patcher2.stop()
+        cls._patcher3.stop()
+        cls._patcher4.stop()
+
+    servlets = [
+        admin.register_servlets,
+        account_data.register_servlets,
+        login.register_servlets,
+        room.register_servlets,
+        presence.register_servlets,
+        profile.register_servlets,
+        notifications.register_servlets,
+    ]
+
+    def prepare(
+        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
+    ) -> None:
+        super().prepare(reactor, clock, homeserver)
+        self.store = homeserver.get_datastores().main
+        self.storage_controllers = homeserver.get_storage_controllers()
+        self.module_api = homeserver.get_module_api()
+        self.event_creation_handler = homeserver.get_event_creation_handler()
+        # self.sync_handler = homeserver.get_sync_handler()
+        self.auth_handler = homeserver.get_auth_handler()
+
+    @override
+    def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
+        # Mock out the calls over federation.
+        self.fed_transport_client = Mock(spec=["send_transaction"])
+        self.fed_transport_client.send_transaction = AsyncMock(return_value={})
+        # Hijack the federation invitation infrastructure in the handler so do not have
+        # to do things like check signature validation and event structure
+        # self.fed_handler = Mock(spec=["send_invite"])
+        # self.fed_handler.send_invite = AsyncMock(return_value=FakeInviteResponse())
+
+        hs = self.setup_test_homeserver(
+            # Masquerade as a domain found on the federation list, then we can pass
+            # tests that verify that fact
+            self.server_name_for_this_server,
+            federation_transport_client=self.fed_transport_client,
+            # federation_handler=self.fed_handler,
+        )
+        hs.get_federation_handler().send_invite = AsyncMock(
+            return_value=FakeInviteResponse()
+        )
+        return hs
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        if "modules" not in conf:
+            conf["modules"] = [
+                {
+                    "module": "synapse_invite_checker.InviteChecker",
+                    "config": {
+                        "tim-type": "pro",
+                        "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
+                        "federation_localization_url": "http://dummy.test/localization",
+                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
+                    },
+                }
+            ]
+        return conf
+
+    def add_a_contact_to_user_by_token(
+        self, contact_user: str, tok: str, display_name: str = "Test User"
+    ) -> None:
+        channel = self.make_request(
+            "PUT",
+            "/_synapse/client/com.famedly/tim/v1/contacts",
+            {
+                "displayName": display_name,
+                "mxid": contact_user,
+                "inviteSettings": {
+                    "start": 0,
+                },
+            },
+            access_token=tok,
+        )
+        assert channel.code == 200, channel.result
+
+    def _make_join(self, user_id: str, room_id: str) -> dict[str, Any]:
+        users_domain = UserID.from_string(user_id).domain
+        channel = self.make_signed_federation_request(
+            "GET",
+            f"/_matrix/federation/v1/make_join/{room_id}/{user_id}"
+            f"?ver={self.ROOM_VERSION}",
+            from_server=users_domain,
+        )
+        self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
+        return channel.json_body
+
+    def send_join(self, joining_user: str, room_id: str) -> None:
+        join_result = self._make_join(joining_user, room_id)
+
+        join_event_dict = join_result["event"]
+        joining_users_domain = UserID.from_string(joining_user).domain
+        self.add_hashes_and_signatures_from_other_server(
+            join_event_dict,
+            KNOWN_ROOM_VERSIONS[self.ROOM_VERSION],
+            joining_users_domain,
+        )
+        channel = self.make_signed_federation_request(
+            "PUT",
+            f"/_matrix/federation/v2/send_join/{room_id}/x",
+            content=join_event_dict,
+            from_server=joining_users_domain,
+        )
+        self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
+
+        # the room should show that the new user is a member
+        r = self.get_success(self.storage_controllers.state.get_current_state(room_id))
+        self.assertEqual(r[("m.room.member", joining_user)].membership, "join")
+
+    def _make_leave(self, user_id: str, room_id: str) -> dict[str, Any]:
+        users_domain = UserID.from_string(user_id).domain
+        channel = self.make_signed_federation_request(
+            "GET",
+            f"/_matrix/federation/v1/make_leave/{room_id}/{user_id}",
+            from_server=users_domain,
+        )
+        self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
+        return channel.json_body
+
+    def send_leave(self, leaving_user: str, room_id: str) -> None:
+        leaving_users_domain = UserID.from_string(leaving_user).domain
+        leave_result = self._make_leave(leaving_user, room_id)
+        room_version = KNOWN_ROOM_VERSIONS[leave_result["room_version"]]
+        event_content = leave_result["event"]
+        self.add_hashes_and_signatures_from_other_server(
+            event_content, room_version, leaving_users_domain
+        )
+        leave_event_base = make_event_from_dict(event_content, room_version)
+        channel = self.make_signed_federation_request(
+            "PUT",
+            f"/_matrix/federation/v2/send_leave/{room_id}/{leave_event_base.event_id}",
+            event_content,
+            from_server=leaving_users_domain,
+        )
+        self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
