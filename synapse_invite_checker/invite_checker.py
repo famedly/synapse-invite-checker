@@ -57,6 +57,7 @@ from synapse_invite_checker.rest.contacts import (
     ContactsResource,
 )
 from synapse_invite_checker.rest.messenger_info import (
+    MessengerFindByIkResource,
     MessengerInfoResource,
     MessengerIsInsuranceResource,
 )
@@ -206,6 +207,9 @@ class InviteChecker:
         # The TiMessengerInformation API resource
         MessengerInfoResource(self.config).register(self.resource)
         MessengerIsInsuranceResource(self.config, self.is_domain_insurance).register(
+            self.resource
+        )
+        MessengerFindByIkResource(self.config, self._fetch_federation_list).register(
             self.resource
         )
 

@@ -23,7 +23,7 @@ from synapse.types import JsonDict
 
 from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.rest.base import invite_checker_pattern
-from synapse_invite_checker.types import TimType
+from synapse_invite_checker.types import FederationList, TimType
 
 # Version of TiMessengerInformation interface. See:
 # https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerInformation.yaml
@@ -76,4 +76,31 @@ class MessengerIsInsuranceResource(RestServlet):
         isInsurance = await self.is_insurance_cb(server_name)
         return HTTPStatus.OK, {
             "isInsurance": isInsurance,
+        }
+
+
+class MessengerFindByIkResource(RestServlet):
+    def __init__(
+        self,
+        config: InviteCheckerConfig,
+        fed_list_cb: Callable[..., Awaitable[FederationList]],
+    ):
+        super().__init__()
+        self.config = config
+        self.fed_list_cb = fed_list_cb
+
+        self.PATTERNS = tim_info_patterns("/v1/server/findByIk$")
+
+    async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
+        if self.config.tim_type == TimType.EPA:
+            return 401, {
+                "errorCode": errors.Codes.UNAUTHORIZED,
+                "errorMessage": "Unauthorized to access for ePA backend",
+            }
+
+        ik_num = parse_string(request, "ikNumber", required=True)
+        fed_list = await self.fed_list_cb()
+        server_name = fed_list.get_domain_from_ik(ik_num)
+        return HTTPStatus.OK, {
+            "serverName": server_name,
         }
