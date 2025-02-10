@@ -18,11 +18,12 @@ from typing import Awaitable, Callable, List
 
 from synapse.http.servlet import RestServlet, parse_string
 from synapse.http.site import SynapseRequest
-from synapse.module_api import ModuleApi
+from synapse.module_api import ModuleApi, errors
 from synapse.types import JsonDict
 
 from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.rest.base import invite_checker_pattern
+from synapse_invite_checker.types import FederationList
 
 # Version of TiMessengerInformation interface. See:
 # https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerInformation.yaml
@@ -75,4 +76,34 @@ class MessengerIsInsuranceResource(RestServlet):
         isInsurance = await self.is_insurance_cb(server_name)
         return HTTPStatus.OK, {
             "isInsurance": isInsurance,
+        }
+
+
+class MessengerFindByIkResource(RestServlet):
+    def __init__(
+        self,
+        api: ModuleApi,
+        config: InviteCheckerConfig,
+        fed_list_cb: Callable[..., Awaitable[FederationList]],
+    ):
+        super().__init__()
+        self.api = api
+        self.config = config
+        self.fed_list_cb = fed_list_cb
+
+        self.PATTERNS = tim_info_patterns("/v1/server/findByIk$")
+
+    async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
+        await self.api.get_user_by_req(request)
+
+        ik_num = parse_string(request, "ikNumber", required=True)
+        fed_list = await self.fed_list_cb()
+        server_name = fed_list.get_domain_from_ik(ik_num)
+        if server_name is None:
+            return HTTPStatus.NOT_FOUND, {
+                "errorCode": errors.Codes.NOT_FOUND,
+                "errorMessage": "ikNumber was not found",
+            }
+        return HTTPStatus.OK, {
+            "serverName": server_name,
         }

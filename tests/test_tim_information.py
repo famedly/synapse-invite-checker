@@ -174,3 +174,70 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
         )
 
         assert channel.code == 404, "Endpoint shouldn't exist"
+
+
+class MessengerFindByIkResourceTestCase(ModuleApiTestCase):
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.user_a = self.register_user("a", "password")
+        self.access_token = self.login("a", "password")
+
+    def test_no_auth(self) -> None:
+        channel = self.make_request(
+            method="GET",
+            path="/tim-information/v1/server/findByIk?ikNumber=1",
+            shorthand=False,
+        )
+
+        assert channel.code == 401, channel.result
+
+    def test_not_found(self) -> None:
+        channel = self.make_request(
+            method="GET",
+            path="/tim-information/v1/server/findByIk?ikNumber=1",
+            access_token=self.access_token,
+            shorthand=False,
+        )
+
+        assert channel.code == 404, channel.result
+
+    def test_no_parameter(self) -> None:
+        channel = self.make_request(
+            method="GET",
+            path="/tim-information/v1/server/findByIk",
+            access_token=self.access_token,
+            shorthand=False,
+        )
+
+        assert channel.code == 400, channel.result
+
+    @synapse_test.override_config(
+        {
+            "modules": [
+                {
+                    "module": "synapse_invite_checker.InviteChecker",
+                    "config": {
+                        "tim-type": "epa",
+                        "title": "abc",
+                        "description": "def",
+                        "contact": "ghi",
+                        "federation_list_url": "https://localhost:8080",
+                        "federation_localization_url": "https://localhost:8000/localization",
+                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
+                        "allowed_room_versions": ["9", "10"],
+                    },
+                }
+            ]
+        }
+    )
+    def test_unavailable_for_epa(self) -> None:
+        # In EPA mode, it shouldn't matter what we do, should always be a 404
+        channel = self.make_request(
+            method="GET",
+            path="/tim-information/v1/server/findByIk?ikNumber=1",
+            access_token=self.access_token,
+            shorthand=False,
+        )
+
+        assert channel.code == 404, channel.result

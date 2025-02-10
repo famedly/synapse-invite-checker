@@ -72,6 +72,7 @@ from synapse_invite_checker.rest.contacts import (
 )
 from synapse_invite_checker.rest.messenger_info import (
     INFO_API_PREFIX,
+    MessengerFindByIkResource,
     MessengerInfoResource,
     MessengerIsInsuranceResource,
 )
@@ -239,6 +240,9 @@ class InviteChecker:
             MessengerInfoResource(self.api, self.config).register(self.resource)
             MessengerIsInsuranceResource(
                 self.api, self.config, self.is_domain_insurance
+            ).register(self.resource)
+            MessengerFindByIkResource(
+                self.api, self.config, self._fetch_federation_list
             ).register(self.resource)
             self.api.register_web_resource(INFO_API_PREFIX, self.resource)
 
