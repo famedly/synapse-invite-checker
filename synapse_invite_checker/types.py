@@ -152,7 +152,7 @@ class FederationDomain(BaseModel):
     telematikID: str  # noqa: N815
     timAnbieter: str | None  # noqa: N815
     isInsurance: bool  # noqa: N815
-    ik: dict | None
+    ik: Annotated[dict[str, str], Field(default_factory=dict)] = None
 
 
 class FederationList(BaseModel):
