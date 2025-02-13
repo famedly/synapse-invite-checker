@@ -32,6 +32,7 @@ from OpenSSL.crypto import (
 )
 from synapse.api.constants import AccountDataTypes
 from synapse.api.errors import SynapseError
+from synapse.api.room_versions import RoomVersion
 from synapse.config import ConfigError
 from synapse.http.client import BaseHttpClient
 from synapse.http.proxyagent import ProxyAgent
@@ -166,6 +167,9 @@ class InviteChecker:
         self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
         self.api.register_third_party_rules_callbacks(
             on_create_room=self.on_create_room
+        )
+        self.api.register_third_party_rules_callbacks(
+            on_upgrade_room=self.on_upgrade_room
         )
 
         self.resource = JsonResource(api._hs)
@@ -465,6 +469,14 @@ class InviteChecker:
 
     async def is_domain_insurance(self, domain: str) -> bool:
         return await self._domain_list_check(lambda fl: fl.is_insurance(domain))
+
+    async def on_upgrade_room(self, _: Requester, room_version: RoomVersion) -> None:
+        if room_version.identifier not in self.config.allowed_room_versions:
+            raise SynapseError(
+                400,
+                f"Room version ('{room_version}') not allowed",
+                errors.Codes.FORBIDDEN,
+            )
 
     async def on_create_room(
         self,

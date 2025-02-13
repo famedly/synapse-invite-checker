@@ -27,6 +27,7 @@ from synapse.rest.client import (
     presence,
     profile,
     room,
+    room_upgrade_rest_servlet,
 )
 from synapse.server import HomeServer
 from synapse.util import Clock
@@ -275,6 +276,7 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         account_data.register_servlets,
         login.register_servlets,
         room.register_servlets,
+        room_upgrade_rest_servlet.register_servlets,
         presence.register_servlets,
         profile.register_servlets,
         notifications.register_servlets,

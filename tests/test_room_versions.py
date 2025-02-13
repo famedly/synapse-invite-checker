@@ -20,6 +20,7 @@ from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
 from tests.base import ModuleApiTestCase, construct_extra_content
+from tests.server import make_request
 
 
 class RoomVersionCreateRoomTest(ModuleApiTestCase):
@@ -57,6 +58,36 @@ class RoomVersionCreateRoomTest(ModuleApiTestCase):
                 extra_content=construct_extra_content(self.user_a, invitee_list or []),
             )
         return None
+
+    def upgrade_room_to_version(
+        self,
+        _room_id: str,
+        room_version: str,
+        tok: str | None = None,
+    ) -> str | None:
+        """
+        Upgrade a room.
+
+        Args:
+            _room_id
+            room_version: The room version to upgrade the room to.
+            tok: The access token to use in the request.
+        Returns:
+            The ID of the newly created room, or None if the request failed.
+        """
+        path = f"/_matrix/client/r0/rooms/{_room_id}/upgrade"
+        content = {"new_version": room_version}
+
+        channel = make_request(
+            self.reactor,
+            self.site,
+            "POST",
+            path,
+            content,
+            access_token=tok,
+        )
+
+        return channel.json_body.get("replacement_room")
 
     def test_create_room_fails(self) -> None:
         """
@@ -121,3 +152,29 @@ class RoomVersionCreateRoomTest(ModuleApiTestCase):
             room_ver="10",
             expect_code=HTTPStatus.OK,
         )
+
+    def test_room_upgrades(self) -> None:
+        """
+        Test room upgrades fail outside of defaults
+        """
+        # 9 -> 9 works
+        room_id = self.user_create_room([], is_public=False, room_ver="9")
+        room_id = self.upgrade_room_to_version(room_id, "9", self.access_token_a)
+        assert room_id
+
+        # 10 -> 10 works
+        room_id = self.user_create_room([], is_public=False, room_ver="10")
+        room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)
+        assert room_id
+
+        # 9 -> 10 works
+        room_id = self.user_create_room([], is_public=False, room_ver="9")
+        room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)
+        assert room_id
+
+        # 9 -> 8 doesn't work
+        room_id = self.user_create_room([], is_public=False, room_ver="9")
+        assert room_id
+
+        room_id = self.upgrade_room_to_version(room_id, "8", self.access_token_a)
+        assert room_id is None
