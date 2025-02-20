@@ -867,7 +867,7 @@ class InviteChecker:
         logger.debug("Detected %d total rooms", len(all_room_ids))
 
         rooms_to_purge = set()
-        if self.config.insured_room_scan_options.enabled is True:
+        if self.config.insured_room_scan_options.enabled:
             for room_id in all_room_ids:
                 # only purge rooms that only have EPA hosts in them
 
@@ -883,8 +883,24 @@ class InviteChecker:
                     ):
                         rooms_to_purge.add(room_id)
 
-        if self.config.inactive_room_scan_options.enabled is True:
-            pass
+        # may as well get these moving
+        for room_id in rooms_to_purge:
+            await self.schedule_room_for_purge(room_id)
+
+        if self.config.inactive_room_scan_options.enabled:
+            # It doesn't make sense to look at a room that was already queued for purge
+            all_room_ids.difference_update(rooms_to_purge)
+            rooms_to_purge.clear()
+            for room_id in all_room_ids:
+                last_message_ts = await self.get_timestamp_of_last_message_in_room(
+                    room_id
+                )
+                if (
+                    last_message_ts
+                    + self.config.inactive_room_scan_options.grace_period_ms
+                    <= self.api._hs.get_clock().time_msec()
+                ):
+                    rooms_to_purge.add(room_id)
 
         for room_id in rooms_to_purge:
             await self.schedule_room_for_purge(room_id)
