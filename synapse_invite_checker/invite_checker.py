@@ -30,8 +30,9 @@ from OpenSSL.crypto import (
     dump_certificate,
     load_certificate,
 )
-from synapse.api.constants import AccountDataTypes, EventTypes, Membership
+from synapse.api.constants import AccountDataTypes, Direction, EventTypes, Membership
 from synapse.api.errors import SynapseError
+from synapse.api.filtering import Filter
 from synapse.api.room_versions import RoomVersion
 from synapse.config import ConfigError
 from synapse.config._base import Config
@@ -333,6 +334,22 @@ class InviteChecker:
 
         _config.insured_room_scan_options.grace_period_ms = epa_room_grace_period
 
+        # This option is considered for all server modes unlike 'insured_only_room_scan'
+        inactive_room_scan_section = config.get("inactive_room_scan", {})
+        if not isinstance(inactive_room_scan_section, dict):
+            msg = "`inactive_room_scan` should be formatted as a dictionary"
+            raise ConfigError(msg)
+
+        enable_inactive_room_scan = inactive_room_scan_section.get("enabled", True)
+        _config.inactive_room_scan_options.enabled = enable_inactive_room_scan
+
+        # "26w" calculates as 6 months
+        inactive_room_scan_grace_period = Config.parse_duration(
+            inactive_room_scan_section.get("grace_period", "26w")
+        )
+        _config.inactive_room_scan_options.grace_period_ms = (
+            inactive_room_scan_grace_period
+        )
         return _config
 
     def after_startup(self) -> None:
@@ -697,14 +714,14 @@ class InviteChecker:
         # Forbid everything else (so remote invites not matching step1, 2 or 3)
         return errors.Codes.FORBIDDEN
 
-    async def get_all_room_ids(self) -> list[str]:
+    async def get_all_room_ids(self) -> set[str]:
         """Retrieve all room IDS."""
 
         # There is an PRIMARY index on room_id
-        def f(txn: LoggingTransaction) -> list[str]:
+        def f(txn: LoggingTransaction) -> set[str]:
             sql = "SELECT room_id FROM rooms"
             txn.execute(sql)
-            result = [room_id for (room_id,) in txn.fetchall()]
+            result = {room_id for (room_id,) in txn.fetchall()}
             return result
 
         return await self.store.db_pool.runInteraction("get_rooms", f)
@@ -741,6 +758,51 @@ class InviteChecker:
                     results.add(event.origin_server_ts)
 
         return max(results) if results else create_event_ts
+
+    @measure_func("get_timestamp_of_last_eligible_activity_in_room")
+    async def get_timestamp_of_last_eligible_activity_in_room(
+        self, room_id: str
+    ) -> int:
+        """
+        Search a room for the last message(either encrypted or plaintext) event
+        timestamp in that room. If no messages are found, get the room creation timestamp
+        """
+        # This is apparently a RoomEventFilter. Including a type doesn't guarantee that
+        # at least one of each is present in the result
+        filter_json = {
+            "types": [EventTypes.Message, EventTypes.Encrypted, EventTypes.Create]
+        }
+        event_filter = Filter(self.api._hs, filter_json)
+
+        from_token = (
+            await self.api._hs.get_event_sources().get_current_token_for_pagination(
+                room_id
+            )
+        )
+
+        # Because apparently type checking couldn't find this?
+        events: list[EventBase]
+
+        (
+            events,
+            next_key,
+            _,
+        ) = await self.api._store.paginate_room_events_by_topological_ordering(
+            room_id=room_id,
+            from_key=from_token.room_key,
+            # When going backwards, to_key is not important
+            to_key=None,
+            direction=Direction.BACKWARDS,
+            # With the filter below, 5 should be more than enough
+            limit=5,
+            event_filter=event_filter,
+        )
+        # If we succeeded with event type filtering, all of these should be only messages
+        last_timestamp = 0
+        for event_base in events:
+            last_timestamp = max(event_base.origin_server_ts, last_timestamp)
+
+        return last_timestamp
 
     async def get_delete_tasks_by_room(self, room_id: str) -> list[ScheduledTask]:
         """Get scheduled or active delete tasks by room
@@ -799,27 +861,42 @@ class InviteChecker:
         """
         Scan all rooms for eligible conditions to shutdown and purge a room.
         """
-        # This will be get moved when inactive rooms are checked for too
-        if self.config.insured_room_scan_options.enabled is False:
-            return
-
         all_room_ids = await self.get_all_room_ids()
 
         logger.debug("Detected %d total rooms", len(all_room_ids))
 
         rooms_to_purge = set()
-        for room_id in all_room_ids:
-            # only purge rooms that only have EPA hosts in them
-            if await self.have_all_pro_hosts_left(room_id):
-                last_user_left_timestamp = (
-                    await self.get_timestamp_from_eligible_events_for_epa_room_purge(
+        if self.config.insured_room_scan_options.enabled:
+            for room_id in all_room_ids:
+                # only purge rooms that only have EPA hosts in them
+
+                if await self.have_all_pro_hosts_left(room_id):
+                    last_user_left_timestamp = await self.get_timestamp_from_eligible_events_for_epa_room_purge(
                         room_id
                     )
-                )
 
+                    if (
+                        last_user_left_timestamp
+                        + self.config.insured_room_scan_options.grace_period_ms
+                        <= self.api._hs.get_clock().time_msec()
+                    ):
+                        rooms_to_purge.add(room_id)
+
+        # may as well get these moving
+        for room_id in rooms_to_purge:
+            await self.schedule_room_for_purge(room_id)
+
+        if self.config.inactive_room_scan_options.enabled:
+            # It doesn't make sense to look at a room that was already queued for purge
+            all_room_ids.difference_update(rooms_to_purge)
+            rooms_to_purge.clear()
+            for room_id in all_room_ids:
+                last_message_ts = (
+                    await self.get_timestamp_of_last_eligible_activity_in_room(room_id)
+                )
                 if (
-                    last_user_left_timestamp
-                    + self.config.insured_room_scan_options.grace_period_ms
+                    last_message_ts
+                    + self.config.inactive_room_scan_options.grace_period_ms
                     <= self.api._hs.get_clock().time_msec()
                 ):
                     rooms_to_purge.add(room_id)

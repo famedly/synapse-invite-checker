@@ -153,7 +153,7 @@ class ConfigParsingTestCase(TestCase):
         test_config.update({"room_scan_run_interval": "why"})
         self.assertRaises(ValueError, InviteChecker.parse_config, test_config)
 
-    def test_incorrect_insured_only_room_scan_type_raises(self) -> None:
+    def test_dict_unexpectedly_is_something_else_raises(self) -> None:
         test_config = self.config.copy()
         # Shouldn't work if set to a string
         test_config.update({"insured_only_room_scan": "bad value"})
@@ -161,4 +161,15 @@ class ConfigParsingTestCase(TestCase):
 
         # Shouldn't work if set to a
         test_config.update({"insured_only_room_scan": ["what", "is", "a", "list?"]})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        test_config = self.config.copy()
+        # Shouldn't work if set to a string
+        test_config.update({"inactive_room_scan": "not a dict"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # Shouldn't work if set to a
+        test_config.update(
+            {"inactive_room_scan": ["lists", "are", "only", "good", "on", "mondays"]}
+        )
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
