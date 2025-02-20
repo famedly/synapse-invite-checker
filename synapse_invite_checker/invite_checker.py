@@ -715,14 +715,14 @@ class InviteChecker:
         # Forbid everything else (so remote invites not matching step1, 2 or 3)
         return errors.Codes.FORBIDDEN
 
-    async def get_all_room_ids(self) -> list[str]:
+    async def get_all_room_ids(self) -> set[str]:
         """Retrieve all room IDS."""
 
         # There is an PRIMARY index on room_id
-        def f(txn: LoggingTransaction) -> list[str]:
+        def f(txn: LoggingTransaction) -> set[str]:
             sql = "SELECT room_id FROM rooms"
             txn.execute(sql)
-            result = [room_id for (room_id,) in txn.fetchall()]
+            result = {room_id for (room_id,) in txn.fetchall()}
             return result
 
         return await self.store.db_pool.runInteraction("get_rooms", f)
