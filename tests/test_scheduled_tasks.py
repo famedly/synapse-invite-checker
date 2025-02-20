@@ -650,26 +650,42 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
     # "self" to just reference it
     @parameterized.expand(
         [
-            # (name to give the test, list of users to test with, is public room)
-            ("private_room_2_local_users", [f"@b:{SERVER_NAME_FROM_LIST}"], False),
+            # (name to give the test, list of users to test with, is public room, any messages in room?)
+            (
+                "private_room_2_local_users_with_messages",
+                [f"@b:{SERVER_NAME_FROM_LIST}"],
+                False,
+                True,
+            ),
+            (
+                "private_room_2_local_users_no_messages",
+                [f"@b:{SERVER_NAME_FROM_LIST}"],
+                False,
+                False,
+            ),
             (
                 "private_room_1_local_user_1_remote_pro_user",
                 [f"@mxid:{DOMAIN_IN_LIST}"],
                 False,
+                True,
             ),
             (
                 "public_room_3_local_users",
                 [f"@b:{SERVER_NAME_FROM_LIST}", f"@c:{SERVER_NAME_FROM_LIST}"],
+                True,
                 True,
             ),
             (
                 "private_room_with_1_pro_1_epa",
                 [f"@b:{SERVER_NAME_FROM_LIST}", f"@alice:{INSURANCE_DOMAIN_IN_LIST}"],
                 False,
+                True,
             ),
         ]
     )
-    def test(self, _: str, other_users: list[str], is_public: bool) -> None:
+    def test(
+        self, _: str, other_users: list[str], is_public: bool, send_messages: bool
+    ) -> None:
         """
         Test that a room is deleted when a local PRO user and various others don't touch
         a room for "inactive_room_scan.grace_period" amount of time
@@ -695,7 +711,8 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
             self.opinionated_join(room_id, other_user)
 
         # Send a junk hex message into the room, this is the message the scan will find
-        self.create_and_send_event(room_id, self.user_a_id)
+        if send_messages:
+            self.create_and_send_event(room_id, self.user_a_id)
 
         # verify there are no shutdown tasks associated with this room
         self.assert_task_status_for_room_is(

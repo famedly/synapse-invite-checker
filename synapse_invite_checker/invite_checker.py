@@ -760,7 +760,13 @@ class InviteChecker:
 
         return max(results) if results else create_event_ts
 
-    async def get_timestamp_of_last_message_in_room(self, room_id: str) -> int:
+    async def get_timestamp_of_last_eligible_activity_in_room(
+        self, room_id: str
+    ) -> int:
+        """
+        Search a room for the last message timestamp in that room. If no messages are
+        found, get the room creation timestamp
+        """
         page_config = PaginationConfig(
             None,
             None,
@@ -779,7 +785,8 @@ class InviteChecker:
                 room_id
             )
         )
-        logger.debug("FROM TOKEN: %r", from_token)
+
+        # Because apparently type checking couldn't find this?
         events: list[EventBase]
 
         (
@@ -797,11 +804,31 @@ class InviteChecker:
         )
         # If we succeeded with event type filtering, all of these should be only messages
         last_timestamp = 0
-        logger.debug("RETRIEVED EVENTS: %r", events)
-        logger.debug("NEXT KEY: %r", next_key)
         for event_base in events:
-            logger.debug("PROCESSING EVENT: %r", event_base)
             last_timestamp = max(event_base.origin_server_ts, last_timestamp)
+
+        if last_timestamp:
+            return last_timestamp
+
+        filter_json = {"types": [EventTypes.Create]}
+
+        event_filter = Filter(self.api._hs, filter_json) if filter_json else None
+
+        (
+            events,
+            next_key,
+            _,
+        ) = await self.api._store.paginate_room_events_by_topological_ordering(
+            room_id=room_id,
+            from_key=from_token.room_key,
+            # When going backwards, to_key is not important
+            to_key=None,
+            direction=page_config.direction,
+            limit=page_config.limit,
+            event_filter=event_filter,
+        )
+        # Every room has only one creation event
+        last_timestamp = events[0].origin_server_ts
 
         return last_timestamp
 
@@ -892,8 +919,8 @@ class InviteChecker:
             all_room_ids.difference_update(rooms_to_purge)
             rooms_to_purge.clear()
             for room_id in all_room_ids:
-                last_message_ts = await self.get_timestamp_of_last_message_in_room(
-                    room_id
+                last_message_ts = (
+                    await self.get_timestamp_of_last_eligible_activity_in_room(room_id)
                 )
                 if (
                     last_message_ts

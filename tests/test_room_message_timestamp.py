@@ -72,7 +72,7 @@ class MessageTimestampTestCase(ModuleApiTestCase):
             event_ts = event_id.get("origin_server_ts")
 
             ts_found = self.get_success_or_raise(
-                self.hs.mockmod.get_timestamp_of_last_message_in_room(room)
+                self.hs.mockmod.get_timestamp_of_last_eligible_activity_in_room(room)
             )
 
             self.assertEqual(event_ts, ts_found)
