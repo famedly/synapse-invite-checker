@@ -30,8 +30,9 @@ from OpenSSL.crypto import (
     dump_certificate,
     load_certificate,
 )
-from synapse.api.constants import AccountDataTypes, EventTypes, Membership
+from synapse.api.constants import AccountDataTypes, Direction, EventTypes, Membership
 from synapse.api.errors import SynapseError
+from synapse.api.filtering import Filter
 from synapse.api.room_versions import RoomVersion
 from synapse.config import ConfigError
 from synapse.config._base import Config
@@ -43,6 +44,7 @@ from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import LoggingTransaction, make_conn
+from synapse.streams.config import PaginationConfig
 from synapse.types import Requester, ScheduledTask, TaskStatus, UserID
 from synapse.types.handlers import ShutdownRoomParams
 from synapse.types.state import StateFilter
@@ -333,6 +335,22 @@ class InviteChecker:
 
         _config.insured_room_scan_options.grace_period_ms = epa_room_grace_period
 
+        # This option is considered for all server modes unlike 'insured_only_room_scan'
+        inactive_room_scan_section = config.get("inactive_room_scan", {})
+        if not isinstance(inactive_room_scan_section, dict):
+            msg = "`inactive_room_scan` should be formatted as a dictionary"
+            raise ConfigError(msg)
+
+        enable_inactive_room_scan = inactive_room_scan_section.get("enabled", True)
+        _config.inactive_room_scan_options.enabled = enable_inactive_room_scan
+
+        # "26w" calculates as 6 months
+        inactive_room_scan_grace_period = Config.parse_duration(
+            inactive_room_scan_section.get("grace_period", "26w")
+        )
+        _config.inactive_room_scan_options.grace_period_ms = (
+            inactive_room_scan_grace_period
+        )
         return _config
 
     def after_startup(self) -> None:
@@ -742,6 +760,51 @@ class InviteChecker:
 
         return max(results) if results else create_event_ts
 
+    async def get_timestamp_of_last_message_in_room(self, room_id: str) -> int:
+        page_config = PaginationConfig(
+            None,
+            None,
+            direction=Direction.BACKWARDS,
+            # Not sure what to use for a limit here, there may have been 10's of events.
+            # I will try and filter them so this number can be smol
+            limit=5,
+        )
+        # This is apparently a RoomEventFilter
+        filter_json = {"types": [EventTypes.Message, EventTypes.Encrypted]}
+
+        event_filter = Filter(self.api._hs, filter_json) if filter_json else None
+
+        from_token = (
+            await self.api._hs.get_event_sources().get_current_token_for_pagination(
+                room_id
+            )
+        )
+        logger.debug("FROM TOKEN: %r", from_token)
+        events: list[EventBase]
+
+        (
+            events,
+            next_key,
+            _,
+        ) = await self.api._store.paginate_room_events_by_topological_ordering(
+            room_id=room_id,
+            from_key=from_token.room_key,
+            # When going backwards, to_key is not important
+            to_key=None,
+            direction=page_config.direction,
+            limit=page_config.limit,
+            event_filter=event_filter,
+        )
+        # If we succeeded with event type filtering, all of these should be only messages
+        last_timestamp = 0
+        logger.debug("RETRIEVED EVENTS: %r", events)
+        logger.debug("NEXT KEY: %r", next_key)
+        for event_base in events:
+            logger.debug("PROCESSING EVENT: %r", event_base)
+            last_timestamp = max(event_base.origin_server_ts, last_timestamp)
+
+        return last_timestamp
+
     async def get_delete_tasks_by_room(self, room_id: str) -> list[ScheduledTask]:
         """Get scheduled or active delete tasks by room
 
@@ -799,30 +862,29 @@ class InviteChecker:
         """
         Scan all rooms for eligible conditions to shutdown and purge a room.
         """
-        # This will be get moved when inactive rooms are checked for too
-        if self.config.insured_room_scan_options.enabled is False:
-            return
-
         all_room_ids = await self.get_all_room_ids()
 
         logger.debug("Detected %d total rooms", len(all_room_ids))
 
         rooms_to_purge = set()
-        for room_id in all_room_ids:
-            # only purge rooms that only have EPA hosts in them
-            if await self.have_all_pro_hosts_left(room_id):
-                last_user_left_timestamp = (
-                    await self.get_timestamp_from_eligible_events_for_epa_room_purge(
+        if self.config.insured_room_scan_options.enabled is True:
+            for room_id in all_room_ids:
+                # only purge rooms that only have EPA hosts in them
+
+                if await self.have_all_pro_hosts_left(room_id):
+                    last_user_left_timestamp = await self.get_timestamp_from_eligible_events_for_epa_room_purge(
                         room_id
                     )
-                )
 
-                if (
-                    last_user_left_timestamp
-                    + self.config.insured_room_scan_options.grace_period_ms
-                    <= self.api._hs.get_clock().time_msec()
-                ):
-                    rooms_to_purge.add(room_id)
+                    if (
+                        last_user_left_timestamp
+                        + self.config.insured_room_scan_options.grace_period_ms
+                        <= self.api._hs.get_clock().time_msec()
+                    ):
+                        rooms_to_purge.add(room_id)
+
+        if self.config.inactive_room_scan_options.enabled is True:
+            pass
 
         for room_id in rooms_to_purge:
             await self.schedule_room_for_purge(room_id)
