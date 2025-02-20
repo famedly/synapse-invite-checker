@@ -40,9 +40,9 @@ from tests.test_utils import (
 logger = logging.getLogger(__name__)
 
 
-class RoomScanTaskTestCase(FederatingModuleApiTestCase):
+class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     """
-    Test that room scans are done, and subsequent room purges are run
+    Test that insured only room scans are done, and subsequent room purges are run
     """
 
     # This test case will model being an EPA server on the federation list
@@ -120,7 +120,11 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         return None
 
     def assert_task_status_for_room_is(
-        self, room_id: str, task_name: str, status_list: list[TaskStatus] | None = None
+        self,
+        room_id: str,
+        task_name: str,
+        status_list: list[TaskStatus] | None = None,
+        comment: str = "",
     ) -> None:
         """
         Assert that for a given room id, the Statuses listed have a single entry
@@ -132,9 +136,13 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         )
 
         if status_list:
-            assert len(purge_task_list) > 0, f"{purge_task_list}"
+            assert (
+                len(purge_task_list) > 0
+            ), f"{comment} | GT status_list: {status_list}, purge_list: {purge_task_list}"
         else:
-            assert len(purge_task_list) == 0, f"{purge_task_list}"
+            assert (
+                len(purge_task_list) == 0
+            ), f"{comment} | EQ status_list: {status_list}, purge_list: {purge_task_list}"
 
         completed_task = [
             task for task in purge_task_list if task.status == TaskStatus.COMPLETE
@@ -147,13 +155,13 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         ]
         assert len(completed_task) == (
             1 if TaskStatus.COMPLETE in status_list else 0
-        ), f"completed {completed_task}"
+        ), f"{comment} | completed {completed_task}"
         assert len(active_task) == (
             1 if TaskStatus.ACTIVE in status_list else 0
-        ), f"active {active_task}"
+        ), f"{comment} | active {active_task}"
         assert len(scheduled_task) == (
             1 if TaskStatus.SCHEDULED in status_list else 0
-        ), f"scheduled {scheduled_task}"
+        ), f"{comment} | scheduled {scheduled_task}"
 
     @parameterized.expand([("pro_join_and_leave", True), ("pro_never_join", False)])
     def test_room_scan_detects_epa_rooms(
@@ -181,7 +189,7 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # verify there are no tasks associated with this room
         self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], "first check"
         )
 
         # doctor leaves room
@@ -205,7 +213,7 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
             assert current_rooms is not None
 
             self.assert_task_status_for_room_is(
-                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
+                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], f"loop count: {count}"
             )
 
         # Stopped the loop above before advancing the time, so advance() for one more
@@ -217,7 +225,10 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         assert current_rooms is not None, "Room should still exist"
 
         self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.SCHEDULED]
+            room_id,
+            SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
+            [TaskStatus.SCHEDULED],
+            "end loop",
         )
 
         # The TaskScheduler has a heartbeat of 1 minute, give it that much
@@ -229,7 +240,7 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # verify a scheduled task "completed" for this room
         self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE]
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
         )
 
     def test_room_scan_ignores_pro_joined_rooms(self) -> None:
