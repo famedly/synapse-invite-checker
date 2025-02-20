@@ -49,6 +49,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
     remote_pro_user_2 = f"@a:{SERVER_NAME_FROM_LIST}"
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
+    remote_epa_user_2 = f"@bob:{INSURANCE_DOMAIN_IN_LIST}"
     # Our server name
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
     # The default "fake" remote server name that has its server signing keys auto-injected
@@ -70,7 +71,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
                 "insured_only_room_scan": {
                     "enabled": True,
                     "grace_period": "6h",
-                }
+                },
+                # We aren't testing this here
+                "inactive_room_scan": {"enabled": False},
             }
         )
 
@@ -369,29 +372,51 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
             room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
         )
 
+        # They all just found out a friend of the remote patient may have more info
+        self.get_success_or_raise(
+            event_injection.inject_member_event(
+                self.hs,
+                room_id,
+                self.remote_pro_user,
+                Membership.INVITE,
+                target=self.remote_epa_user_2,
+            )
+        )
+
+        # other patient joins
+        self.send_join(self.remote_epa_user_2, room_id)
+
+        # Original patient says "thanks you can go now"
+        self.create_and_send_event(room_id, self.user_d_id)
+
+        # friend of friend of patient leaves
+        self.send_leave(self.remote_epa_user_2, room_id)
+
         # doctor 1 leaves room
         self.send_leave(self.remote_pro_user, room_id)
 
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
         assert current_rooms is not None
 
+        def wait_some_time() -> None:
+            count = 0
+            while True:
+                count += 1
+                if count == 6:
+                    return
+
+                # advance() is in seconds, this should be 1 hour
+                self.reactor.advance(60 * 60)
+
+                current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+                assert current_rooms is not None
+
+                self.assert_task_status_for_room_is(
+                    room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
+                )
+
         # wait for cleanup, should take 6 hours(based on above configuration)
-        count = 0
-        while True:
-            count += 1
-            if count == 6:
-                break
-
-            # advance() is in seconds, this should be 1 hour
-            self.reactor.advance(60 * 60)
-
-            current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert current_rooms is not None
-
-            self.assert_task_status_for_room_is(
-                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-            )
-
+        wait_some_time()
         # Stopped the loop above before advancing the time, so advance() for one more
         # hour, which should allow the task to be scheduled
         self.reactor.advance(60 * 60)
@@ -423,21 +448,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         assert current_rooms is not None
 
         # wait for cleanup, should take 6 hours(based on above configuration)
-        count = 0
-        while True:
-            count += 1
-            if count == 6:
-                break
-
-            # advance() is in seconds, this should be 1 hour
-            self.reactor.advance(60 * 60)
-
-            current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert current_rooms is not None
-
-            self.assert_task_status_for_room_is(
-                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-            )
+        wait_some_time()
 
         # Stopped the loop above before advancing the time, so advance() for one more
         # hour, which should allow the task to be scheduled
