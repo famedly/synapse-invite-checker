@@ -30,7 +30,12 @@ from OpenSSL.crypto import (
     dump_certificate,
     load_certificate,
 )
-from synapse.api.constants import AccountDataTypes, EventTypes, Membership
+from synapse.api.constants import (
+    AccountDataTypes,
+    EventTypes,
+    Membership,
+    RoomCreationPreset,
+)
 from synapse.api.errors import SynapseError
 from synapse.api.room_versions import RoomVersion
 from synapse.config import ConfigError
@@ -584,6 +589,23 @@ class InviteChecker:
                 f"Room version ('{room_version}') not allowed",
                 errors.Codes.FORBIDDEN,
             )
+
+        # Forbid EPA servers from creating any kind of public room
+        if self.config.tim_type == TimType.EPA:
+            # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
+            # Do not allow "public_chat". Default is based on setting of visibility
+            room_preset: str = request_content.get("preset")
+            # visibility can be either "public" or "private". If not included, it defaults to "private"
+            room_visibility: str = request_content.get("visibility", "private")
+            if (
+                room_preset == RoomCreationPreset.PUBLIC_CHAT
+                or room_visibility == "public"
+            ):
+                raise SynapseError(
+                    400,
+                    "Creation of a public room is not allowed",
+                    errors.Codes.FORBIDDEN,
+                )
 
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str | None = None
