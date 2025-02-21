@@ -30,7 +30,14 @@ from OpenSSL.crypto import (
     dump_certificate,
     load_certificate,
 )
-from synapse.api.constants import AccountDataTypes, Direction, EventTypes, Membership
+from synapse.api.constants import (
+    AccountDataTypes,
+    Direction,
+    EventTypes,
+    JoinRules,
+    Membership,
+    RoomCreationPreset,
+)
 from synapse.api.errors import SynapseError
 from synapse.api.filtering import Filter
 from synapse.api.room_versions import RoomVersion
@@ -601,6 +608,43 @@ class InviteChecker:
                 f"Room version ('{room_version}') not allowed",
                 errors.Codes.FORBIDDEN,
             )
+
+        # Forbid EPA servers from creating any kind of public room
+        if self.config.tim_type == TimType.EPA:
+            # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
+            # Do not allow "public_chat". Default is based on setting of visibility
+            room_preset: str = request_content.get("preset")
+            # visibility can be either "public" or "private". If not included, it defaults to "private"
+            room_visibility: str = request_content.get("visibility", "private")
+            if (
+                room_preset == RoomCreationPreset.PUBLIC_CHAT
+                or room_visibility == "public"
+            ):
+                raise SynapseError(
+                    400,
+                    "Creation of a public room is not allowed",
+                    errors.Codes.FORBIDDEN,
+                )
+
+            # Also prevent a potential security issue by denying initial state from
+            # setting "public" for the room through the join_rule
+            if initial_state_list := request_content.get("initial_state"):
+                for initial_state_event in initial_state_list:
+                    state_type = initial_state_event.get("type")
+                    if state_type == EventTypes.JoinRules:
+                        join_rule = initial_state_event.get("content", {}).get(
+                            "join_rule"
+                        )
+                        if join_rule == JoinRules.PUBLIC:
+                            logger.warning(
+                                "User '%s' tried to create a public room by altering the join_rule in the initial_state",
+                                requester.user.to_string(),
+                            )
+                            raise SynapseError(
+                                400,
+                                "Creation of a public room is not allowed",
+                                errors.Codes.FORBIDDEN,
+                            )
 
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str | None = None
