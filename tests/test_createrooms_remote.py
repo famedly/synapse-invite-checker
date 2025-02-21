@@ -339,8 +339,10 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
             )
         return None
 
-    @parameterized.expand([("public", True), ("private", False)])
-    def test_epa_to_hba_create_room(self, label: str, is_public: bool) -> None:
+    @parameterized.expand([("public", True, False), ("private", False, True)])
+    def test_epa_to_hba_create_room(
+        self, label: str, is_public: bool, expected: bool
+    ) -> None:
         """
         Tests room creation from a local insured User to a remote User-HBA behaves as expected
         """
@@ -358,7 +360,9 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
             [self.remote_pro_user],
             is_public=is_public,
         )
-        assert room_id, f"User-ePA {label} room with remote User-HBA not created"
+        assert (
+            room_id is not None
+        ) is expected, f"User-ePA {label} room with remote User-HBA was supposed to be created: {expected}"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_epa_to_epa_create_room_fails(self, label: str, is_public: bool) -> None:
