@@ -152,6 +152,7 @@ class FederationDomain(BaseModel):
     telematikID: str  # noqa: N815
     timAnbieter: str | None  # noqa: N815
     isInsurance: bool  # noqa: N815
+    ik: Annotated[dict[str, str], Field(default_factory=dict)] = None
 
 
 class FederationList(BaseModel):
@@ -181,6 +182,15 @@ class FederationList(BaseModel):
             if domain_data.isInsurance
         }
 
+    @computed_field
+    @cached_property
+    def _ik_to_domain(self) -> dict[str, str]:
+        ik_mapping = {}
+        for domain in self.domainList:
+            if domain.isInsurance:
+                ik_mapping.update({ik: domain.domain for ik in domain.ik})
+        return ik_mapping
+
     def allowed(self, domain: str) -> bool:
         """
         Compare against the domains from the Federation List to determine if they are allowed
@@ -192,6 +202,12 @@ class FederationList(BaseModel):
         Is this domain specifically designated as 'isInsurance'
         """
         return domain in self._insurance_domains_on_list
+
+    def get_domain_from_ik(self, ik: str) -> str | None:
+        ik_mapping = self._ik_to_domain
+        if ik in ik_mapping:
+            return ik_mapping[ik]
+        return None
 
 
 class TimType(Enum):
