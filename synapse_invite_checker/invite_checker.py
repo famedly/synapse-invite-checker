@@ -33,6 +33,7 @@ from OpenSSL.crypto import (
 from synapse.api.constants import (
     AccountDataTypes,
     EventTypes,
+    JoinRules,
     Membership,
     RoomCreationPreset,
 )
@@ -606,6 +607,26 @@ class InviteChecker:
                     "Creation of a public room is not allowed",
                     errors.Codes.FORBIDDEN,
                 )
+
+            # Also prevent a potential security issue by denying initial state from
+            # setting "public" for the room through the join_rule
+            if initial_state_list := request_content.get("initial_state"):
+                for initial_state_event in initial_state_list:
+                    state_type = initial_state_event.get("type")
+                    if state_type == EventTypes.JoinRules:
+                        join_rule = initial_state_event.get("content", {}).get(
+                            "join_rule"
+                        )
+                        if join_rule == JoinRules.PUBLIC:
+                            logger.warning(
+                                "User '%s' tried to create a public room by altering the join_rule in the initial_state",
+                                requester.user.to_string(),
+                            )
+                            raise SynapseError(
+                                400,
+                                "Creation of a public room is not allowed",
+                                errors.Codes.FORBIDDEN,
+                            )
 
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str | None = None

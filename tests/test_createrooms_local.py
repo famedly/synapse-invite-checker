@@ -202,6 +202,7 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         self,
         invitee_list: list[str],
         is_public: bool,
+        custom_initial_state: dict[str, Any] | None = None,
     ) -> str | None:
         """
         Helper to send an api request with a full set of required additional room state
@@ -214,7 +215,8 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
                 self.user_d,
                 is_public=is_public,
                 tok=self.access_token,
-                extra_content=construct_extra_content(self.user_d, invitee_list),
+                extra_content=custom_initial_state
+                or construct_extra_content(self.user_d, invitee_list),
             )
         return None
 
@@ -249,3 +251,23 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         assert (
             room_id is None
         ), f"{label} room incorrectly created with invites to:[{invitee_list}]"
+
+    @parameterized.expand([("public", True), ("private", False)])
+    def test_create_room_with_modified_join_rules(
+        self, label: str, is_public: bool
+    ) -> None:
+        """
+        Test that a misbehaving insurance client can not accidentally make their room public
+        """
+        join_rule = {
+            "type": "m.room.join_rules",
+            "state_key": "",
+            "content": {"join_rule": "public"},
+        }
+        initial_state = {"initial_state": [join_rule]}
+
+        room_id = self.user_d_create_room(
+            [], is_public=is_public, custom_initial_state=initial_state
+        )
+        # Without the blocking put in place, this fails for private rooms
+        assert room_id is None, f"{label} room should NOT have been created"
