@@ -44,7 +44,6 @@ from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import LoggingTransaction, make_conn
-from synapse.streams.config import PaginationConfig
 from synapse.types import Requester, ScheduledTask, TaskStatus, UserID
 from synapse.types.handlers import ShutdownRoomParams
 from synapse.types.state import StateFilter
@@ -760,25 +759,20 @@ class InviteChecker:
 
         return max(results) if results else create_event_ts
 
+    @measure_func("get_timestamp_of_last_eligible_activity_in_room")
     async def get_timestamp_of_last_eligible_activity_in_room(
         self, room_id: str
     ) -> int:
         """
-        Search a room for the last message timestamp in that room. If no messages are
-        found, get the room creation timestamp
+        Search a room for the last message(either encrypted or plaintext) event
+        timestamp in that room. If no messages are found, get the room creation timestamp
         """
-        page_config = PaginationConfig(
-            None,
-            None,
-            direction=Direction.BACKWARDS,
-            # Not sure what to use for a limit here, there may have been 10's of events.
-            # I will try and filter them so this number can be smol
-            limit=5,
-        )
-        # This is apparently a RoomEventFilter
-        filter_json = {"types": [EventTypes.Message, EventTypes.Encrypted]}
-
-        event_filter = Filter(self.api._hs, filter_json) if filter_json else None
+        # This is apparently a RoomEventFilter. Including a type doesn't guarantee that
+        # at least one of each is present in the result
+        filter_json = {
+            "types": [EventTypes.Message, EventTypes.Encrypted, EventTypes.Create]
+        }
+        event_filter = Filter(self.api._hs, filter_json)
 
         from_token = (
             await self.api._hs.get_event_sources().get_current_token_for_pagination(
@@ -798,37 +792,15 @@ class InviteChecker:
             from_key=from_token.room_key,
             # When going backwards, to_key is not important
             to_key=None,
-            direction=page_config.direction,
-            limit=page_config.limit,
+            direction=Direction.BACKWARDS,
+            # With the filter below, 5 should be more than enough
+            limit=5,
             event_filter=event_filter,
         )
         # If we succeeded with event type filtering, all of these should be only messages
         last_timestamp = 0
         for event_base in events:
             last_timestamp = max(event_base.origin_server_ts, last_timestamp)
-
-        if last_timestamp:
-            return last_timestamp
-
-        filter_json = {"types": [EventTypes.Create]}
-
-        event_filter = Filter(self.api._hs, filter_json) if filter_json else None
-
-        (
-            events,
-            next_key,
-            _,
-        ) = await self.api._store.paginate_room_events_by_topological_ordering(
-            room_id=room_id,
-            from_key=from_token.room_key,
-            # When going backwards, to_key is not important
-            to_key=None,
-            direction=page_config.direction,
-            limit=page_config.limit,
-            event_filter=event_filter,
-        )
-        # Every room has only one creation event
-        last_timestamp = events[0].origin_server_ts
 
         return last_timestamp
 
