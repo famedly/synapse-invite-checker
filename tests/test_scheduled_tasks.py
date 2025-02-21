@@ -40,15 +40,16 @@ from tests.test_utils import (
 logger = logging.getLogger(__name__)
 
 
-class RoomScanTaskTestCase(FederatingModuleApiTestCase):
+class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     """
-    Test that room scans are done, and subsequent room purges are run
+    Test that insured only room scans are done, and subsequent room purges are run
     """
 
     # This test case will model being an EPA server on the federation list
     remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
     remote_pro_user_2 = f"@a:{SERVER_NAME_FROM_LIST}"
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
+    remote_epa_user_2 = f"@bob:{INSURANCE_DOMAIN_IN_LIST}"
     # Our server name
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
     # The default "fake" remote server name that has its server signing keys auto-injected
@@ -70,7 +71,9 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
                 "insured_only_room_scan": {
                     "enabled": True,
                     "grace_period": "6h",
-                }
+                },
+                # We aren't testing this here
+                "inactive_room_scan": {"enabled": False},
             }
         )
 
@@ -120,7 +123,11 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         return None
 
     def assert_task_status_for_room_is(
-        self, room_id: str, task_name: str, status_list: list[TaskStatus] | None = None
+        self,
+        room_id: str,
+        task_name: str,
+        status_list: list[TaskStatus] | None = None,
+        comment: str = "",
     ) -> None:
         """
         Assert that for a given room id, the Statuses listed have a single entry
@@ -132,9 +139,13 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         )
 
         if status_list:
-            assert len(purge_task_list) > 0, f"{purge_task_list}"
+            assert (
+                len(purge_task_list) > 0
+            ), f"{comment} | GT status_list: {status_list}, purge_list: {purge_task_list}"
         else:
-            assert len(purge_task_list) == 0, f"{purge_task_list}"
+            assert (
+                len(purge_task_list) == 0
+            ), f"{comment} | EQ status_list: {status_list}, purge_list: {purge_task_list}"
 
         completed_task = [
             task for task in purge_task_list if task.status == TaskStatus.COMPLETE
@@ -147,13 +158,13 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         ]
         assert len(completed_task) == (
             1 if TaskStatus.COMPLETE in status_list else 0
-        ), f"completed {completed_task}"
+        ), f"{comment} | completed {completed_task}"
         assert len(active_task) == (
             1 if TaskStatus.ACTIVE in status_list else 0
-        ), f"active {active_task}"
+        ), f"{comment} | active {active_task}"
         assert len(scheduled_task) == (
             1 if TaskStatus.SCHEDULED in status_list else 0
-        ), f"scheduled {scheduled_task}"
+        ), f"{comment} | scheduled {scheduled_task}"
 
     @parameterized.expand([("pro_join_and_leave", True), ("pro_never_join", False)])
     def test_room_scan_detects_epa_rooms(
@@ -181,7 +192,7 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # verify there are no tasks associated with this room
         self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], "first check"
         )
 
         # doctor leaves room
@@ -205,7 +216,7 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
             assert current_rooms is not None
 
             self.assert_task_status_for_room_is(
-                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
+                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], f"loop count: {count}"
             )
 
         # Stopped the loop above before advancing the time, so advance() for one more
@@ -217,7 +228,10 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         assert current_rooms is not None, "Room should still exist"
 
         self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.SCHEDULED]
+            room_id,
+            SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
+            [TaskStatus.SCHEDULED],
+            "end loop",
         )
 
         # The TaskScheduler has a heartbeat of 1 minute, give it that much
@@ -229,7 +243,7 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # verify a scheduled task "completed" for this room
         self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE]
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
         )
 
     def test_room_scan_ignores_pro_joined_rooms(self) -> None:
@@ -358,29 +372,51 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
             room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
         )
 
+        # They all just found out a friend of the remote patient may have more info
+        self.get_success_or_raise(
+            event_injection.inject_member_event(
+                self.hs,
+                room_id,
+                self.remote_pro_user,
+                Membership.INVITE,
+                target=self.remote_epa_user_2,
+            )
+        )
+
+        # other patient joins
+        self.send_join(self.remote_epa_user_2, room_id)
+
+        # Original patient says "thanks you can go now"
+        self.create_and_send_event(room_id, self.user_d_id)
+
+        # friend of friend of patient leaves
+        self.send_leave(self.remote_epa_user_2, room_id)
+
         # doctor 1 leaves room
         self.send_leave(self.remote_pro_user, room_id)
 
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
         assert current_rooms is not None
 
+        def wait_some_time() -> None:
+            count = 0
+            while True:
+                count += 1
+                if count == 6:
+                    return
+
+                # advance() is in seconds, this should be 1 hour
+                self.reactor.advance(60 * 60)
+
+                current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+                assert current_rooms is not None
+
+                self.assert_task_status_for_room_is(
+                    room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
+                )
+
         # wait for cleanup, should take 6 hours(based on above configuration)
-        count = 0
-        while True:
-            count += 1
-            if count == 6:
-                break
-
-            # advance() is in seconds, this should be 1 hour
-            self.reactor.advance(60 * 60)
-
-            current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert current_rooms is not None
-
-            self.assert_task_status_for_room_is(
-                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-            )
-
+        wait_some_time()
         # Stopped the loop above before advancing the time, so advance() for one more
         # hour, which should allow the task to be scheduled
         self.reactor.advance(60 * 60)
@@ -412,21 +448,7 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         assert current_rooms is not None
 
         # wait for cleanup, should take 6 hours(based on above configuration)
-        count = 0
-        while True:
-            count += 1
-            if count == 6:
-                break
-
-            # advance() is in seconds, this should be 1 hour
-            self.reactor.advance(60 * 60)
-
-            current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert current_rooms is not None
-
-            self.assert_task_status_for_room_is(
-                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-            )
+        wait_some_time()
 
         # Stopped the loop above before advancing the time, so advance() for one more
         # hour, which should allow the task to be scheduled
@@ -474,3 +496,271 @@ class RoomScanTaskTestCase(FederatingModuleApiTestCase):
         assert len(second_delete_tasks) == 1
         second_delete_task_id = second_delete_tasks[0].id
         self.assertEqual(delete_task_id, second_delete_task_id)
+
+
+class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
+    """
+    Test that inactive room scans are done, and subsequent room purges are run
+    """
+
+    # This test case will model being an PRO server on the federation list
+    # By default we are SERVER_NAME_FROM_LIST
+
+    # Test with one other remote PRO server and one EPA server
+    # The inactive grace period is going to be 6 hours, room scans run each hour
+    remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
+    remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
+    # The default "fake" remote server name that has its server signing keys auto-injected
+    OTHER_SERVER_NAME = DOMAIN_IN_LIST
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"room_scan_run_interval": "1h"}
+        )
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "inactive_room_scan": {
+                    "enabled": True,
+                    "grace_period": "6h",
+                }
+            }
+        )
+
+        return conf
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.task_scheduler = self.hs.get_task_scheduler()
+
+        self.user_a = self.register_user("a", "password")
+        self.user_a_id = UserID.from_string(self.user_a)
+        self.access_token_a = self.login("a", "password")
+        self.user_b = self.register_user("b", "password")
+        self.user_b_id = UserID.from_string(self.user_b)
+        self.access_token_b = self.login("b", "password")
+        self.user_c = self.register_user("c", "password")
+        self.user_c_id = UserID.from_string(self.user_c)
+        self.access_token_c = self.login("c", "password")
+
+        # OTHER_SERVER_NAME already has it's signing key injected into our database so
+        # our server doesn't have to make that request. Add the other servers we will be
+        # using as well
+        self.map_server_name_to_signing_key.update(
+            {
+                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
+                    INSURANCE_DOMAIN_IN_LIST
+                ),
+            },
+        )
+        self.map_user_name_to_tokens = {
+            self.user_a: self.access_token_a,
+            self.user_b: self.access_token_b,
+            self.user_c: self.access_token_c,
+        }
+
+    def user_a_create_room(
+        self,
+        invitee_list: list[str],
+        is_public: bool,
+    ) -> str | None:
+        """
+        Helper to send an api request with a full set of required additional room state
+        to the room creation matrix endpoint.
+        """
+        # Hide the assertion from create_room_as() when the error code is unexpected. It
+        # makes errors for the tests less clear when all we get is the http response
+        with contextlib.suppress(AssertionError):
+            return self.helper.create_room_as(
+                self.user_a,
+                is_public=is_public,
+                tok=self.access_token_a,
+                extra_content=construct_extra_content(self.user_a, invitee_list),
+            )
+        return None
+
+    def opinionated_join(self, room_id: str, user: str) -> None:
+        """
+        Helper to join a room whether this is a local or remote user
+        """
+        user_domain = UserID.from_string(user).domain
+        if user_domain == self.server_name_for_this_server:
+            # local
+            self.helper.join(room_id, user, tok=self.map_user_name_to_tokens.get(user))
+        else:
+            # remote
+            self.send_join(user, room_id)
+
+    def assert_task_status_for_room_is(
+        self,
+        room_id: str,
+        task_name: str,
+        status_list: list[TaskStatus] | None = None,
+        comment: str = "",
+    ) -> None:
+        """
+        Assert that for a given room id, the Statuses listed have a single entry
+
+        If the status_list is empty or None, there should be no tasks to find
+        """
+        purge_task_list = self.get_success_or_raise(
+            self.task_scheduler.get_tasks(actions=[task_name], resource_id=room_id)
+        )
+
+        if status_list:
+            assert (
+                len(purge_task_list) > 0
+            ), f"{comment} | GT status_list: {status_list}, purge_list: {purge_task_list}"
+        else:
+            assert (
+                len(purge_task_list) == 0
+            ), f"{comment} | EQ status_list: {status_list}, purge_list: {purge_task_list}"
+
+        completed_task = [
+            task for task in purge_task_list if task.status == TaskStatus.COMPLETE
+        ]
+        active_task = [
+            task for task in purge_task_list if task.status == TaskStatus.ACTIVE
+        ]
+        scheduled_task = [
+            task for task in purge_task_list if task.status == TaskStatus.SCHEDULED
+        ]
+        assert len(completed_task) == (
+            1 if TaskStatus.COMPLETE in status_list else 0
+        ), f"{comment} | completed {completed_task}"
+        assert len(active_task) == (
+            1 if TaskStatus.ACTIVE in status_list else 0
+        ), f"{comment} | active {active_task}"
+        assert len(scheduled_task) == (
+            1 if TaskStatus.SCHEDULED in status_list else 0
+        ), f"{comment} | scheduled {scheduled_task}"
+
+    # test for private dm between two local users
+    # test for private dm between a local and remote user
+    # test for public room on local server
+    # test for basic dm between a local and remote epa user
+
+    # I'm not sure I like the hard coding of the user names here, but can not access
+    # "self" to just reference it
+    @parameterized.expand(
+        [
+            # (name to give the test, list of users to test with, is public room, any messages in room?)
+            (
+                "private_room_2_local_users_with_messages",
+                [f"@b:{SERVER_NAME_FROM_LIST}"],
+                False,
+                True,
+            ),
+            (
+                "private_room_2_local_users_no_messages",
+                [f"@b:{SERVER_NAME_FROM_LIST}"],
+                False,
+                False,
+            ),
+            (
+                "private_room_1_local_user_1_remote_pro_user",
+                [f"@mxid:{DOMAIN_IN_LIST}"],
+                False,
+                True,
+            ),
+            (
+                "public_room_3_local_users",
+                [f"@b:{SERVER_NAME_FROM_LIST}", f"@c:{SERVER_NAME_FROM_LIST}"],
+                True,
+                True,
+            ),
+            (
+                "private_room_with_1_pro_1_epa",
+                [f"@b:{SERVER_NAME_FROM_LIST}", f"@alice:{INSURANCE_DOMAIN_IN_LIST}"],
+                False,
+                True,
+            ),
+        ]
+    )
+    def test(
+        self, _: str, other_users: list[str], is_public: bool, send_messages: bool
+    ) -> None:
+        """
+        Test that a room is deleted when a local PRO user and various others don't touch
+        a room for "inactive_room_scan.grace_period" amount of time
+        """
+        for other_user in other_users:
+            # just unilaterally add the contact, instead of deciding if it's a publicly
+            # visible practitioner or not. NOTE: when moving to ALLOW ALL mode, this
+            # can be removed
+            self.add_a_contact_to_user_by_token(other_user, self.access_token_a)
+
+        # Make a room and invite the other occupant(s)
+        room_id = self.user_a_create_room([], is_public=is_public)
+        assert room_id is not None, "Room should exist"
+
+        for other_user in other_users:
+            self.helper.invite(room_id, targ=other_user, tok=self.access_token_a)
+
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is not None, "Room should exist from initial get_room()"
+
+        # other user joins
+        for other_user in other_users:
+            self.opinionated_join(room_id, other_user)
+
+        # Send a junk hex message into the room, this is the message the scan will find
+        if send_messages:
+            self.create_and_send_event(room_id, self.user_a_id)
+
+        # verify there are no shutdown tasks associated with this room
+        self.assert_task_status_for_room_is(
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], "first check"
+        )
+
+        # wait for cleanup, should take 6 hours(based on above configuration)
+        count = 0
+        while True:
+            count += 1
+            if count == 6:
+                break
+
+            # advance() is in seconds, this should be 1 hour
+            self.reactor.advance(60 * 60)
+
+            current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+            assert (
+                current_rooms is not None
+            ), f"Room should still exist at count: {count}"
+
+            self.assert_task_status_for_room_is(
+                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], f"loop count: {count}"
+            )
+
+        # Stopped the loop above before advancing the time, so advance() for one more
+        # hour, which should allow the task to be scheduled
+        self.reactor.advance(60 * 60)
+
+        # Room should still exist
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is not None, "Room should still exist after loop finished"
+
+        self.assert_task_status_for_room_is(
+            room_id,
+            SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
+            [TaskStatus.SCHEDULED],
+            "after loop",
+        )
+
+        # The TaskScheduler has a heartbeat of 1 minute, give it that much
+        self.reactor.advance(1 * 60)
+
+        # Now the room should be gone
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is None, f"Room should be gone now: {current_rooms}"
+
+        # verify a scheduled task "completed" for this room
+        self.assert_task_status_for_room_is(
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
+        )
