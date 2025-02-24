@@ -53,6 +53,11 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
         self.user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
+        return conf
+
     def user_a_create_room(
         self,
         invitee_list: list[str],
@@ -168,6 +173,22 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
                 room_id is None
             ), f"{label} room incorrectly created with invites to:[{invitee_list}]"
 
+    def test_create_server_notices_room(self) -> None:
+        """
+        Test that a server notices room works as expected on pro mode servers
+        """
+        # send_notice() will automatically create a server notices room and then invite
+        # the user it is directed towards. The server notices manager has no method to
+        # invite a user during creation of the room
+        room_id = self.get_success_or_raise(
+            self.hs.get_server_notices_manager().send_notice(
+                self.user_d, {"body": "Server Notice message", "msgtype": "m.text"}
+            )
+        )
+        # Retrieving the room_id is a sign that the room was created, the user was
+        # invited, and the message was sent
+        assert room_id
+
 
 class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
     """
@@ -196,6 +217,7 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         assert len(conf["modules"]) == 1, "more than one module found in config"
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
+        conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
         return conf
 
     def user_d_create_room(
@@ -271,3 +293,23 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         )
         # Without the blocking put in place, this fails for private rooms
         assert room_id is None, f"{label} room should NOT have been created"
+
+    def test_create_server_notices_room(self) -> None:
+        """
+        Test that a server notices room ignores epa restriction rules. This is important
+        because server notice rooms are created by a "fake" user on the local server and
+        inviting another local server user is supposed to be forbidden. The server
+        notice user is considered a system admin account and is therefor exempt from
+        this restriction
+        """
+        # send_notice() will automatically create a server notices room and then invite
+        # the user it is directed towards. The server notices manager has no method to
+        # invite a user during creation of the room
+        room_id = self.get_success_or_raise(
+            self.hs.get_server_notices_manager().send_notice(
+                self.user_d, {"body": "Server Notice message", "msgtype": "m.text"}
+            )
+        )
+        # Retrieving the room_id is a sign that the room was created, the user was
+        # invited, and the message was sent
+        assert room_id
