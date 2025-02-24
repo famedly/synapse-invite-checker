@@ -377,7 +377,9 @@ class InviteChecker:
                 "the Federation List as an Insurance Domain!"
             )
 
-        await self.run_migration()
+        # Only let this run on the worker assigned to handle background tasks
+        if self.api.should_run_background_tasks():
+            await self.run_migration()
 
     async def run_migration(self) -> None:
         """
