@@ -548,8 +548,13 @@ class InviteChecker:
     async def is_domain_insurance(self, domain: str) -> bool:
         return await self._domain_list_check(lambda fl: fl.is_insurance(domain))
 
-    async def on_upgrade_room(self, _: Requester, room_version: RoomVersion) -> None:
-        if room_version.identifier not in self.config.allowed_room_versions:
+    async def on_upgrade_room(
+        self, _: Requester, room_version: RoomVersion, is_requester_admin: bool = False
+    ) -> None:
+        if (
+            not is_requester_admin
+            and room_version.identifier not in self.config.allowed_room_versions
+        ):
             raise SynapseError(
                 400,
                 f"Room version ('{room_version}') not allowed",
@@ -567,6 +572,9 @@ class InviteChecker:
         invites
         room version
         """
+        if is_request_admin:
+            return
+
         # Unlike `user_may_invite()`, `on_create_room()` only runs with the inviter being
         # a local user and the invitee is remote. Unfortunately, the spam check module
         # function `user_may_create_room()` only accepts the user creating the room and

@@ -35,6 +35,9 @@ class RoomVersionCreateRoomTest(ModuleApiTestCase):
         self.user_a = self.register_user("a", "password")
         self.access_token_a = self.login("a", "password")
 
+        self.admin_b = self.register_user("b", "password", admin=True)
+        self.access_token_b = self.login("b", "password")
+
     def user_create_room(
         self,
         invitee_list: list[str] | None = None,
@@ -178,3 +181,17 @@ class RoomVersionCreateRoomTest(ModuleApiTestCase):
 
         room_id = self.upgrade_room_to_version(room_id, "8", self.access_token_a)
         assert room_id is None
+
+        # 9 -> 8 requires an admin
+        room_id = self.helper.create_room_as(
+            self.admin_b,
+            is_public=False,
+            room_version="9",
+            tok=self.access_token_b,
+            expect_code=200,
+            extra_content=construct_extra_content(self.admin_b, []),
+        )
+        assert room_id
+
+        room_id = self.upgrade_room_to_version(room_id, "8", self.access_token_b)
+        assert room_id
