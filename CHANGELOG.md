@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2025-02-25
+
+- fix publishing via github releases
+
 ## [0.3.0] - 2025-02-25
 
 This release contains various changes for the upcoming TIM ePA and Pro versions.

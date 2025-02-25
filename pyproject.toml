@@ -30,7 +30,7 @@ dependencies = [
   # TODO: Remove this dependency when we can
   "Twisted==24.7.0"
 ]
-version = "0.3.0"
+version = "0.3.1"
 
 [project.urls]
 Documentation = "https://github.com/famedly/synapse-invite-checker#synapse-invite-checker"

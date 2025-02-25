@@ -21,17 +21,17 @@ jobs:
     permissions:
       id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip 
-        pip install hatch
-    - name: Build package
-      run: hatch build
-    - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@81e9d935c883d0b210363ab89cf05f3894778450
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip 
+          pip install hatch
+      - name: Build package
+        run: hatch build
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
