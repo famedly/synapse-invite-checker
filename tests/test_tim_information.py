@@ -22,7 +22,8 @@ class MessengerInfoTestCase(ModuleApiTestCase):
 
         channel = self.make_request(
             method="GET",
-            path="/_synapse/client/com.famedly/tim/tim-information",
+            path="/tim-information",
+            shorthand=False,
         )
 
         assert channel.code == 200, channel.result
@@ -55,7 +56,8 @@ class MessengerInfoTestCase(ModuleApiTestCase):
 
         channel = self.make_request(
             method="GET",
-            path="/_synapse/client/com.famedly/tim/tim-information",
+            path="/tim-information",
+            shorthand=False,
         )
 
         assert channel.code == 200, channel.result
@@ -70,7 +72,8 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
         """Tests that Pro mode returns expected response"""
         channel = self.make_request(
             method="GET",
-            path="/_synapse/client/com.famedly/tim/tim-information/v1/server/isInsurance?serverName=cirosec.de",
+            path="/tim-information/v1/server/isInsurance?serverName=cirosec.de",
+            shorthand=False,
         )
 
         assert channel.code == 200, channel.result
@@ -80,7 +83,8 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
 
         channel = self.make_request(
             method="GET",
-            path="/_synapse/client/com.famedly/tim/tim-information/v1/server/isInsurance?serverName=timo.staging.famedly.de",
+            path="/tim-information/v1/server/isInsurance?serverName=timo.staging.famedly.de",
+            shorthand=False,
         )
 
         assert channel.code == 200, channel.result
@@ -113,14 +117,16 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
 
         channel = self.make_request(
             method="GET",
-            path="/_synapse/client/com.famedly/tim/tim-information/v1/server/isInsurance?serverName=cirosec.de",
+            path="/tim-information/v1/server/isInsurance?serverName=cirosec.de",
+            shorthand=False,
         )
 
         assert channel.code == 401, channel.result
 
         channel = self.make_request(
             method="GET",
-            path="/_synapse/client/com.famedly/tim/tim-information/v1/server/isInsurance?serverName=timo.staging.famedly.de",
+            path="/tim-information/v1/server/isInsurance?serverName=timo.staging.famedly.de",
+            shorthand=False,
         )
 
         assert channel.code == 401, channel.result

@@ -29,7 +29,7 @@ from synapse_invite_checker.types import TimType
 # https://github.com/gematik/api-ti-messenger/blob/main/src/openapi/TiMessengerInformation.yaml
 _TMI_schema_version = "1.0.0"
 
-INFO_API_PREFIX = "/_synapse/client/com.famedly/tim/tim-information"
+INFO_API_PREFIX = "/tim-information"
 
 
 def tim_info_patterns(path_regex: str) -> List[re.Pattern]:

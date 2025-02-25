@@ -71,6 +71,7 @@ from synapse_invite_checker.rest.contacts import (
     ContactsResource,
 )
 from synapse_invite_checker.rest.messenger_info import (
+    INFO_API_PREFIX,
     MessengerInfoResource,
     MessengerIsInsuranceResource,
 )
@@ -187,8 +188,6 @@ class InviteChecker:
             on_upgrade_room=self.on_upgrade_room
         )
 
-        self.resource = JsonResource(api._hs)
-
         dbconfig = None
         for dbconf in api._store.config.database.databases:
             if dbconf.name == "master":
@@ -221,13 +220,17 @@ class InviteChecker:
                 self.room_scan, self.config.room_scan_run_interval_ms
             )
 
+        # Separate out the resources for Contacts, since they will be going away
+        self.resource = JsonResource(api._hs)
+        self.contact_resource = JsonResource(api._hs)
+
         # The Contact Management API resources
-        ContactManagementInfoResource(self.config).register(self.resource)
+        ContactManagementInfoResource(self.config).register(self.contact_resource)
         ContactsResource(self.api, self.store, self.permissions_handler).register(
-            self.resource
+            self.contact_resource
         )
         ContactResource(self.api, self.store, self.permissions_handler).register(
-            self.resource
+            self.contact_resource
         )
 
         # The TiMessengerInformation API resource
@@ -238,7 +241,8 @@ class InviteChecker:
 
         # Register everything at the root of our namespace/app, to avoid complicating
         # Synapse's regex http registration
-        self.api.register_web_resource(BASE_API_PREFIX, self.resource)
+        self.api.register_web_resource(INFO_API_PREFIX, self.resource)
+        self.api.register_web_resource(BASE_API_PREFIX, self.contact_resource)
 
         self.api._hs._reactor.callWhenRunning(self.after_startup)
 
