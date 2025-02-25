@@ -221,7 +221,6 @@ class InviteChecker:
             )
 
         # Separate out the resources for Contacts, since they will be going away
-        self.resource = JsonResource(api._hs)
         self.contact_resource = JsonResource(api._hs)
 
         # The Contact Management API resources
@@ -232,17 +231,16 @@ class InviteChecker:
         ContactResource(self.api, self.store, self.permissions_handler).register(
             self.contact_resource
         )
+        self.api.register_web_resource(BASE_API_PREFIX, self.contact_resource)
 
         # The TiMessengerInformation API resource
-        MessengerInfoResource(self.config).register(self.resource)
-        MessengerIsInsuranceResource(self.config, self.is_domain_insurance).register(
-            self.resource
-        )
-
-        # Register everything at the root of our namespace/app, to avoid complicating
-        # Synapse's regex http registration
-        self.api.register_web_resource(INFO_API_PREFIX, self.resource)
-        self.api.register_web_resource(BASE_API_PREFIX, self.contact_resource)
+        if self.config.tim_type == TimType.PRO:
+            self.resource = JsonResource(api._hs)
+            MessengerInfoResource(self.api, self.config).register(self.resource)
+            MessengerIsInsuranceResource(
+                self.api, self.config, self.is_domain_insurance
+            ).register(self.resource)
+            self.api.register_web_resource(INFO_API_PREFIX, self.resource)
 
         self.api._hs._reactor.callWhenRunning(self.after_startup)
 

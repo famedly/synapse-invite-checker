@@ -12,17 +12,36 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+from synapse.server import HomeServer
+from synapse.util import Clock
+from twisted.internet.testing import MemoryReactor
+
 import tests.unittest as synapse_test
 from tests.base import ModuleApiTestCase
 
 
 class MessengerInfoTestCase(ModuleApiTestCase):
-    async def test_default_operator_contact_info_resource(self) -> None:
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.user_a = self.register_user("a", "password")
+        self.access_token = self.login("a", "password")
+
+    def test_no_access_token_is_denied(self) -> None:
+        channel = self.make_request(
+            method="GET",
+            path="/tim-information",
+            shorthand=False,
+        )
+
+        assert channel.code == 401, "Request should fail with no access token"
+
+    def test_default_operator_contact_info_resource(self) -> None:
         """Tests that the messenger operator contact info resource is accessible"""
 
         channel = self.make_request(
             method="GET",
             path="/tim-information",
+            access_token=self.access_token,
             shorthand=False,
         )
 
@@ -57,6 +76,7 @@ class MessengerInfoTestCase(ModuleApiTestCase):
         channel = self.make_request(
             method="GET",
             path="/tim-information",
+            access_token=self.access_token,
             shorthand=False,
         )
 
@@ -68,11 +88,34 @@ class MessengerInfoTestCase(ModuleApiTestCase):
 
 
 class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.user_a = self.register_user("a", "password")
+        self.access_token = self.login("a", "password")
+
     def test_pro_isInsurance_returns_expected(self) -> None:
         """Tests that Pro mode returns expected response"""
         channel = self.make_request(
             method="GET",
             path="/tim-information/v1/server/isInsurance?serverName=cirosec.de",
+            shorthand=False,
+        )
+
+        assert channel.code == 401, "Request should fail with no access token"
+
+        channel = self.make_request(
+            method="GET",
+            path="/tim-information/v1/server/isInsurance",
+            access_token=self.access_token,
+            shorthand=False,
+        )
+
+        assert channel.code == 400, "Request should have a parameter missing"
+
+        channel = self.make_request(
+            method="GET",
+            path="/tim-information/v1/server/isInsurance?serverName=cirosec.de",
+            access_token=self.access_token,
             shorthand=False,
         )
 
@@ -84,6 +127,7 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
         channel = self.make_request(
             method="GET",
             path="/tim-information/v1/server/isInsurance?serverName=timo.staging.famedly.de",
+            access_token=self.access_token,
             shorthand=False,
         )
 
@@ -121,7 +165,7 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 401, channel.result
+        assert channel.code == 404, "Endpoint shouldn't exist"
 
         channel = self.make_request(
             method="GET",
@@ -129,4 +173,4 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 401, channel.result
+        assert channel.code == 404, "Endpoint shouldn't exist"
