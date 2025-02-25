@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-02-25
+
+This release contains various changes for the upcoming TIM ePA and Pro versions.
+Many of these changes are potentially BREAKING changes. Please read the
+change log carefully.
+
+### Config changes
+
+- The `api_prefix` config option is removed.
+- You can now configure the `tim-type` to `epa` or `pro`. This defaults to `pro`
+  for backwards compatibility.
+- You can now limit the allowed room versions. This defaults to "9" and "10"
+  currently. Please make sure the default room version of synapse matches one of
+  the allowed room versions.
+- New configuration options for the automatic background jobs for inactive rooms
+  and rooms with only insurance users.
+
+### Behaviour changes
+
+- The old contacts API is deprecated. Clients should instead use the account
+  data event to change contact rules. For a limited time period this API is
+  still available in `pro` mode and tries to stay compatible, but all data is
+  migrated to the new account data events, so the displayname of users might be
+  missing. Additionally the API will be blocked, when any incompatible changes
+  are made to the account data (like setting the default to "allow all").
+- Only specific room versions are now allowed when creating a room (or upgrading
+  a room).
+- Rooms with no activity in the last 6 months will get automatically deleted.
+  The time period can be configured.
+- Rooms with only insurance users in them will get deleted 1 week after no
+  non-insurance user is in the room. This time period can be configured.
+- When creating a room a maximum of one invite is allowed.
+- Insurance servers can't create public rooms.
+- Some of those limitations do not apply to admins.
+- Every API requires authentication, even the info endpoints.
+- The `/tim-information` API is now available (in `pro` mode).
+
+### Detailed changes
+
+- feat!: Block multiple invites in `createRoom` (Jason Little)
+- feat!: Migrate Contacts REST Api to the new Permissions ClientConfig model (Jason Little)
+- feat: Add a new endpoint for discovering a server name from ik number (Jason Little)
+- feat: Check room version requested when creating a new room (Jason Little)
+- feat: Check room version requested when upgrading a room (Jason Little)
+- feat: Ensure rooms with only EPA members can be shutdown and purged (Jason Little)
+- feat: Forbid insured servers from creating public rooms (Jason Little)
+- feat: New `tim-type` configuration setting to enable `epa` or `pro` backend modes. Defaults to `pro` (Jason Little)
+- feat: Purge rooms with no activity (Jason Little)
+- chore: Add .idea directory to .gitignore for JetBrains IDEs (Jason Little)
+- chore: Add a few tests to check exceptions for fed list values (Jason Little)
+- chore: Add matrix team to CODEOWNERS (Nicolas Werner)
+- chore: Add test for server notice rooms (Jason Little)
+- chore: Move the `/tim-information` endpoint from our namespaced area closer to the root (Jason Little)
+- chore: Update(and add) metadata versions for various schema (Jason Little)
+- ci: Enable code coverage (Emelie Graven)
+- ci: properly write coverage files in CI (Nicolas Werner)
+- fix: Isolate contact migration to the background tasks worker (Jason Little)
+- fix: Only Enable TIM-Information endpoints on PRO mode (Jason Little)
+- fix: Relax restrictions for system admins on creating and upgrading rooms (Jason Little)
+- refactor: Split unit tests into separate files (Jason Little)
+- test: Verify newer Federation List schema is supported and test parsing of its data. (Jason Little)
+
 ## [0.2.0] - 2024-05-22
 
 - Use SimpleHttpClient with proxy enabled to fetch CA roots
