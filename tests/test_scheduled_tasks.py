@@ -64,6 +64,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
         conf["modules"][0].setdefault("config", {}).update(
+            {"default_permission": "allow all"}
+        )
+        conf["modules"][0].setdefault("config", {}).update(
             {"room_scan_run_interval": "1h"}
         )
         conf["modules"][0].setdefault("config", {}).update(
@@ -174,8 +177,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         Test that a room is deleted when a single EPA user and a single PRO user are in
         a room, but the PRO user leaves
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
-
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
         assert room_id is not None
@@ -255,8 +256,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         room, so it's dangling and won't be cleaned up unless `forget_room_on_leave` is
         turned on. I'm not sure I need to test for this?
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
-
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
         assert room_id is not None
@@ -324,8 +323,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         """
         Test that a room is not deleted until the last PRO user leaves a room
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
-
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
         assert room_id is not None
@@ -522,6 +519,9 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
         conf["modules"][0].setdefault("config", {}).update(
+            {"default_permission": "allow all"}
+        )
+        conf["modules"][0].setdefault("config", {}).update(
             {"room_scan_run_interval": "1h"}
         )
         conf["modules"][0].setdefault("config", {}).update(
@@ -690,12 +690,6 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         Test that a room is deleted when a local PRO user and various others don't touch
         a room for "inactive_room_scan.grace_period" amount of time
         """
-        for other_user in other_users:
-            # just unilaterally add the contact, instead of deciding if it's a publicly
-            # visible practitioner or not. NOTE: when moving to ALLOW ALL mode, this
-            # can be removed
-            self.add_a_contact_to_user_by_token(other_user, self.access_token_a)
-
         # Make a room and invite the other occupant(s)
         room_id = self.user_a_create_room([], is_public=is_public)
         assert room_id is not None, "Room should exist"

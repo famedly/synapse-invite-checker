@@ -55,6 +55,15 @@ class ConfigParsingTestCase(TestCase):
         test_config.update({"tim-type": "fake"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
 
+    def test_incorrect_default_permission_raises(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"default_permission": "reject all"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        test_config = self.config.copy()
+        test_config.update({"default_permission": "allow_all"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
     def test_missing_fed_list_or_gematik_ca_url_raises(self) -> None:
         test_config = self.config.copy()
         test_config.update({"federation_list_url": ""})
