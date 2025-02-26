@@ -13,13 +13,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import json
+from typing import Any
 
+from parameterized import parameterized_class
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet import defer
 from twisted.internet.testing import MemoryReactor
 
-from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import (
     Contact,
     GroupName,
@@ -326,9 +327,8 @@ class PermissionsForcedMigrationTestCase(ModuleApiTestCase):
         # takes care that the test data is injected after that startup has run.
         # Unfortunately, Synapse has not provided a way to access these kinds of modules
         # loaded into it's context; this is what we have to work with.
-        self.invchecker = InviteChecker(
-            self.hs.config.modules.loaded_modules[0][1], self.hs.get_module_api()
-        )
+        # self.hs.mockmod: InviteChecker
+        self.invchecker = self.hs.mockmod
 
         # users
         self.user_a = self.register_user("a", "password")
@@ -416,3 +416,37 @@ class PermissionsForcedMigrationTestCase(ModuleApiTestCase):
             (self.invchecker.store.table_exists(True))
         )
         self.assertFalse(table_exists, "Table should be gone at end")
+
+
+@parameterized_class(
+    ("permissions_default", "expected"), [("allow all", True), ("block all", False)]
+)
+class PermissionsDefaultConfigurableTestCase(ModuleApiTestCase):
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+
+        self.invchecker = self.hs.mockmod
+
+        # users
+        self.user_a = self.register_user("a", "password")
+        self.access_token_a = self.login("a", "password")
+        self.user_b = self.register_user("b", "password")
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permission": self.permissions_default}
+        )
+        return conf
+
+    def test_permission_default(self) -> None:
+        permissions: PermissionConfig = self.get_success_or_raise(
+            self.invchecker.permissions_handler.get_permissions(self.user_a)
+        )
+        assert permissions.is_allow_all() == self.expected
