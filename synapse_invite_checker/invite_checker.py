@@ -78,7 +78,11 @@ from synapse_invite_checker.rest.messenger_info import (
 )
 
 from synapse_invite_checker.store import InviteCheckerStore
-from synapse_invite_checker.types import FederationList, TimType
+from synapse_invite_checker.types import (
+    FederationList,
+    PermissionDefaultSetting,
+    TimType,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -205,6 +209,7 @@ class InviteChecker:
 
         self.permissions_handler = InviteCheckerPermissionsHandler(
             self.api,
+            self.config,
             self.fetch_localization_for_mxid,
             self.is_domain_insurance,
         )
@@ -308,6 +313,16 @@ class InviteChecker:
             else:
                 msg = "`tim-type` setting is not a recognized value. Please fix."
                 raise ConfigError(msg)
+
+        _default_permission = config.get(
+            "default_permission", _config.default_permission.value
+        )
+        try:
+            _coerce_default = PermissionDefaultSetting(_default_permission)
+        except ValueError as e:
+            msg = f"Default permission setting is unrecognized value: '{_default_permission}'"
+            raise ConfigError(msg) from e
+        _config.default_permission = _coerce_default
 
         _allowed_room_versions = config.get("allowed_room_versions", ["9", "10"])
         if not _allowed_room_versions or not isinstance(_allowed_room_versions, list):

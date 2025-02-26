@@ -17,10 +17,10 @@ from typing import Awaitable, Callable
 from synapse.module_api import ModuleApi
 from synapse.types import UserID
 
+from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.types import (
     PermissionConfig,
     PermissionConfigType,
-    PermissionDefaultSetting,
 )
 
 
@@ -35,10 +35,12 @@ class InviteCheckerPermissionsHandler:
     def __init__(
         self,
         api: ModuleApi,
+        config: InviteCheckerConfig,
         localization_cb: Callable[[str], Awaitable[str]],
         is_domain_insurance_cb: Callable[[str], Awaitable[bool]],
     ) -> None:
         self.api = api
+        self.config = config
         self.account_data_manager = self.api.account_data_manager
         self.fetch_localization_for_mxid = localization_cb
         self.is_domain_insurance = is_domain_insurance_cb
@@ -50,7 +52,7 @@ class InviteCheckerPermissionsHandler:
         )
         if account_data is None:
             permissions = PermissionConfig(
-                defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                defaultSetting=self.config.default_permission,
             )
         else:
             permissions = PermissionConfig.model_validate(account_data)
