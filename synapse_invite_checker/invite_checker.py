@@ -227,18 +227,18 @@ class InviteChecker:
         # Separate out the resources for Contacts, since they will be going away
         self.contact_resource = JsonResource(api._hs)
 
-        # The Contact Management API resources
-        ContactManagementInfoResource(self.config).register(self.contact_resource)
-        ContactsResource(self.api, self.store, self.permissions_handler).register(
-            self.contact_resource
-        )
-        ContactResource(self.api, self.store, self.permissions_handler).register(
-            self.contact_resource
-        )
-        self.api.register_web_resource(BASE_API_PREFIX, self.contact_resource)
-
-        # The TiMessengerInformation API resource
         if self.config.tim_type == TimType.PRO:
+            # The Contact Management API resources
+            ContactManagementInfoResource(self.config).register(self.contact_resource)
+            ContactsResource(self.api, self.store, self.permissions_handler).register(
+                self.contact_resource
+            )
+            ContactResource(self.api, self.store, self.permissions_handler).register(
+                self.contact_resource
+            )
+            self.api.register_web_resource(BASE_API_PREFIX, self.contact_resource)
+
+            # The TiMessengerInformation API resource
             self.resource = JsonResource(api._hs)
             MessengerInfoResource(self.api, self.config).register(self.resource)
             MessengerIsInsuranceResource(
