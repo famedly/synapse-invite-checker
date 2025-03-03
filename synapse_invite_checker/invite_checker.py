@@ -211,7 +211,10 @@ class InviteChecker:
 
         self.task_scheduler = api._hs.get_task_scheduler()
 
-        if self.config.room_scan_run_interval_ms > 0:
+        if (
+            self.config.room_scan_run_interval_ms > 0
+            and self.api.should_run_background_tasks()
+        ):
             # The docstring for 'looping_background_call()' is slightly incorrect
             # > Waits msec initially before calling f for the first time.
             # Should be
