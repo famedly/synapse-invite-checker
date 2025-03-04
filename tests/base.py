@@ -19,7 +19,9 @@ from http import HTTPStatus
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
+from synapse.api.constants import Membership, RoomCreationPreset
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
+from synapse.crypto.event_signing import add_hashes_and_signatures
 from synapse.events import make_event_from_dict
 from synapse.module_api import errors
 from synapse.rest import admin
@@ -33,7 +35,7 @@ from synapse.rest.client import (
     room_upgrade_rest_servlet,
 )
 from synapse.server import HomeServer
-from synapse.types import UserID
+from synapse.types import UserID, create_requester
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
@@ -44,6 +46,7 @@ from tests.test_utils import (
     INSURANCE_DOMAIN_IN_LIST,
     SERVER_NAME_FROM_LIST,
 )
+from tests.test_utils.fake_room_creation import FakeRoom
 
 
 # ruff: noqa: E501
@@ -413,6 +416,8 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         self.event_creation_handler = homeserver.get_event_creation_handler()
         # self.sync_handler = homeserver.get_sync_handler()
         self.auth_handler = homeserver.get_auth_handler()
+        # Map room_id to FakeRoom
+        self.remote_rooms: dict[str, FakeRoom] = {}
 
     @override
     def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
@@ -470,7 +475,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         )
         assert channel.code == 200, channel.result
 
-    def _make_join(self, user_id: str, room_id: str) -> dict[str, Any]:
+    def _make_join(
+        self, user_id: str, room_id: str, expected_code: int = HTTPStatus.OK
+    ) -> dict[str, Any]:
         users_domain = UserID.from_string(user_id).domain
         channel = self.make_signed_federation_request(
             "GET",
@@ -478,12 +485,22 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             f"?ver={self.ROOM_VERSION}",
             from_server=users_domain,
         )
-        self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
+        self.assertEqual(channel.code, expected_code, f"make_join: {channel.json_body}")
         return channel.json_body
 
-    def send_join(self, joining_user: str, room_id: str) -> None:
-        join_result = self._make_join(joining_user, room_id)
-
+    def send_join(
+        self,
+        joining_user: str,
+        room_id: str,
+        make_expected_code: int = HTTPStatus.OK,
+        join_expected_code: int = HTTPStatus.OK,
+    ) -> None:
+        join_result = self._make_join(
+            joining_user, room_id, expected_code=make_expected_code
+        )
+        if make_expected_code != HTTPStatus.OK:
+            # May as well since it was expected to fail
+            return
         join_event_dict = join_result["event"]
         joining_users_domain = UserID.from_string(joining_user).domain
         self.add_hashes_and_signatures_from_other_server(
@@ -497,7 +514,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             content=join_event_dict,
             from_server=joining_users_domain,
         )
-        self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
+        self.assertEqual(
+            channel.code, join_expected_code, f"send_join: {channel.json_body}"
+        )
 
         # the room should show that the new user is a member
         r = self.get_success(self.storage_controllers.state.get_current_state(room_id))
@@ -529,3 +548,141 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             from_server=leaving_users_domain,
         )
         self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
+
+    def create_remote_room(
+        self, creator_id: str, room_version: str, is_public: bool
+    ) -> str:
+        domain = UserID.from_string(creator_id).domain
+        remote_room = FakeRoom(
+            self.hs.config,
+            self.clock,
+            creator_id,
+            domain,
+            self.map_server_name_to_signing_key[domain],
+            room_ver=room_version,
+            room_preset=(
+                RoomCreationPreset.PUBLIC_CHAT
+                if is_public
+                else RoomCreationPreset.PRIVATE_CHAT
+            ),
+        )
+        room_id = remote_room.room_id.to_string()
+        self.remote_rooms[room_id] = remote_room
+        return room_id
+
+    def do_remote_join(self, room_id: str, joining_user: str) -> None:
+        self.assertIn(
+            room_id,
+            self.remote_rooms,
+            "Remote room should have been found(was it created?)",
+        )
+
+        remote_room = self.remote_rooms[room_id]
+
+        # This is the join event signed by the remote server
+        join_event = remote_room.create_make_join_response(joining_user)
+
+        # In normal operation, a local server will sign that join event and send it
+        # back. Here we sign the event and will inject it back into the room during
+        # mock_send_join below
+        edited_join_event = join_event[1].get_pdu_json(self.hs.get_clock().time_msec())
+
+        # According to the Matrix spec:
+        # > The joining server is expected to add or replace the origin, origin_server_ts,
+        # > and event_id on the templated event received by the resident server. This
+        # > event is then signed by the joining server.
+        # 'origin' and 'event_id' are no longer/looked at by Synapse it seems.
+        # 'event_id' should have been used since room version 2, and
+        # 'origin' has been superseded by observing the domain of the 'sender'. For our
+        # tests, time isn't advancing like the real world and it is likely that
+        # 'origin_server_ts' will have not changed anyway
+
+        add_hashes_and_signatures(
+            remote_room.room_version,
+            edited_join_event,
+            self.server_name_for_this_server,
+            self.hs.signing_key,
+        )
+
+        # This will be the return value for the 'make_join'
+        mock_make_membership_event = AsyncMock(return_value=join_event)
+
+        # And the return value for the 'send_join'. The FakeRoom has all the bits to
+        # sign the event
+        mock_send_join = AsyncMock(
+            return_value=remote_room.create_send_join_response(
+                joining_user, edited_join_event
+            )
+        )
+
+        # Patch these methods in place, allowing a given test some isolation and
+        # automatically undoing them after the function runs.
+        # 'make_membership_event' is the function that calls a remote server's
+        #   'make_join' endpoint, this will substitute its response
+        # 'send_join' is the function that calls a remote server's 'send_join' endpoint
+        #   and would normally receive a SendJoinResult
+        with (
+            patch.object(
+                self.hs.get_room_member_handler().federation_handler.federation_client,
+                "make_membership_event",
+                mock_make_membership_event,
+            ),
+            patch.object(
+                self.hs.get_room_member_handler().federation_handler.federation_client,
+                "send_join",
+                mock_send_join,
+            ),
+        ):
+
+            self.get_success_or_raise(
+                self.hs.get_room_member_handler().update_membership(
+                    requester=create_requester(joining_user),
+                    target=UserID.from_string(joining_user),
+                    room_id=room_id,
+                    action=Membership.JOIN,
+                    remote_room_hosts=[remote_room.room_id.domain],
+                )
+            )
+
+    def do_remote_invite(
+        self,
+        target_user_id: str,
+        source_user_id: str,
+        room_id: str,
+        expect_code: int = HTTPStatus.OK,
+    ) -> dict[str, Any] | None:
+        """Make a fake inbound federation invite request from our fake room"""
+        self.assertIn(
+            room_id,
+            self.remote_rooms,
+            "Remote room should have been found(was it created?)",
+        )
+
+        remote_room = self.remote_rooms[room_id]
+        # We use the fake room to generate the invite event, which signs it with the
+        # remote server signing key
+        invite_pdu, invite_event_id = remote_room.create_send_invite_request(
+            source_user_id, target_user_id
+        )
+        remote_server_domain = UserID.from_string(source_user_id).domain
+
+        # Sending it to our local server signs the event with its signature and saves
+        # it locally
+        channel = self.make_signed_federation_request(
+            "PUT",
+            f"/_matrix/federation/v2/invite/{room_id}/{invite_event_id}",
+            content={
+                "event": invite_pdu,
+                "invite_room_state": [],
+                "room_version": remote_room.room_version.identifier,
+            },
+            from_server=remote_server_domain,
+        )
+        # Since above can hit the spam checker's `user_may_invite()`,
+        self.assertEqual(channel.code, expect_code, channel.json_body)
+        if expect_code is not HTTPStatus.OK:
+            return None
+
+        # Update the fake room with the newly signed version
+        remote_room.update_member_state(channel.json_body["event"])
+        return channel.json_body
