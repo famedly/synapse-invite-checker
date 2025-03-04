@@ -51,7 +51,7 @@ from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import LoggingTransaction, make_conn
-from synapse.types import Requester, ScheduledTask, TaskStatus, UserID
+from synapse.types import Requester, RoomID, ScheduledTask, TaskStatus, UserID
 from synapse.types.handlers import ShutdownRoomParams
 from synapse.types.state import StateFilter
 from synapse.util.metrics import measure_func
@@ -182,6 +182,9 @@ class InviteChecker:
         self.federation_list_client = FederationAllowListClient(api._hs, self.config)
 
         self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
+        self.api.register_spam_checker_callbacks(
+            user_may_join_room=self.user_may_join_room
+        )
         self.api.register_third_party_rules_callbacks(
             on_create_room=self.on_create_room
         )
@@ -571,6 +574,23 @@ class InviteChecker:
                 f"Room version ('{room_version}') not allowed",
                 errors.Codes.FORBIDDEN,
             )
+
+    async def user_may_join_room(
+        self, user: str, room_id: str, is_invited: bool
+    ) -> Literal["NOT_SPAM"] | errors.Codes:
+        user_domain = UserID.from_string(user).domain
+        room_domain = RoomID.from_string(room_id).domain
+        # Block non-invited people from joining this room. This only runs for local
+        # users
+        if user_domain != room_domain and not is_invited:
+            logger.debug(
+                "Forbidding user (%s) from joining local room (%s)",
+                user,
+                room_id,
+            )
+            return errors.Codes.FORBIDDEN
+
+        return NOT_SPAM
 
     async def on_create_room(
         self,
