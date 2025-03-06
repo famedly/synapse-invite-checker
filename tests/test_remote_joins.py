@@ -122,224 +122,158 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             )
         return None
 
-    @parameterized.expand([("with_invites", True), ("no_invites", False)])
-    def test_joining_remote_pro_public(self, label: str, use_invites: bool) -> None:
+    @parameterized.expand([("public", True), ("private", False)])
+    def test_local_room_remote_epa_no_invites(self, _: str, is_public: bool) -> None:
         """
-        This is a test against a populated PUBLIC room, and what happens when "a"
-        invites(or doesn't) a remote PRO user
+        Test with no invites behavior for public and private rooms when there is an
+        incoming remote user
         """
-        self.skipTest("")
-        room_id = self.user_create_room(self.user_a, [], is_public=True)
-        if use_invites:
-            self.helper.invite(
-                room_id, self.user_a, self.user_b, tok=self.access_token_a
-            )
-            self.helper.invite(
-                room_id, self.user_a, self.user_c, tok=self.access_token_a
-            )
-            self.helper.invite(
-                room_id, self.user_a, self.user_d, tok=self.access_token_a
-            )
-
-        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
-        self.helper.join(room_id, self.user_c, tok=self.access_token_c)
-        self.helper.join(room_id, self.user_d, tok=self.access_token_d)
-
-        # Now there is a fully loaded room, add our remotes
-        if use_invites:
-            self.helper.invite(
-                room_id, self.user_a, self.remote_pro_user, tok=self.access_token_a
-            )
-
-        # TODO: sort out expected behavior
-        # Looks like remote pro's don't need to be invited but can just come on in
-        # I think the make_join should be allowed *IF* there was an invite, however
-        # it sounds like the actual join itself should be denied
-
-        # currently:
-        # no_invite 200 on make_join should be 403
-        # with_invite 200 on send_join should be 403
-        self.send_join(
-            self.remote_pro_user,
-            room_id,
-            make_expected_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            join_expected_code=HTTPStatus.FORBIDDEN,
-        )
-
-    @parameterized.expand([("with_invites", True), ("no_invites", False)])
-    def test_joining_remote_epa_public(self, label: str, use_invites: bool) -> None:
-        """
-        This is a test against a populated PUBLIC room, and what happens when "a"
-        invites(or doesn't) a remote EPA user
-        """
-        self.skipTest("")
-        room_id = self.user_create_room(self.user_a, [], is_public=True)
-        if use_invites:
-            self.helper.invite(
-                room_id, self.user_a, self.user_b, tok=self.access_token_a
-            )
-            self.helper.invite(
-                room_id, self.user_a, self.user_c, tok=self.access_token_a
-            )
-            self.helper.invite(
-                room_id, self.user_a, self.user_d, tok=self.access_token_a
-            )
-
-        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
-        self.helper.join(room_id, self.user_c, tok=self.access_token_c)
-        self.helper.join(room_id, self.user_d, tok=self.access_token_d)
-
-        # Now there is a fully loaded room, add our remotes
-        if use_invites:
-            self.helper.invite(
-                room_id,
-                self.user_a,
-                self.remote_epa_user,
-                expect_code=HTTPStatus.FORBIDDEN,
-                tok=self.access_token_a,
-            )
-        # TODO: Sort out expected behavior
-        # Pretty sure an EPA shouldn't be able to join a public room without an invite
-        # I think the make_join should be allowed *IF* there was an invite, however
-        # it sounds like the actual join itself should be denied
-
-        # currently:
-        # no_invite 200 on make_join should be 403
-        # with_invite 200 on send_join should be 403
-        self.send_join(
-            self.remote_epa_user,
-            room_id,
-            make_expected_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            join_expected_code=HTTPStatus.FORBIDDEN,
-        )
-
-    @parameterized.expand([("with_invites", True), ("no_invites", False)])
-    def test_joining_remote_pro_private(self, label: str, use_invites: bool) -> None:
-        """
-        This is a test against a populated PRIVATE room, and what happens when "a"
-        invites(or doesn't) a remote PRO user
-        """
-        # self.skipTest("")
         room_id = self.user_create_room(self.user_a, [], is_public=False)
-        if use_invites:
-            self.helper.invite(
-                room_id, self.user_a, self.user_b, tok=self.access_token_a
-            )
-            self.helper.invite(
-                room_id, self.user_a, self.user_c, tok=self.access_token_a
-            )
-            self.helper.invite(
-                room_id, self.user_a, self.user_d, tok=self.access_token_a
-            )
 
-        # Even on the same server, invites are required for private rooms
-        self.helper.join(
-            room_id,
-            self.user_b,
-            expect_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            tok=self.access_token_b,
-        )
-        self.helper.join(
-            room_id,
-            self.user_c,
-            expect_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            tok=self.access_token_c,
-        )
-        self.helper.join(
-            room_id,
-            self.user_d,
-            expect_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            tok=self.access_token_d,
-        )
-
-        # Now there is a fully loaded room(or maybe not), add our remotes
-        if use_invites:
-            self.helper.invite(
-                room_id, self.user_a, self.remote_pro_user, tok=self.access_token_a
-            )
-
-        # As expected, no invite == no join
-        self.send_join(
-            self.remote_pro_user,
-            room_id,
-            make_expected_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            join_expected_code=HTTPStatus.OK,
-        )
-
-    @parameterized.expand([("with_invites", True), ("no_invites", False)])
-    def test_joining_remote_epa_private(self, label: str, use_invites: bool) -> None:
-        """
-        This is a test against a populated PRIVATE room, and what happens when "a"
-        invites(or doesn't) a remote EPA user
-        """
-        # self.skipTest("")
-        room_id = self.user_create_room(self.user_a, [], is_public=False)
-        if use_invites:
-            self.helper.invite(
-                room_id, self.user_a, self.user_b, tok=self.access_token_a
-            )
-            self.helper.invite(
-                room_id, self.user_a, self.user_c, tok=self.access_token_a
-            )
-            self.helper.invite(
-                room_id, self.user_a, self.user_d, tok=self.access_token_a
-            )
-
-        # Even on the same server, invites are required for private rooms
-        self.helper.join(
-            room_id,
-            self.user_b,
-            expect_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            tok=self.access_token_b,
-        )
-        self.helper.join(
-            room_id,
-            self.user_c,
-            expect_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            tok=self.access_token_c,
-        )
-        self.helper.join(
-            room_id,
-            self.user_d,
-            expect_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
-            tok=self.access_token_d,
-        )
-
-        # Now there is a fully loaded room(or maybe not), add our remotes
-        # EPA should be denied an invite, no permissions?
-        if use_invites:
-            self.helper.invite(
-                room_id,
-                self.user_a,
-                self.remote_epa_user,
-                expect_code=HTTPStatus.FORBIDDEN,
-                tok=self.access_token_a,
-            )
-
-        # Because it is a private room, it requires invites. But if the invite was
-        # denied, then it's still not going to happen. Probably because "a" permissions
-        # isn't allow_all
+        # public should not succeed
+        # private should also not succeed
+        # Since no invites occurred, we never get past make_join
         self.send_join(
             self.remote_epa_user,
             room_id,
             make_expected_code=HTTPStatus.FORBIDDEN,
         )
 
-        # Our PRO user with "allow all" can squeeze in the EPA user
-        if use_invites:
-            self.helper.invite(
-                room_id,
-                self.user_d,
-                self.remote_epa_user,
-                expect_code=HTTPStatus.OK,
-                tok=self.access_token_d,
+    @parameterized.expand([("public", True), ("private", False)])
+    def test_local_room_remote_epa_with_invites(self, _: str, is_public: bool) -> None:
+        """
+        Test with invites behavior for public and private rooms when there is an
+        incoming remote user
+        """
+        if is_public:
+            self.skipTest(
+                "No API hook to deny [outgoing invite|incoming join] based only on join_rule/public-ness"
             )
+        room_id = self.user_create_room(self.user_a, [], is_public=False)
 
-        # With the invite, it works
+        # Test first with user 'a' who is using permission of 'block all'
+        # for a public room this should fail
+        # for a private room this will fail because permissions
+        self.helper.invite(
+            room_id,
+            self.user_a,
+            self.remote_epa_user,
+            expect_code=HTTPStatus.FORBIDDEN,
+            tok=self.access_token_a,
+        )
+
+        # public room should be forbidden
+        # private room should be forbidden, because invite was denied
         self.send_join(
             self.remote_epa_user,
             room_id,
-            make_expected_code=HTTPStatus.OK if use_invites else HTTPStatus.FORBIDDEN,
+            make_expected_code=HTTPStatus.FORBIDDEN,
+            join_expected_code=HTTPStatus.FORBIDDEN,
+        )
+
+        # Make a fresh room
+        room_id = self.user_create_room(self.user_d, [], is_public=False)
+
+        # Then test with user 'd' who is using permission of 'allow all'
+        # for a public room this should fail
+        # for a private room this should succeed because user 'd' has permission of 'allow all'
+        self.helper.invite(
+            room_id,
+            self.user_d,
+            self.remote_epa_user,
+            expect_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
+            tok=self.access_token_d,
+        )
+
+        # public room should be forbidden
+        # private room should be allowed, because invite
+        self.send_join(
+            self.remote_epa_user,
+            room_id,
+            make_expected_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
+            join_expected_code=HTTPStatus.OK,
+        )
+
+    @parameterized.expand([("public", True), ("private", False)])
+    def test_local_room_remote_pro_no_invites(self, _: str, is_public: bool) -> None:
+        """
+        Test with no invites behavior for public and private rooms when there is an
+        incoming remote user
+        """
+        room_id = self.user_create_room(self.user_a, [], is_public=False)
+
+        # public should not succeed
+        # private should also not succeed
+        # Since no invites occurred, we never get past make_join
+        self.send_join(
+            self.remote_pro_user,
+            room_id,
+            make_expected_code=HTTPStatus.FORBIDDEN,
+        )
+
+    @parameterized.expand([("public", True), ("private", False)])
+    def test_local_room_remote_pro_with_invites_block_all(
+        self, _: str, is_public: bool
+    ) -> None:
+        """
+        Test with invites behavior for public and private rooms when there is an
+        incoming remote user
+        """
+        if is_public:
+            self.skipTest(
+                "No API hook to deny incoming remote join based only on join_rule/public-ness"
+            )
+        room_id = self.user_create_room(self.user_a, [], is_public=False)
+
+        # for both private and public rooms this should succeed(both users are 'pract')
+        # TODO: try with a user that is not 'pract' and not visible
+        self.helper.invite(
+            room_id,
+            self.user_a,
+            self.remote_pro_user,
+            expect_code=HTTPStatus.OK,
+            tok=self.access_token_a,
+        )
+
+        # make_join should always succeed, as the invite will not be blocked
+        # send_join should only succeed for private rooms
+        self.send_join(
+            self.remote_pro_user,
+            room_id,
+            make_expected_code=HTTPStatus.OK,
+            join_expected_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
+        )
+
+    @parameterized.expand([("public", True), ("private", False)])
+    def test_local_room_remote_pro_with_invites_allow_all(
+        self, _: str, is_public: bool
+    ) -> None:
+        """
+        Test with invites behavior for public and private rooms when there is an
+        incoming remote user
+        """
+        if is_public:
+            self.skipTest(
+                "No API hook to deny incoming remote join based only on join_rule/public-ness"
+            )
+        room_id = self.user_create_room(self.user_d, [], is_public=False)
+
+        # for both private and public rooms this should succeed(both users are 'pract')
+        self.helper.invite(
+            room_id,
+            self.user_d,
+            self.remote_pro_user,
+            expect_code=HTTPStatus.OK,
+            tok=self.access_token_d,
+        )
+
+        # make_join should always succeed, as the invite will not be blocked
+        # send_join should only succeed for private rooms
+        self.send_join(
+            self.remote_pro_user,
+            room_id,
+            make_expected_code=HTTPStatus.OK,
+            join_expected_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
         )
 
 
@@ -452,7 +386,7 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         return None
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_remote_room_pro(self, _: str, is_public: bool) -> None:
+    def test_remote_room_pro_no_invites(self, _: str, is_public: bool) -> None:
         """
         Test that the local server can successfully join a remote room, including a full
         send join response
@@ -460,10 +394,25 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         remote_room_id = self.create_remote_room(self.remote_pro_user, "10", is_public)
         assert remote_room_id is not None
 
-        if not is_public:
-            # This should be enough to inject the "fact" we got an invite, and should
-            # allow private room joining
-            self.do_remote_invite(self.user_a, self.remote_pro_user, remote_room_id)
+        # Public rooms should fail. Private rooms should also fail because no invite
+        self.assertRaises(
+            SynapseError, self.do_remote_join, remote_room_id, self.user_a
+        )
+
+    @parameterized.expand([("public", True), ("private", False)])
+    def test_remote_room_pro_with_invites(self, _: str, is_public: bool) -> None:
+        """
+        Test that the local server can successfully join a remote room, including a full
+        send join response
+        """
+        if is_public:
+            self.skipTest("No API hook to determine state before join")
+        remote_room_id = self.create_remote_room(self.remote_pro_user, "10", is_public)
+        assert remote_room_id is not None
+
+        # This should be enough to inject the "fact" we got an invite, and should
+        # allow private room joining. Both users are 'pract'
+        self.do_remote_invite(self.user_a, self.remote_pro_user, remote_room_id)
 
         # Public rooms should fail. Private rooms should succeed, but only because of
         # the invite
@@ -475,7 +424,7 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
             self.do_remote_join(remote_room_id, self.user_a)
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_remote_room_epa(self, _: str, is_public: bool) -> None:
+    def test_remote_room_epa_no_invites(self, _: str, is_public: bool) -> None:
         """
         Test that the local server can successfully join a remote room, including a full
         send join response
@@ -483,16 +432,45 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         remote_room_id = self.create_remote_room(self.remote_epa_user, "10", is_public)
         assert remote_room_id is not None
 
+        # In both cases, this raises. Neither private nor public rooms are allowed.
+        # Public, because they are denied without invites, and private because the
+        # invite failed above
+        self.assertRaises(
+            SynapseError, self.do_remote_join, remote_room_id, self.user_a
+        )
+
+        # This is messy, but I don't have a better way yet to reflect a denied invite/join
+        # in the fake room. So for now, just toss it
+        self.remote_rooms[remote_room_id].map_of_membership_by_mxid.pop(self.user_a)
+
+        # Public rooms should fail. Private rooms should also fail because no invite
+        self.assertRaises(
+            SynapseError, self.do_remote_join, remote_room_id, self.user_d
+        )
+
+    @parameterized.expand([("public", True), ("private", False)])
+    def test_remote_room_epa_with_invites(self, _: str, is_public: bool) -> None:
+        """
+        Test that the local server can successfully join a remote room, including a full
+        send join response
+        """
+        if is_public:
+            self.skipTest("No API hook to determine state before join")
+
+        remote_room_id = self.create_remote_room(self.remote_epa_user, "10", is_public)
+        assert remote_room_id is not None
+
         # Use user 'a' first
-        if not is_public:
-            # This should be enough to inject the "fact" we got an invite, and should
-            # allow private room joining. However, user "a" has 'block all' permissions
-            self.do_remote_invite(
-                self.user_a,
-                self.remote_epa_user,
-                remote_room_id,
-                expect_code=HTTPStatus.FORBIDDEN,
-            )
+
+        # This should be enough to inject the "fact" we got an invite, and should
+        # allow private room joining. However, user "a" has 'block all' permissions so
+        # the invite should always fail
+        self.do_remote_invite(
+            self.user_a,
+            self.remote_epa_user,
+            remote_room_id,
+            expect_code=HTTPStatus.FORBIDDEN,
+        )
 
         # In both cases, this raises. Neither private nor public rooms are allowed.
         # Public, because they are denied without invites, and private because the
@@ -506,15 +484,15 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         self.remote_rooms[remote_room_id].map_of_membership_by_mxid.pop(self.user_a)
 
         # Try again with user 'd', who has 'allow all' as their permission
-        if not is_public:
-            # This should be enough to inject the "fact" we got an invite, and should
-            # allow private room joining.
-            self.do_remote_invite(
-                self.user_d,
-                self.remote_epa_user,
-                remote_room_id,
-                expect_code=HTTPStatus.OK,
-            )
+
+        # This should be enough to inject the "fact" we got an invite, and should
+        # allow private room joining.
+        self.do_remote_invite(
+            self.user_d,
+            self.remote_epa_user,
+            remote_room_id,
+            expect_code=HTTPStatus.OK,
+        )
 
         # Public rooms should fail. Private rooms should succeed, but only because of
         # the invite
