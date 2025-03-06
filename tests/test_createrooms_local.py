@@ -305,11 +305,12 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         # send_notice() will automatically create a server notices room and then invite
         # the user it is directed towards. The server notices manager has no method to
         # invite a user during creation of the room
-        room_id = self.get_success_or_raise(
+        event = self.get_success_or_raise(
             self.hs.get_server_notices_manager().send_notice(
                 self.user_d, {"body": "Server Notice message", "msgtype": "m.text"}
             )
         )
+        room_id = event.room_id
         # Retrieving the room_id is a sign that the room was created, the user was
         # invited, and the message was sent
         assert room_id
