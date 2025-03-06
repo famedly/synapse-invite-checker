@@ -24,6 +24,7 @@ from synapse.types import TaskStatus, UserID
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
+from synapse_invite_checker.types import PermissionDefaultSetting
 from tests.base import (
     FederatingModuleApiTestCase,
     construct_extra_content,
@@ -101,6 +102,17 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
                 ),
             },
         )
+        # User 'd' has permissions set to 'allow all'
+        self.inv_checker = self.hs.mockmod
+        permissions = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(self.user_d)
+        )
+        permissions.defaultSetting = PermissionDefaultSetting.ALLOW_ALL
+        self.get_success_or_raise(
+            self.inv_checker.permissions_handler.update_permissions(
+                self.user_d, permissions
+            )
+        )
 
     def user_d_create_room(
         self,
@@ -174,8 +186,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         Test that a room is deleted when a single EPA user and a single PRO user are in
         a room, but the PRO user leaves
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
-
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
         assert room_id is not None
@@ -255,8 +265,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         room, so it's dangling and won't be cleaned up unless `forget_room_on_leave` is
         turned on. I'm not sure I need to test for this?
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
-
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
         assert room_id is not None
@@ -324,8 +332,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         """
         Test that a room is not deleted until the last PRO user leaves a room
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
-
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
         assert room_id is not None
