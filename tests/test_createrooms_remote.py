@@ -23,6 +23,7 @@ from twisted.internet.testing import MemoryReactor
 from tests.base import ModuleApiTestCase, construct_extra_content
 from tests.test_utils import (
     DOMAIN_IN_LIST,
+    DOMAIN2_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL,
 )
@@ -50,25 +51,33 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
     remote_user = f"@mxidorg:{DOMAIN_IN_LIST}"
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
+    # SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
-        self.user_a = self.register_user("a", "password")
+        #  "a" is a practitioner
+        #  "b" is an organization
+        #  "c" is an 'orgPract'
+        self.pro_user_a = self.register_user("a", "password")
         self.access_token_a = self.login("a", "password")
-        self.user_b = self.register_user("b", "password")
+        self.pro_user_b = self.register_user("b", "password")
         self.access_token_b = self.login("b", "password")
-        self.user_c = self.register_user("c", "password")
+        self.pro_user_c = self.register_user("c", "password")
 
-        # @d:test is none of those types of actor and should be just a 'User'. For
+        # "d" is none of those types of actor and should be just a 'User'. For
         # context, this could be a chatbot or an office manager
-        self.user_d = self.register_user("d", "password")
+        self.pro_user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
-    def user_a_create_room(
+        self.map_user_id_to_token = {
+            self.pro_user_a: self.access_token_a,
+            self.pro_user_b: self.access_token_b,
+            self.pro_user_d: self.access_token_d,
+        }
+
+    def user_create_room(
         self,
+        creating_user: str,
         invitee_list: list[str],
         is_public: bool,
     ) -> str | None:
@@ -80,44 +89,10 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
         # makes errors for the tests less clear when all we get is the http response
         with contextlib.suppress(AssertionError):
             return self.helper.create_room_as(
-                self.user_a,
+                creating_user,
                 is_public=is_public,
-                tok=self.access_token_a,
-                extra_content=construct_extra_content(self.user_a, invitee_list),
-            )
-        return None
-
-    def user_b_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Same as `user_a_create_room()` except for user_b
-        """
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.user_b,
-                is_public=is_public,
-                tok=self.access_token_b,
-                extra_content=construct_extra_content(self.user_b, invitee_list),
-            )
-        return None
-
-    def user_d_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Same as `user_a_create_room()` except for user_d
-        """
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.user_d,
-                is_public=is_public,
-                tok=self.access_token_d,
-                extra_content=construct_extra_content(self.user_d, invitee_list),
+                tok=self.map_user_id_to_token[creating_user],
+                extra_content=construct_extra_content(creating_user, invitee_list),
             )
         return None
 
@@ -126,73 +101,82 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
         """
         Tests room creation from a local User-HBA to a remote User-HBA behaves as expected
         """
-        room_id = self.user_a_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_a,
             [self.remote_pro_user],
             is_public=is_public,
         )
-        assert room_id, f"User-HBA {label} room with remote User-HBA not created"
+        assert room_id, f"User-HBA {label} room with remote User-HBA should be created"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_user_and_hba_create_room(self, label: str, is_public: bool) -> None:
         """
         Tests room creation between a User and a User-HBA where either can be remote
         """
-        # this one should fail, a User cannot contact another organization's User-HBA
+        # this one should fail, an 'org' User cannot contact another organization's User-HBA
         # without contact details
-        room_id = self.user_b_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_b,
             [self.remote_pro_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"Local User {label} room with remote User-HBA incorrectly created"
+        ), f"Local User {label} room with remote User-HBA should not be created"
 
         # this one should fail, no contact details
-        room_id = self.user_d_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_d,
             [self.remote_pro_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"Local unlisted User {label} room with remote User-HBA incorrectly created"
+        ), f"Local unlisted User {label} room with remote User-HBA should not be created"
 
         # this one should fail, this user is not in the VZD Directory
-        room_id = self.user_a_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_a,
             [self.remote_unlisted_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"Local User-HBA {label} room with remote unlisted User incorrectly created"
+        ), f"Local User-HBA {label} room with remote unlisted User should not be created"
 
         # this one should pass, as it's an organization User
-        room_id = self.user_a_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_a,
             [self.remote_user],
             is_public=is_public,
         )
-        assert room_id, f"Local User-HBA {label} room with remote User not created"
+        assert (
+            room_id
+        ), f"Local User-HBA {label} room with remote User should be created"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_hba_to_epa_create_room(self, label: str, is_public: bool) -> None:
         """
         Tests room creation from a local User-HBA to a remote insured User behaves as expected
         """
-        room_id = self.user_a_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_a,
             [self.remote_epa_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"User-HBA {label} room with remote insured incorrectly created"
+        ), f"User-HBA {label} room with remote insured should not be created"
 
         # Need to add in contact permission
         self.add_a_contact_to_user_by_token(self.remote_epa_user, self.access_token_a)
 
-        room_id = self.user_a_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_a,
             [self.remote_epa_user],
             is_public=is_public,
         )
-        assert room_id, f"User-HBA {label} room with remote insured not created"
+        assert room_id, f"User-HBA {label} room with remote insured should be created"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_any_user_to_non_fed_domain_create_room_fails(
@@ -201,29 +185,32 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
         """
         Tests room creation fails from any local User to a remote domain not on the fed list
         """
-        room_id = self.user_a_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_a,
             [self.remote_non_fed_list_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"User-HBA {label} room with remote non-fed-list domain incorrectly created"
+        ), f"User-HBA {label} room with remote non-fed-list domain should not be created"
 
-        room_id = self.user_b_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_b,
             [self.remote_non_fed_list_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"User {label} room with remote non-fed-list domain incorrectly created"
+        ), f"User {label} room with remote non-fed-list domain should not be created"
 
-        room_id = self.user_d_create_room(
+        room_id = self.user_create_room(
+            self.pro_user_d,
             [self.remote_non_fed_list_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"Non-VZD listed user {label} room with remote non-fed-list domain incorrectly created"
+        ), f"Non-VZD listed user {label} room with remote non-fed-list domain should not be created"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -237,46 +224,48 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
         for invitee_list in [
             # Specifically invite the local user first, as that should always
             # have succeeded
-            [self.user_b, self.remote_pro_user],
-            [self.user_b, self.remote_epa_user],
-            [self.user_b, self.remote_non_fed_list_user],
+            [self.pro_user_b, self.remote_pro_user],
+            [self.pro_user_b, self.remote_epa_user],
+            [self.pro_user_b, self.remote_non_fed_list_user],
             # Try with the remote user first too
-            [self.remote_pro_user, self.user_b],
-            [self.remote_epa_user, self.user_b],
-            [self.remote_non_fed_list_user, self.user_b],
+            [self.remote_pro_user, self.pro_user_b],
+            [self.remote_epa_user, self.pro_user_b],
+            [self.remote_non_fed_list_user, self.pro_user_b],
         ]:
-            room_id = self.user_a_create_room(
+            room_id = self.user_create_room(
+                self.pro_user_a,
                 invitee_list,
                 is_public=is_public,
             )
             assert (
                 room_id is None
-            ), f"User-HBA {label} room incorrectly created with invites to:[{invitee_list}]"
+            ), f"User-HBA {label} room should not be created(before permission) with invites to: {invitee_list}"
 
         for remote_user_to_add in (
             self.remote_pro_user,
             self.remote_epa_user,
             self.remote_non_fed_list_user,
-            self.user_b,
+            self.pro_user_b,
         ):
             self.add_a_contact_to_user_by_token(remote_user_to_add, self.access_token_a)
 
         # Then try with contact permissions added
         for invitee_list in [
-            [self.user_b, self.remote_pro_user],
-            [self.user_b, self.remote_epa_user],
-            [self.user_b, self.remote_non_fed_list_user],
-            [self.remote_pro_user, self.user_b],
-            [self.remote_epa_user, self.user_b],
-            [self.remote_non_fed_list_user, self.user_b],
+            [self.pro_user_b, self.remote_pro_user],
+            [self.pro_user_b, self.remote_epa_user],
+            [self.pro_user_b, self.remote_non_fed_list_user],
+            [self.remote_pro_user, self.pro_user_b],
+            [self.remote_epa_user, self.pro_user_b],
+            [self.remote_non_fed_list_user, self.pro_user_b],
         ]:
-            room_id = self.user_a_create_room(
+            room_id = self.user_create_room(
+                self.pro_user_a,
                 invitee_list,
                 is_public=is_public,
             )
             assert (
                 room_id is None
-            ), f"User-HBA {label} room incorrectly created with invites to:[{invitee_list}] with contact permissions"
+            ), f"User-HBA {label} room should not be created(after permission) with invites to: {invitee_list}"
 
 
 class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
@@ -291,23 +280,24 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
     an invitation to a room where both parties are insured should be denied.
     """
 
-    remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
+    remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"  # this is a 'pract'
+    remote_pro_user_2 = f"@gematikuri2org:{DOMAIN2_IN_LIST}"  # this is an 'org'
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        # Can't use any of:
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
-        # as they should not exist on an 'ePA' mode server backend
-
-        # @d:test is none of these things and should be just a 'User'
-        self.user_d = self.register_user("d", "password")
-        self.user_e = self.register_user("e", "password")
+        # "d" and "e" are just ePA 'User's
+        self.epa_user_d = self.register_user("d", "password")
+        self.epa_user_e = self.register_user("e", "password")
         self.access_token_d = self.login("d", "password")
+        self.access_token_e = self.login("e", "password")
+
+        self.map_user_id_to_token = {
+            self.epa_user_d: self.access_token_d,
+            self.epa_user_e: self.access_token_e,
+        }
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -319,8 +309,9 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
         return conf
 
-    def user_d_create_room(
+    def user_create_room(
         self,
+        creating_user: str,
         invitee_list: list[str],
         is_public: bool,
     ) -> str | None:
@@ -332,10 +323,10 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         # makes errors for the tests less clear when all we get is the http response
         with contextlib.suppress(AssertionError):
             return self.helper.create_room_as(
-                self.user_d,
+                creating_user,
                 is_public=is_public,
-                tok=self.access_token_d,
-                extra_content=construct_extra_content(self.user_d, invitee_list),
+                tok=self.map_user_id_to_token[creating_user],
+                extra_content=construct_extra_content(creating_user, invitee_list),
             )
         return None
 
@@ -346,23 +337,25 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         """
         Tests room creation from a local insured User to a remote User-HBA behaves as expected
         """
-        room_id = self.user_d_create_room(
+        room_id = self.user_create_room(
+            self.epa_user_d,
             [self.remote_pro_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"User-ePA {label} room with remote User-HBA incorrectly created"
+        ), f"User-ePA {label} room with remote User-HBA should not be created(before permission)"
 
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
+        self.add_permission_to_a_user(self.remote_pro_user, self.epa_user_d)
 
-        room_id = self.user_d_create_room(
+        room_id = self.user_create_room(
+            self.epa_user_d,
             [self.remote_pro_user],
             is_public=is_public,
         )
         assert (
             room_id is not None
-        ) is expected, f"User-ePA {label} room with remote User-HBA was supposed to be created: {expected}"
+        ) is expected, f"User-ePA {label} room with remote User-HBA should be created(after permission): {expected}"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_epa_to_epa_create_room_fails(self, label: str, is_public: bool) -> None:
@@ -370,13 +363,25 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         Tests room creation from a local insured User to a remote insured User
         fails as expected.
         """
-        room_id = self.user_d_create_room(
+        room_id = self.user_create_room(
+            self.epa_user_d,
             [self.remote_epa_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"User-ePA {label} room with remote insured incorrectly created"
+        ), f"User-ePA {label} room with remote insured should not be created(before permissions)"
+
+        self.add_permission_to_a_user(self.remote_epa_user, self.epa_user_d)
+
+        room_id = self.user_create_room(
+            self.epa_user_d,
+            [self.remote_epa_user],
+            is_public=is_public,
+        )
+        assert (
+            room_id is None
+        ), f"User-ePA {label} room with remote insured should not be created(after permissions)"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_epa_to_non_fed_domain_create_any_room_fails(
@@ -385,13 +390,25 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         """
         Tests room creation from a local insured User to a remote domain not on the fed list fails
         """
-        room_id = self.user_d_create_room(
+        room_id = self.user_create_room(
+            self.epa_user_d,
             [self.remote_non_fed_list_user],
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"User-ePA {label} room with remote non-fed-list domain incorrectly created"
+        ), f"User-ePA {label} room with remote non-fed-list domain should not be created(before permissions)"
+
+        self.add_permission_to_a_user(self.remote_non_fed_list_user, self.epa_user_d)
+
+        room_id = self.user_create_room(
+            self.epa_user_d,
+            [self.remote_non_fed_list_user],
+            is_public=is_public,
+        )
+        assert (
+            room_id is None
+        ), f"User-ePA {label} room with remote non-fed-list domain should not be created(after permissions)"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -400,37 +417,41 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         """
         Tests that room creation fails with more than one included invite
         """
+        # User "d" got contaminated in other tests with permissions, use a clean user
+        # to create rooms
         for invitee_list in [
-            [self.user_e, self.remote_pro_user],
-            [self.user_e, self.remote_epa_user],
-            [self.user_e, self.remote_non_fed_list_user],
+            [self.remote_pro_user_2, self.remote_pro_user],
+            [self.remote_pro_user_2, self.remote_epa_user],
+            [self.remote_pro_user_2, self.remote_non_fed_list_user],
         ]:
-            room_id = self.user_d_create_room(
+            room_id = self.user_create_room(
+                self.epa_user_e,
                 invitee_list,
                 is_public=is_public,
             )
             assert (
                 room_id is None
-            ), f"User-ePA {label} room incorrectly created with invites to:[{invitee_list}]"
+            ), f"User-ePA {label} room should not be created(before permission) with invites to: {invitee_list}"
 
         # Add in contact permissions and try again
         for remote_user_to_add in (
             self.remote_pro_user,
             self.remote_epa_user,
             self.remote_non_fed_list_user,
-            self.user_e,
+            self.remote_pro_user_2,
         ):
-            self.add_a_contact_to_user_by_token(remote_user_to_add, self.access_token_d)
+            self.add_permission_to_a_user(remote_user_to_add, self.epa_user_e)
 
         for invitee_list in [
-            [self.user_e, self.remote_pro_user],
-            [self.user_e, self.remote_epa_user],
-            [self.user_e, self.remote_non_fed_list_user],
+            [self.remote_pro_user_2, self.remote_pro_user],
+            [self.remote_pro_user_2, self.remote_epa_user],
+            [self.remote_pro_user_2, self.remote_non_fed_list_user],
         ]:
-            room_id = self.user_d_create_room(
+            room_id = self.user_create_room(
+                self.epa_user_e,
                 invitee_list,
                 is_public=is_public,
             )
             assert (
                 room_id is None
-            ), f"User-ePA {label} room incorrectly created with invites to:[{invitee_list}] with contact permissions"
+            ), f"User-ePA {label} room should not be created(after permission) with invites to: {invitee_list}"

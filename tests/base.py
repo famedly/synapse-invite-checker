@@ -39,8 +39,10 @@ from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
 import tests.unittest as synapsetest
+from synapse_invite_checker import InviteChecker
 from tests.test_utils import (
     DOMAIN_IN_LIST,
+    DOMAIN2_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST,
     SERVER_NAME_FROM_LIST,
 )
@@ -143,8 +145,8 @@ def return_localization(mxid: str) -> str:
         f"@mxid:{DOMAIN_IN_LIST}",
         f"matrix:u/matrixuri%3A{DOMAIN_IN_LIST}",
         f"matrix:u/matrixuri2:{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuri%3A{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuri2:{DOMAIN_IN_LIST}",
+        f"matrix:user/gematikuri%3A{DOMAIN2_IN_LIST}",
+        f"matrix:user/gematikuri2:{DOMAIN2_IN_LIST}",
         f"matrix:u/a%3A{SERVER_NAME_FROM_LIST}",
     }:
         return "pract"
@@ -152,8 +154,8 @@ def return_localization(mxid: str) -> str:
         f"@mxidorg:{DOMAIN_IN_LIST}",
         f"matrix:u/matrixuriorg%3A{DOMAIN_IN_LIST}",
         f"matrix:u/matrixuri2org:{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuriorg%3A{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuri2org:{DOMAIN_IN_LIST}",
+        f"matrix:user/gematikuriorg%3A{DOMAIN2_IN_LIST}",
+        f"matrix:user/gematikuri2org:{DOMAIN2_IN_LIST}",
         f"matrix:u/b%3A{SERVER_NAME_FROM_LIST}",
     }:
         return "org"
@@ -161,8 +163,8 @@ def return_localization(mxid: str) -> str:
         f"@mxidorgpract:{DOMAIN_IN_LIST}",
         f"matrix:u/matrixuriorgpract%3A{DOMAIN_IN_LIST}",
         f"matrix:u/matrixuri2orgpract:{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuriorgpract%3A{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuri2orgpract:{DOMAIN_IN_LIST}",
+        f"matrix:user/gematikuriorgpract%3A{DOMAIN2_IN_LIST}",
+        f"matrix:user/gematikuri2orgpract:{DOMAIN2_IN_LIST}",
         f"matrix:u/c%3A{SERVER_NAME_FROM_LIST}",
     }:
         return "orgPract"
@@ -170,8 +172,8 @@ def return_localization(mxid: str) -> str:
         f"@mxid404:{DOMAIN_IN_LIST}",
         f"matrix:u/matrixuri404%3A{DOMAIN_IN_LIST}",
         f"matrix:u/matrixuri2404:{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuri404%3A{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuri2404:{DOMAIN_IN_LIST}",
+        f"matrix:user/gematikuri404%3A{DOMAIN2_IN_LIST}",
+        f"matrix:user/gematikuri2404:{DOMAIN2_IN_LIST}",
     }:
         raise errors.HttpResponseException(404, "Not found", b"")
     return "none"
@@ -300,6 +302,7 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         self.event_creation_handler = homeserver.get_event_creation_handler()
         self.sync_handler = homeserver.get_sync_handler()
         self.auth_handler = homeserver.get_auth_handler()
+        self.inv_checker: InviteChecker = self.hs.mockmod
 
     @override
     def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
@@ -357,6 +360,15 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         )
         assert channel.code == 200, channel.result
 
+    def add_permission_to_a_user(self, user_to_permit: str, owning_user: str) -> None:
+        perms = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(owning_user)
+        )
+        perms.userExceptions.setdefault(user_to_permit, {})
+        self.get_success_or_raise(
+            self.inv_checker.permissions_handler.update_permissions(owning_user, perms)
+        )
+
 
 class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     server_name_for_this_server = SERVER_NAME_FROM_LIST
@@ -413,6 +425,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         self.event_creation_handler = homeserver.get_event_creation_handler()
         # self.sync_handler = homeserver.get_sync_handler()
         self.auth_handler = homeserver.get_auth_handler()
+        self.inv_checker: InviteChecker = self.hs.mockmod
 
     @override
     def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
@@ -469,6 +482,15 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             access_token=tok,
         )
         assert channel.code == 200, channel.result
+
+    def add_permission_to_a_user(self, user_to_permit: str, owning_user: str) -> None:
+        perms = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(owning_user)
+        )
+        perms.userExceptions.setdefault(user_to_permit, {})
+        self.get_success_or_raise(
+            self.inv_checker.permissions_handler.update_permissions(owning_user, perms)
+        )
 
     def _make_join(self, user_id: str, room_id: str) -> dict[str, Any]:
         users_domain = UserID.from_string(user_id).domain

@@ -174,7 +174,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         Test that a room is deleted when a single EPA user and a single PRO user are in
         a room, but the PRO user leaves
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
+        self.add_permission_to_a_user(self.remote_pro_user, self.user_d)
 
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
@@ -255,7 +255,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         room, so it's dangling and won't be cleaned up unless `forget_room_on_leave` is
         turned on. I'm not sure I need to test for this?
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
+        self.add_permission_to_a_user(self.remote_pro_user, self.user_d)
 
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
@@ -324,7 +324,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         """
         Test that a room is not deleted until the last PRO user leaves a room
         """
-        self.add_a_contact_to_user_by_token(self.remote_pro_user, self.access_token_d)
+        self.add_permission_to_a_user(self.remote_pro_user, self.user_d)
 
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)

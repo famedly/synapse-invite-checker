@@ -23,6 +23,8 @@ from twisted.internet.testing import MemoryReactor
 from tests.base import ModuleApiTestCase
 from tests.test_utils import (
     DOMAIN_IN_LIST,
+    DOMAIN2_IN_LIST,
+    DOMAIN3_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL,
 )
@@ -31,25 +33,26 @@ from tests.test_utils import (
 class RemoteProModeInviteTest(ModuleApiTestCase):
     """Test remote invites in the default 'pro' mode behave as expected."""
 
+    # SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
+
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
-        self.user_a = self.register_user("a", "password")
+        #  "a" is a practitioner
+        #  "b" is an organization
+        #  "c" is an 'orgPract'
+        self.pro_user_a = self.register_user("a", "password")
         self.access_token = self.login("a", "password")
-        self.user_b = self.register_user("b", "password")
-        self.user_c = self.register_user("c", "password")
+        self.pro_user_b = self.register_user("b", "password")
+        self.access_token_b = self.login("b", "password")
+        self.pro_user_c = self.register_user("c", "password")
+        self.access_token_c = self.login("c", "password")
 
-        # @d:test is none of those types of actor and should be just a 'User'. For
+        # "d" is none of those types of actor and should be just a 'User'. For
         # context, this could be a chatbot or an office manager
-        self.user_d = self.register_user("d", "password")
+        self.pro_user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
-        # authenticated as user_a
-        self.helper.auth_user_id = self.user_a
-
-    async def may_invite(self, inviter: str, invitee: str, roomid: str):
+    def may_invite(self, inviter: str, invitee: str, roomid: str):
         req = defer.ensureDeferred(
             self.hs.get_module_api()._callbacks.spam_checker.user_may_invite(
                 inviter, invitee, roomid
@@ -61,214 +64,191 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
             return NOT_SPAM
         return ret[0]  # return first code instead of all of them to make assert easier
 
-    async def test_invite_from_remote_outside_of_fed_list(self) -> None:
+    def test_invite_from_unlisted_user(self) -> None:
+        """
+        Tests that an invite from a remote user that is on the fed list but is otherwise
+        unlisted behaves as expected
+        """
+        for remote_user_id in [
+            f"@example:{DOMAIN_IN_LIST}",
+            f"@example:{DOMAIN3_IN_LIST}",
+            f"@mxid404:{DOMAIN_IN_LIST}",  # all 'unlisted' Users
+            f"@matrixuri404:{DOMAIN_IN_LIST}",
+            f"@matrixuri2404:{DOMAIN_IN_LIST}",
+            f"@gematikuri404:{DOMAIN_IN_LIST}",
+            f"@gematikuri2404:{DOMAIN_IN_LIST}",
+        ]:
+            # Test against unlisted and 'pract' first
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(no permissions)"
+
+            # 'org' and 'orgPract' are allowed to receive invites from unlisted persons
+            for local_user in [
+                self.pro_user_b,
+                self.pro_user_c,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user}(no permissions)"
+
+            # Add permissions, don't bother with 'b' and 'c' as they are already allowed
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token)
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token_d)
+
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {self.pro_user_a}"
+
+    def test_invite_from_remote_outside_of_fed_list(self) -> None:
         """Tests that an invite from a remote server not in the federation list gets denied"""
-        self.add_a_contact_to_user_by_token(
-            f"@example:{DOMAIN_IN_LIST}", self.access_token
-        )
-        self.add_a_contact_to_user_by_token(
-            f"@example:not-{DOMAIN_IN_LIST}", self.access_token
-        )
+        for remote_user_id in [
+            f"@example:not-{DOMAIN_IN_LIST}",
+            f"@example2:not-{DOMAIN_IN_LIST}",
+            "@madeupuser:thecornerstore.de",
+            "@unknown:not.in.fed",
+        ]:
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(before permission)"
 
-        # 'pract' sequence of tests. The practitioner tested is publicly listed and
-        # therefore doesn't need to have contact details
-        assert (
-            await self.may_invite(
-                f"@example:not-{DOMAIN_IN_LIST}", self.user_a, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example:not-{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_a} when not on fed list but DOES have contact details"
-        assert (
-            await self.may_invite(
-                "@example:messenger.spilikin.dev", self.user_a, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example:messenger.spilikin.dev' incorrectly ALLOWED to invite {self.user_a} without contact details"
-        assert (
-            await self.may_invite(
-                f"@example:{DOMAIN_IN_LIST}", self.user_a, "!madeup:example.com"
-            )
-            == NOT_SPAM
-        ), f"inviter '@example:{DOMAIN_IN_LIST}' incorrectly FORBIDDEN to invite {self.user_a} despite contact details"
-        assert (
-            await self.may_invite(
-                f"@example2:not-{DOMAIN_IN_LIST}", self.user_a, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example2:not-{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_a}"
-        assert (
-            await self.may_invite(
-                f"@example2:{DOMAIN_IN_LIST}", self.user_a, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example2:{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_a} without contact details"
+            # Add permissions, but it shouldn't matter
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token)
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token_b)
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token_c)
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token_d)
 
-        # 'User' sequence of tests. Should not succeed without contact details of other
-        # party if they are on the fed list
-        assert (
-            await self.may_invite(
-                f"@example:not-{DOMAIN_IN_LIST}", self.user_d, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example:not-{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_d} when not on fed list but DOES have contact details"
-        assert (
-            await self.may_invite(
-                "@example:messenger.spilikin.dev", self.user_d, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example:messenger.spilikin.dev' incorrectly ALLOWED to invite {self.user_d}"
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(after permission)"
 
-        assert (
-            await self.may_invite(
-                f"@example2:not-{DOMAIN_IN_LIST}", self.user_d, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example2:not-{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_d}"
-        assert (
-            await self.may_invite(
-                f"@example2:{DOMAIN_IN_LIST}", self.user_d, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example2:{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_d} without contact details"
+    def test_invite_from_publicly_listed_organizations(self) -> None:
+        """Tests that an invite is accepted when the remote users are public orgs"""
+        for remote_user_id in [
+            f"@mxidorg:{DOMAIN_IN_LIST}",
+            f"@matrixuriorg:{DOMAIN_IN_LIST}",
+            f"@matrixuri2org:{DOMAIN_IN_LIST}",
+            f"@gematikuriorg:{DOMAIN2_IN_LIST}",
+            f"@gematikuri2org:{DOMAIN2_IN_LIST}",
+        ]:
+            # Test against unlisted and 'pract' first
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(no permissions)"
 
-        # This single test should pass, but doesn't because 'd' has blocked all contacts
-        # unless added to their contact permissions. Do this below to test again
-        assert (
-            await self.may_invite(
-                f"@example:{DOMAIN_IN_LIST}", self.user_d, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example:{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_d} without contact details"
+            # 'org' and 'orgPract' are allowed to receive invites from unlisted persons
+            for local_user in [
+                self.pro_user_b,
+                self.pro_user_c,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user}(no permissions)"
 
-        self.add_a_contact_to_user_by_token(
-            f"@example:{DOMAIN_IN_LIST}", self.access_token_d
-        )
+            # Add permissions, don't bother with 'b' and 'c' as they are already allowed
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token)
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token_d)
 
-        # Now it should work
-        assert (
-            await self.may_invite(
-                f"@example:{DOMAIN_IN_LIST}", self.user_d, "!madeup:example.com"
-            )
-            == NOT_SPAM
-        ), f"inviter '@example:{DOMAIN_IN_LIST}' incorrectly FORBIDDEN to invite {self.user_d} despite contact details"
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user}"
 
-    async def test_invite_from_publicly_listed_practitioners(self) -> None:
+    def test_invite_from_publicly_listed_practitioners(self) -> None:
         """Tests that an invite from a remote server gets accepted when in the federation list and both practitioners are public"""
-        for inviter in {
-            f"@mxid:{DOMAIN_IN_LIST}",
-            f"@matrixuri:{DOMAIN_IN_LIST}",
-            f"@matrixuri2:{DOMAIN_IN_LIST}",
-            f"@gematikuri:{DOMAIN_IN_LIST}",
-            f"@gematikuri2:{DOMAIN_IN_LIST}",
+        for remote_user_id in {
+            f"@mxid:{DOMAIN_IN_LIST}",  # 'pract' User
+            f"@matrixuri:{DOMAIN_IN_LIST}",  # 'pract' User
+            f"@matrixuri2:{DOMAIN_IN_LIST}",  # 'pract' User
+            f"@gematikuri:{DOMAIN2_IN_LIST}",  # 'pract' User
+            f"@gematikuri2:{DOMAIN2_IN_LIST}",  # 'pract' User
             f"@mxidorgpract:{DOMAIN_IN_LIST}",
             f"@matrixuriorgpract:{DOMAIN_IN_LIST}",
             f"@matrixuri2orgpract:{DOMAIN_IN_LIST}",
-            f"@gematikuriorgpract:{DOMAIN_IN_LIST}",
-            f"@gematikuri2orgpract:{DOMAIN_IN_LIST}",
+            f"@gematikuriorgpract:{DOMAIN2_IN_LIST}",
+            f"@gematikuri2orgpract:{DOMAIN2_IN_LIST}",
         }:
             assert (
-                await self.may_invite(inviter, self.user_a, "!madeup:example.com")
-                == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_a}"
-            assert (
-                await self.may_invite(inviter, self.user_c, "!madeup:example.com")
-                == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_c}"
-            assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.pro_user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d} without contact details"
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.pro_user_d}(no permissions)"
 
-        for inviter in {
-            f"@mxid404:{DOMAIN_IN_LIST}",
-            f"@matrixuri404:{DOMAIN_IN_LIST}",
-            f"@matrixuri2404:{DOMAIN_IN_LIST}",
-            f"@gematikuri404:{DOMAIN_IN_LIST}",
-            f"@gematikuri2404:{DOMAIN_IN_LIST}",
-        }:
-            assert (
-                await self.may_invite(inviter, self.user_a, "!madeup:example.com")
-                == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_a}"
-            assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
-                == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d} without contact details"
+            # 'pract', 'org' and 'orgPract' are allowed to receive invites from unlisted persons
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user}(no permissions)"
 
-    async def test_invite_from_remote_to_local_org_various(self) -> None:
-        """Tests that an invite from a remote server gets accepted when in the
-        federation list and the invite is to an org or orgPract"""
-        for inviter in {
-            f"@mxid:{DOMAIN_IN_LIST}",
-            f"@matrixuri:{DOMAIN_IN_LIST}",
-            f"@matrixuri2:{DOMAIN_IN_LIST}",
-            f"@gematikuri:{DOMAIN_IN_LIST}",
-            f"@gematikuri2:{DOMAIN_IN_LIST}",
-            f"@mxidorgpract:{DOMAIN_IN_LIST}",
-            f"@matrixuriorgpract:{DOMAIN_IN_LIST}",
-            f"@matrixuri2orgpract:{DOMAIN_IN_LIST}",
-            f"@gematikuriorgpract:{DOMAIN_IN_LIST}",
-            f"@gematikuri2orgpract:{DOMAIN_IN_LIST}",
-            f"@mxid404:{DOMAIN_IN_LIST}",
-            f"@matrixuri404:{DOMAIN_IN_LIST}",
-            f"@matrixuri2404:{DOMAIN_IN_LIST}",
-            f"@gematikuri404:{DOMAIN_IN_LIST}",
-            f"@gematikuri2404:{DOMAIN_IN_LIST}",
-        }:
-            # user 'b' is actually an 'org' not an 'orgPract'
+            # 'd' is not
+            self.add_a_contact_to_user_by_token(remote_user_id, self.access_token_d)
             assert (
-                await self.may_invite(inviter, self.user_b, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.pro_user_d, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_b}"
-            assert (
-                await self.may_invite(inviter, self.user_c, "!madeup:example.com")
-                == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_c}"
-            assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
-                == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d} without contact details"
+            ), f"'{remote_user_id}' should be ALLOWED to invite {self.pro_user_d}"
 
-        assert (
-            await self.may_invite(
-                "@unknown:not.in.fed", self.user_b, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED to invite {self.user_b}"
-        assert (
-            await self.may_invite(
-                "@unknown:not.in.fed", self.user_c, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED to invite {self.user_c}"
-        assert (
-            await self.may_invite(
-                "@unknown:not.in.fed", self.user_d, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@unknown:not.in.fed' incorrectly ALLOWED to invite {self.user_d}"
-
-    async def test_remote_invite_from_an_insurance_domain(self) -> None:
+    def test_remote_invite_from_an_insurance_domain(self) -> None:
         """
         Test that an insured user can invite a publicly listed practitioner or organization
         (but not a regular user on the practitioner's domain)
         """
-        for inviter in {
+        for remote_user_id in {
             f"@unknown:{INSURANCE_DOMAIN_IN_LIST}",
             f"@rando-32-b52:{INSURANCE_DOMAIN_IN_LIST}",
         }:
             assert (
-                await self.may_invite(inviter, self.user_b, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.pro_user_b, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_b}"
+            ), f"'{remote_user_id}' should be ALLOWED to invite {self.pro_user_b}"
             assert (
-                await self.may_invite(inviter, self.user_c, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.pro_user_c, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_b}"
+            ), f"'{remote_user_id}' should be ALLOWED to invite {self.pro_user_c}"
             assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.pro_user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d} without contact details"
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.pro_user_d} without contact details"
 
 
 class RemoteEpaModeInviteTest(ModuleApiTestCase):
@@ -292,18 +272,9 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        # Can't use any of:
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
-        # as they should not exist on an 'ePA' mode server backend
-
-        # 'd', 'e' and 'f' is none of those types of actor and should be just regular 'User's
-        self.user_d = self.register_user("d", "password")
+        # 'd' is just regular insured 'User'
+        self.epa_user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
-
-        # authenticated as user_d
-        self.helper.auth_user_id = self.user_d
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -315,10 +286,10 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
         return conf
 
-    async def may_invite(self, inviter: str, invitee: str, roomid: str):
+    def may_invite(self, inviter: str, invitee: str, room_id: str):
         req = defer.ensureDeferred(
             self.hs.get_module_api()._callbacks.spam_checker.user_may_invite(
-                inviter, invitee, roomid
+                inviter, invitee, room_id
             )
         )
         self.wait_on_thread(req)
@@ -327,53 +298,46 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
             return NOT_SPAM
         return ret[0]  # return first code instead of all of them to make assert easier
 
-    async def test_invite_from_remote_not_on_fed_list(self) -> None:
+    def test_invite_from_remote_not_on_fed_list(self) -> None:
         """Tests that an invite from a remote server not in the federation list gets denied"""
-        self.add_a_contact_to_user_by_token(
-            f"@example:{DOMAIN_IN_LIST}", self.access_token_d
-        )
-        self.add_a_contact_to_user_by_token(
-            f"@example:not-{DOMAIN_IN_LIST}", self.access_token_d
-        )
+        # Add in permissions for one of them, it doesn't work anyway
+        self.add_permission_to_a_user(f"@example:not-{DOMAIN_IN_LIST}", self.epa_user_d)
 
-        for inviter in {
+        for remote_user_id in {
             f"@example:not-{DOMAIN_IN_LIST}",
-            "@example:messenger.spilikin.dev",
             f"@example2:not-{DOMAIN_IN_LIST}",
-            f"@example2:{DOMAIN_IN_LIST}",
         }:
             assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.epa_user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter '{inviter}' incorrectly ALLOWED to invite {self.user_d}"
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.epa_user_d}"
 
-    async def test_invite_from_remote_on_fed_list(self) -> None:
+    def test_invite_from_unlisted_user(self) -> None:
         """Test that a remote user invite from a domain on the fed list only succeeds with contact details"""
-        assert (
-            await self.may_invite(
-                f"@example:{DOMAIN_IN_LIST}", self.user_d, "!madeup:example.com"
-            )
-            == errors.Codes.FORBIDDEN
-        ), f"inviter '@example:{DOMAIN_IN_LIST}' incorrectly ALLOWED to invite {self.user_d}"
+        for remote_user_id in [
+            f"@example:{DOMAIN_IN_LIST}",
+            f"@example:{DOMAIN3_IN_LIST}",
+            f"@example2:{DOMAIN_IN_LIST}",
+        ]:
+            assert (
+                self.may_invite(remote_user_id, self.epa_user_d, "!madeup:example.com")
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.epa_user_d}"
 
-        # Now add in the contact details and try again
-        self.add_a_contact_to_user_by_token(
-            f"@example:{DOMAIN_IN_LIST}", self.access_token_d
-        )
+            # Add in permissions
+            self.add_permission_to_a_user(remote_user_id, self.epa_user_d)
 
-        assert (
-            await self.may_invite(
-                f"@example:{DOMAIN_IN_LIST}", self.user_d, "!madeup:example.com"
-            )
-            == NOT_SPAM
-        ), f"inviter '@example:{DOMAIN_IN_LIST}' incorrectly FORBIDDEN to invite {self.user_d}"
+            assert (
+                self.may_invite(remote_user_id, self.epa_user_d, "!madeup:example.com")
+                == NOT_SPAM
+            ), f"'{remote_user_id}' should be ALLOWED to invite {self.epa_user_d}"
 
-    async def test_invite_from_remote_practitioners(self) -> None:
+    def test_invite_from_remote_practitioners(self) -> None:
         """
         Tests that an invite from a remote server gets accepted when in the federation
         list, and it is not 'isInsurance'. Borrow our localization setup for this
         """
-        for inviter in {
+        for remote_user_id in {
             f"@mxid:{DOMAIN_IN_LIST}",
             f"@matrixuri:{DOMAIN_IN_LIST}",
             f"@matrixuri2:{DOMAIN_IN_LIST}",
@@ -391,38 +355,38 @@ class RemoteEpaModeInviteTest(ModuleApiTestCase):
             f"@gematikuri2404:{DOMAIN_IN_LIST}",
         }:
             assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.epa_user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d}(step one)"
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.epa_user_d}(step one)"
 
-            # Now add in the contact details...
-            self.add_a_contact_to_user_by_token(inviter, self.access_token_d)
+            # Add in permissions
+            self.add_permission_to_a_user(remote_user_id, self.epa_user_d)
 
             # ...and try again
             assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.epa_user_d, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"inviter {inviter} incorrectly FORBIDDEN to invite {self.user_d}(step two)"
+            ), f"'{remote_user_id}' should be ALLOWED to invite {self.epa_user_d}(step two)"
 
-    async def test_remote_invite_from_an_insured_domain_fails(self) -> None:
+    def test_remote_invite_from_an_insured_domain_fails(self) -> None:
         """
         Test that invites from another insurance domain are rejected with or without
         contact permissions
         """
-        for inviter in {
+        for remote_user_id in {
             f"@unknown:{INSURANCE_DOMAIN_IN_LIST}",
             f"@rando-32-b52:{INSURANCE_DOMAIN_IN_LIST}",
         }:
             assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.epa_user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d}"
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.epa_user_d}"
 
-            # Now add in the contact details...
-            self.add_a_contact_to_user_by_token(inviter, self.access_token_d)
+            # Add in permissions
+            self.add_permission_to_a_user(remote_user_id, self.epa_user_d)
 
             # ...and try again
             assert (
-                await self.may_invite(inviter, self.user_d, "!madeup:example.com")
+                self.may_invite(remote_user_id, self.epa_user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"inviter {inviter} incorrectly ALLOWED to invite {self.user_d}"
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.epa_user_d}"

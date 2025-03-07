@@ -39,27 +39,34 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
-        self.user_a = self.register_user("a", "password")
+        #  "a" is a practitioner
+        #  "b" is an organization
+        #  "c" is an 'orgPract'
+        self.pro_user_a = self.register_user("a", "password")
         self.access_token_a = self.login("a", "password")
-        self.user_b = self.register_user("b", "password")
+        self.pro_user_b = self.register_user("b", "password")
         self.access_token_b = self.login("b", "password")
-        self.user_c = self.register_user("c", "password")
+        self.pro_user_c = self.register_user("c", "password")
 
-        # @d:test is none of those types of actor and should be just a 'User'. For
+        # "d" is none of those types of actor and should be just a 'User'. For
         # context, this could be a chatbot or an office manager
-        self.user_d = self.register_user("d", "password")
+        self.pro_user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
+
+        self.map_user_id_to_token = {
+            self.pro_user_a: self.access_token_a,
+            self.pro_user_b: self.access_token_b,
+            self.pro_user_d: self.access_token_d,
+        }
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
         conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
         return conf
 
-    def user_a_create_room(
+    def user_create_room(
         self,
+        creating_user: str,
         invitee_list: list[str],
         is_public: bool,
     ) -> str | None:
@@ -71,44 +78,10 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
         # makes errors for the tests less clear when all we get is the http response
         with contextlib.suppress(AssertionError):
             return self.helper.create_room_as(
-                self.user_a,
+                creating_user,
                 is_public=is_public,
-                tok=self.access_token_a,
-                extra_content=construct_extra_content(self.user_a, invitee_list),
-            )
-        return None
-
-    def user_b_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Same as `user_a_create_room()` except for user_b
-        """
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.user_b,
-                is_public=is_public,
-                tok=self.access_token_b,
-                extra_content=construct_extra_content(self.user_b, invitee_list),
-            )
-        return None
-
-    def user_d_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Same as `user_a_create_room()` except for user_d
-        """
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.user_d,
-                is_public=is_public,
-                tok=self.access_token_d,
-                extra_content=construct_extra_content(self.user_d, invitee_list),
+                tok=self.map_user_id_to_token[creating_user],
+                extra_content=construct_extra_content(creating_user, invitee_list),
             )
         return None
 
@@ -117,41 +90,44 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
     def test_create_room(self, label: str, is_public: bool) -> None:
         """Tests room creation with a local user can be created"""
         for invitee in [
-            self.user_b,
-            self.user_c,
-            self.user_d,
+            self.pro_user_b,
+            self.pro_user_c,
+            self.pro_user_d,
         ]:
-            room_id = self.user_a_create_room(
+            room_id = self.user_create_room(
+                self.pro_user_a,
                 [invitee],
                 is_public=is_public,
             )
             assert (
                 room_id
-            ), f"{label} room from {self.user_a} not created with invite to:[{invitee}]"
+            ), f"{label} room from {self.pro_user_a} should be created with invite to: {invitee}"
         for invitee in [
-            self.user_a,
-            self.user_c,
-            self.user_d,
+            self.pro_user_a,
+            self.pro_user_c,
+            self.pro_user_d,
         ]:
-            room_id = self.user_b_create_room(
+            room_id = self.user_create_room(
+                self.pro_user_b,
                 [invitee],
                 is_public=is_public,
             )
             assert (
                 room_id
-            ), f"{label} room from {self.user_b} not created with invite to:[{invitee}]"
+            ), f"{label} room from {self.pro_user_b} should be created with invite to: {invitee}"
         for invitee in [
-            self.user_b,
-            self.user_c,
-            self.user_a,
+            self.pro_user_b,
+            self.pro_user_c,
+            self.pro_user_a,
         ]:
-            room_id = self.user_d_create_room(
+            room_id = self.user_create_room(
+                self.pro_user_d,
                 [invitee],
                 is_public=is_public,
             )
             assert (
                 room_id
-            ), f"{label} room from {self.user_d} not created with invite to:[{invitee}]"
+            ), f"{label} room from {self.pro_user_d} should be created with invite to: {invitee}"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -162,16 +138,17 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
         invited during creation
         """
         for invitee_list in [
-            [self.user_b, self.user_c],
-            [self.user_d, self.user_c],
+            [self.pro_user_b, self.pro_user_c],
+            [self.pro_user_d, self.pro_user_c],
         ]:
-            room_id = self.user_a_create_room(
+            room_id = self.user_create_room(
+                self.pro_user_a,
                 invitee_list,
                 is_public=is_public,
             )
             assert (
                 room_id is None
-            ), f"{label} room incorrectly created with invites to:[{invitee_list}]"
+            ), f"{label} room should not be created with invites to: {invitee_list}"
 
     def test_create_server_notices_room(self) -> None:
         """
@@ -182,12 +159,12 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
         # invite a user during creation of the room
         room_id = self.get_success_or_raise(
             self.hs.get_server_notices_manager().send_notice(
-                self.user_d, {"body": "Server Notice message", "msgtype": "m.text"}
+                self.pro_user_d, {"body": "Server Notice message", "msgtype": "m.text"}
             )
         )
         # Retrieving the room_id is a sign that the room was created, the user was
         # invited, and the message was sent
-        assert room_id
+        assert room_id, "Server notices room should have been found"
 
 
 class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
@@ -203,11 +180,11 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        self.user_d = self.register_user("d", "password")
+        self.epa_user_d = self.register_user("d", "password")
         self.access_token = self.login("d", "password")
 
-        self.user_e = self.register_user("e", "password")
-        self.user_f = self.register_user("f", "password")
+        self.epa_user_e = self.register_user("e", "password")
+        self.epa_user_f = self.register_user("f", "password")
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -234,11 +211,11 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         # makes errors for the tests less clear when all we get is the http response
         with contextlib.suppress(AssertionError):
             return self.helper.create_room_as(
-                self.user_d,
+                self.epa_user_d,
                 is_public=is_public,
                 tok=self.access_token,
                 extra_content=custom_initial_state
-                or construct_extra_content(self.user_d, invitee_list),
+                or construct_extra_content(self.epa_user_d, invitee_list),
             )
         return None
 
@@ -246,8 +223,8 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
     def test_create_room_fails(self, label: str, is_public: bool) -> None:
         """Tests room creation with a local user will be denied"""
         for invitee in [
-            self.user_e,
-            self.user_f,
+            self.epa_user_e,
+            self.epa_user_f,
         ]:
             room_id = self.user_d_create_room(
                 [invitee],
@@ -255,7 +232,7 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
             )
             assert (
                 room_id is None
-            ), f"{label} room incorrectly created with invite to:[{invitee}]"
+            ), f"{label} room should not be created with invite to: {invitee}"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -265,14 +242,14 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         Tests that a room can NOT be created when more than one additional member is
         invited during creation
         """
-        invitee_list = [self.user_e, self.user_f]
+        invitee_list = [self.epa_user_e, self.epa_user_f]
         room_id = self.user_d_create_room(
             invitee_list,
             is_public=is_public,
         )
         assert (
             room_id is None
-        ), f"{label} room incorrectly created with invites to:[{invitee_list}]"
+        ), f"{label} room should not be created with invites to: {invitee_list}"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_modified_join_rules(
@@ -307,9 +284,9 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         # invite a user during creation of the room
         room_id = self.get_success_or_raise(
             self.hs.get_server_notices_manager().send_notice(
-                self.user_d, {"body": "Server Notice message", "msgtype": "m.text"}
+                self.epa_user_d, {"body": "Server Notice message", "msgtype": "m.text"}
             )
         )
         # Retrieving the room_id is a sign that the room was created, the user was
         # invited, and the message was sent
-        assert room_id
+        assert room_id, "Server notices room should have been found"
