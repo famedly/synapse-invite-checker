@@ -218,18 +218,12 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test with invites behavior for public and private rooms when there is an
         incoming remote user
         """
-        # The invite result on this test appears to fail its check, as public invites
-        # are not forbidden yet even between two 'pract' visible users
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
-
         room_id = self.user_create_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # Private rooms, this should be allowed without permission
         # Public rooms, should be denied because public room
         # Note: both users are 'pract'
-        # TODO: try with a user that is not 'pract' and not visible
         self.helper.invite(
             room_id,
             self.user_a,
@@ -237,6 +231,9 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             expect_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
             tok=self.access_token_a,
         )
+
+        if is_public:
+            self.skipTest("Can't block incoming public joins yet")
 
         # make_join should always succeed, as the invite will not be blocked
         # send_join should only succeed for private rooms
@@ -260,7 +257,8 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         room_id = self.user_create_room(self.user_d, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
-        # for both private and public rooms this should succeed(both users are 'pract')
+        # Private room this should fail(remote user is 'pract' but local user is only 'org')
+        # Public room this should fail
         self.helper.invite(
             room_id,
             self.user_d,

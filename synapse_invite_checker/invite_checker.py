@@ -766,6 +766,25 @@ class InviteChecker:
             )
             return errors.Codes.FORBIDDEN
 
+        # Find out if this is a public room
+        # The domains are different, or the first section would have caught it. The same
+        # context as above applies, there may not yet be a room_id if this is a room
+        # creation in progress
+        if room_id:
+            state_mapping: dict[tuple[str, str], EventBase] = (
+                await self.api._storage_controllers.state.get_current_state(
+                    room_id,
+                    StateFilter.from_types([(EventTypes.JoinRules, None)]),
+                )
+            )
+            if event := state_mapping.get((EventTypes.JoinRules, "")):
+                if event.content["join_rule"] == JoinRules.PUBLIC:
+                    logger.debug(
+                        "Forbidding invite to a local public room to a remote user (%s)",
+                        remote_user_id,
+                    )
+                    return errors.Codes.FORBIDDEN
+
         # Step 2, check invite settings
         # Get the local user permissions, because our server doesn't have the remote users
         if await self.permissions_handler.is_user_allowed(
