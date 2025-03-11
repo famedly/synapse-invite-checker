@@ -580,16 +580,35 @@ class InviteChecker:
     ) -> Literal["NOT_SPAM"] | errors.Codes:
         user_domain = UserID.from_string(user).domain
         room_domain = RoomID.from_string(room_id).domain
-        # Block non-invited people from joining this room. This only runs for local
-        # users
-        if user_domain != room_domain and not is_invited:
-            logger.debug(
-                "Forbidding user (%s) from joining local room (%s)",
-                user,
-                room_id,
-            )
-            return errors.Codes.FORBIDDEN
+        # This only runs for local users, so only try and block remote rooms
+        if user_domain != room_domain:
+            # Block non-invited people from joining this room.
+            if not is_invited:
+                logger.debug(
+                    "Forbidding user (%s) from joining local room (%s)",
+                    user,
+                    room_id,
+                )
+                return errors.Codes.FORBIDDEN
 
+            # Try and see if the invite event had any initial room state data. For now,
+            # this requires a database call, but if https://github.com/element-hq/synapse/issues/18230
+            # becomes a thing, we won't need it anymore. It is possible that room_data
+            # can be None. Logically however, it would only be None if there was no
+            # invite. Since those conditions are checked for above, this should be safe
+            room_data = await self.api._store.get_invite_for_local_user_in_room(
+                user, room_id
+            )
+            assert (
+                room_data is not None
+            ), "room_data(RoomsForUser) was None after an invite"
+            likely_invite_event_id = room_data.event_id
+            invite_event = await self.api._store.get_event(likely_invite_event_id)
+            invite_room_state = invite_event.unsigned.get("invite_room_state", [])
+            for _event in invite_room_state:
+                if _event["type"] == EventTypes.JoinRules:
+                    if _event["content"]["join_rule"] == JoinRules.PUBLIC:
+                        return errors.Codes.FORBIDDEN
         return NOT_SPAM
 
     async def on_create_room(

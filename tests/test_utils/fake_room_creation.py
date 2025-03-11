@@ -121,7 +121,7 @@ class FakeRoom:
         self,
         sender_user_id: str,
         target_user_id: str,
-    ) -> tuple[dict[str, Any], str]:
+    ) -> tuple[dict[str, Any], list[dict[str, Any]], str]:
         """
         Create invite signed by the remote server. This will be the content of an
         invite request. This is like a template, but is not added to the state of the
@@ -129,7 +129,7 @@ class FakeRoom:
         `update_member_state`)
 
         Returns:
-            tuple of the pdu json and the event ID of that pdu
+            tuple of the pdu json, the room initial state list, and the event ID of that pdu
         """
         # as a member event, this needs the basic set of auth, plus join_rules
         auth_events = [e.event_id for e in self.auth_events_list]
@@ -144,6 +144,13 @@ class FakeRoom:
             auth_events=auth_events,
             prev_events=self.current_prev_events_id_list,
         )
+        room_initial_state = []
+        for event_type in [EventTypes.Create, EventTypes.JoinRules]:
+            room_initial_state.append(
+                strip_state_event(
+                    self.map_of_state_events_by_type[event_type].get_dict()
+                )
+            )
         # Save this to the state of the room. Rather it is denied or not by the real
         # server, it is still part of the room to be accounted for. After it is processed
         # by the real server, it should be updated. If it is denied, the room will be
@@ -152,7 +159,11 @@ class FakeRoom:
         self.map_of_membership_by_mxid[event.state_key] = event
         self.current_prev_events_id_list = [event.event_id]
         self.depth_counter += 1
-        return event.get_pdu_json(self.clock.time_msec()), event.event_id
+        return (
+            event.get_pdu_json(self.clock.time_msec()),
+            room_initial_state,
+            event.event_id,
+        )
 
     def promote_member_invite(
         self,
@@ -552,3 +563,17 @@ def default_power_level_events(creator_id: str) -> dict[str, Any]:
         "historical": 100,
     }
     return power_level_content
+
+
+def strip_state_event(pdu: dict[str, Any]) -> dict[str, Any]:
+    """
+    A stripped state event should only have:
+      * type
+      * state_key
+      * sender
+      * content
+    """
+    new_pdu = {}
+    for pdu_key in {"type", "state_key", "sender", "content"}:
+        new_pdu.update({pdu_key: pdu[pdu_key]})
+    return new_pdu

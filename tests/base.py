@@ -718,8 +718,8 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         remote_room = self.remote_rooms[room_id]
         # We use the fake room to generate the invite event, which signs it with the
         # remote server signing key
-        invite_pdu, invite_event_id = remote_room.create_send_invite_request(
-            source_user_id, target_user_id
+        invite_pdu, room_initial_state, invite_event_id = (
+            remote_room.create_send_invite_request(source_user_id, target_user_id)
         )
         remote_server_domain = UserID.from_string(source_user_id).domain
 
@@ -730,7 +730,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             f"/_matrix/federation/v2/invite/{room_id}/{invite_event_id}",
             content={
                 "event": invite_pdu,
-                "invite_room_state": [],
+                "invite_room_state": room_initial_state,
                 "room_version": remote_room.room_version.identifier,
             },
             from_server=remote_server_domain,

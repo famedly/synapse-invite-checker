@@ -370,8 +370,6 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test that the local server can successfully join a remote PRO server room, when
         appropriate, if there are invites
         """
-        if is_public:
-            self.skipTest("Cannot determine state before join yet")
         remote_room_id = self.create_remote_room(self.remote_pro_user, "10", is_public)
         assert remote_room_id is not None
 
@@ -421,9 +419,6 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test that the local server can successfully block a remote EPA server room, when
         an invite is blocked from lack of permissions
         """
-        if is_public:
-            self.skipTest("Cannot determine state before join yet")
-
         remote_room_id = self.create_remote_room(self.remote_epa_user, "10", is_public)
         assert remote_room_id is not None
 
@@ -465,9 +460,6 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test that the local server can successfully join a remote EPA server room, when
         an invite is allowed
         """
-        if is_public:
-            self.skipTest("Cannot determine state before join yet")
-
         remote_room_id = self.create_remote_room(self.remote_epa_user, "10", is_public)
         assert remote_room_id is not None
 
