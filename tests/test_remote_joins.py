@@ -112,9 +112,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test _with no invites_ behavior for public and private rooms when there is an
         incoming remote user
         """
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
-
         room_id = self.user_create_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
@@ -148,10 +145,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             expect_code=HTTPStatus.FORBIDDEN,
             tok=self.access_token_a,
         )
-
-        # Place this after the invite, to prove that at least is blocked
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
 
         # public room should be forbidden
         # private room should be forbidden, because invite was denied
@@ -195,9 +188,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test with no invites behavior for public and private rooms when there is an
         incoming remote user
         """
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
-
         room_id = self.user_create_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
@@ -232,16 +222,12 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             tok=self.access_token_a,
         )
 
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
-
-        # make_join should always succeed, as the invite will not be blocked
+        # make_join should only succeed for private rooms, and be forbidden for public
         # send_join should only succeed for private rooms
         self.send_join(
             self.remote_hba_user,
             room_id,
-            make_join_expected_code=HTTPStatus.OK,
-            send_join_expected_code=(
+            make_join_expected_code=(
                 HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK
             ),
         )
@@ -266,10 +252,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             expect_code=HTTPStatus.FORBIDDEN,
             tok=self.access_token_d,
         )
-
-        # Place this after the invite, to prove that it at least is blocked
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
 
         # make_join should always fail, as the invite is blocked
         # send_join should only succeed for private rooms
