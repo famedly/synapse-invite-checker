@@ -191,6 +191,11 @@ class InviteChecker:
         self.api.register_third_party_rules_callbacks(
             on_upgrade_room=self.on_upgrade_room
         )
+        self.api.register_third_party_rules_callbacks(
+            # This is given a type ignore, since somehow it's not happy that a
+            # Mapping is also a Dict
+            check_event_allowed=self.check_event_allowed  # type: ignore[arg-type]
+        )
 
         dbconfig = None
         for dbconf in api._store.config.database.databases:
@@ -574,6 +579,47 @@ class InviteChecker:
                 f"Room version ('{room_version}') not allowed",
                 errors.Codes.FORBIDDEN,
             )
+
+    async def check_event_allowed(
+        self, event: EventBase, context: dict[tuple[str, str], EventBase]
+    ) -> tuple[bool, dict | None] | None:
+        """
+        Check that an event that is a remote join request fails if the local room is
+        public based on `m.join_rules`
+
+        Args:
+            event: The event to process
+            context: The state mapping just before this event
+
+        Returns: a tuple of [bool, optional[dict of new event | None]. The dict is for
+            replacing the event data and has hazardous consequences, it will not be used
+
+        """
+        # TODO: This needs to be audited for all usages in Synapse. It is extensively
+        #  used for being so 'experimental'
+
+        # This function can have performance penalties as it runs in many code paths.
+        # Short circuit out as fast as possible to avoid issues. Order conditions for
+        # fastest first
+        if (
+            event.is_state()
+            and event.type == EventTypes.Member
+            and not self.api.is_mine(event.state_key)
+        ):
+            # The event type is Member, there will be a 'membership' key in content
+            pending_membership = event.content["membership"]
+            if pending_membership == Membership.JOIN:
+                # Only looking for joins, nothing else is our problem
+                join_rule_event = context.get((EventTypes.JoinRules, ""))
+                assert (
+                    join_rule_event is not None
+                ), f"Room found with no `m.join_rules` event: room id = {event.room_id}"
+                return (
+                    join_rule_event.content["join_rule"] != JoinRules.PUBLIC,
+                    None,
+                )
+
+        return True, None
 
     async def user_may_join_room(
         self, user: str, room_id: str, is_invited: bool
