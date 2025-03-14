@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+from typing import Any
 from unittest import TestCase
 
 from synapse.config import ConfigError
@@ -31,7 +32,7 @@ class ConfigParsingTestCase(TestCase):
     key has the same effect. May use either interchangeably
     """
 
-    config = {
+    config: dict[str, Any] = {
         "tim-type": "pro",
         "federation_list_url": "https://localhost:8080",
         "federation_localization_url": "https://localhost:8000/localization",
@@ -172,4 +173,30 @@ class ConfigParsingTestCase(TestCase):
         test_config.update(
             {"inactive_room_scan": ["lists", "are", "only", "good", "on", "mondays"]}
         )
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+    def test_public_room_override_defaults_to_true(self) -> None:
+        test_config = self.config.copy()
+        config = InviteChecker.parse_config(test_config)
+        assert (
+            config.override_public_room_federation
+        ), "`override_public_room_federation` should default to 'True'"
+
+    def test_public_room_override_can_be_disabled(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"override_public_room_federation": False})
+        config = InviteChecker.parse_config(test_config)
+        assert (
+            config.override_public_room_federation is False
+        ), "`override_public_room_federation` should be `False`'"
+
+    def test_public_room_override_raises(self) -> None:
+        test_config = self.config.copy()
+        # Although a boolean is an int, and int is not a boolean
+        test_config.update({"override_public_room_federation": "0"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # No silly strings. Shame, really....
+        test_config = self.config.copy()
+        test_config.update({"override_public_room_federation": "nope"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)

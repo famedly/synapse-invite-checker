@@ -47,3 +47,4 @@ class InviteCheckerConfig:
     inactive_room_scan_options: InactiveRoomScanConfig = field(
         default_factory=InactiveRoomScanConfig
     )
+    override_public_room_federation: bool = True

@@ -48,6 +48,7 @@ modules:
         inactive_room_scan:
           enabled: true or false # optional switch to disable the room scan for inactive rooms, defaults to true
           grace_period: see 'Duration Parsing' below # Length of time a room is allowed to have no message activity before it is eligible for deletion. Ignored if 'enabled' is false. Defaults to "26w" which is 6 months
+        override_public_room_federation: true or false, # Forces the `m.federate` flag to be set to False when creating a public room to prevent it from federating. Default is "true", disable with "false"
 ```
 ### Duration Parsing
 Settings labeled as 'duration_parsing' allow for a string representation of the value

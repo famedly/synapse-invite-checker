@@ -369,6 +369,14 @@ class InviteChecker:
         _config.inactive_room_scan_options.grace_period_ms = (
             inactive_room_scan_grace_period
         )
+
+        _override_public_room_federation = config.get(
+            "override_public_room_federation", _config.override_public_room_federation
+        )
+        if not isinstance(_override_public_room_federation, bool):
+            msg = "`override_public_room_federation` must be a boolean"
+            raise ConfigError(msg)
+        _config.override_public_room_federation = _override_public_room_federation
         return _config
 
     def after_startup(self) -> None:
@@ -667,23 +675,16 @@ class InviteChecker:
                 errors.Codes.FORBIDDEN,
             )
 
-        # Forbid EPA servers from creating any kind of public room
-        if self.config.tim_type == TimType.EPA:
-            # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
-            # Do not allow "public_chat". Default is based on setting of visibility
-            room_preset: str = request_content.get("preset")
-            # visibility can be either "public" or "private". If not included, it defaults to "private"
-            room_visibility: str = request_content.get("visibility", "private")
-            if (
-                room_preset == RoomCreationPreset.PUBLIC_CHAT
-                or room_visibility == "public"
-            ):
-                raise SynapseError(
-                    400,
-                    "Creation of a public room is not allowed",
-                    errors.Codes.FORBIDDEN,
-                )
-
+        # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
+        # Do not allow "public_chat". Default is based on setting of visibility
+        room_preset: str = request_content.get("preset")
+        # visibility can be either "public" or "private". If not included, it defaults to "private"
+        room_visibility: str = request_content.get("visibility", "private")
+        # Determine based on above that the room is probably public
+        is_public = (
+            room_preset == RoomCreationPreset.PUBLIC_CHAT or room_visibility == "public"
+        )
+        if not is_public:
             # Also prevent a potential security issue by denying initial state from
             # setting "public" for the room through the join_rule
             if initial_state_list := request_content.get("initial_state"):
@@ -698,11 +699,32 @@ class InviteChecker:
                                 "User '%s' tried to create a public room by altering the join_rule in the initial_state",
                                 requester.user.to_string(),
                             )
-                            raise SynapseError(
-                                400,
-                                "Creation of a public room is not allowed",
-                                errors.Codes.FORBIDDEN,
-                            )
+                            is_public = True
+
+        if self.config.tim_type == TimType.PRO:
+            creation_content = request_content.get("creation_content", {})
+            # m.federate defaults to True if unspecified
+            can_federate = creation_content.get("m.federate", True)
+
+            if can_federate and is_public:
+                if self.config.override_public_room_federation:
+                    logger.debug("Overriding `m.room.create` to disable federation")
+                    request_content.setdefault("creation_content", {}).update(
+                        {"m.federate": False}
+                    )
+                else:
+                    logger.warning(
+                        "Room creation with a public room allowed to federate detected."
+                    )
+
+        # Forbid EPA servers from creating any kind of public room
+        if self.config.tim_type == TimType.EPA:
+            if is_public:
+                raise SynapseError(
+                    400,
+                    "Creation of a public room is not allowed",
+                    errors.Codes.FORBIDDEN,
+                )
 
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str | None = None

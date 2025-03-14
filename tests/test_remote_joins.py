@@ -14,6 +14,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import logging
 from http import HTTPStatus
+from typing import Any
+
 from typing_extensions import override
 from unittest.mock import AsyncMock, Mock
 
@@ -112,9 +114,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test _with no invites_ behavior for public and private rooms when there is an
         incoming remote user
         """
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
-
         room_id = self.user_create_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
@@ -148,10 +147,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             expect_code=HTTPStatus.FORBIDDEN,
             tok=self.access_token_a,
         )
-
-        # Place this after the invite, to prove that at least is blocked
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
 
         # public room should be forbidden
         # private room should be forbidden, because invite was denied
@@ -195,9 +190,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test with no invites behavior for public and private rooms when there is an
         incoming remote user
         """
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
-
         room_id = self.user_create_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
@@ -232,16 +224,12 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             tok=self.access_token_a,
         )
 
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
-
-        # make_join should always succeed, as the invite will not be blocked
+        # make_join should only succeed for private rooms, and be forbidden for public
         # send_join should only succeed for private rooms
         self.send_join(
             self.remote_hba_user,
             room_id,
-            make_join_expected_code=HTTPStatus.OK,
-            send_join_expected_code=(
+            make_join_expected_code=(
                 HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK
             ),
         )
@@ -267,17 +255,113 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             tok=self.access_token_d,
         )
 
-        # Place this after the invite, to prove that it at least is blocked
-        if is_public:
-            self.skipTest("Can't block incoming public joins yet")
-
         # make_join should always fail, as the invite is blocked
-        # send_join should only succeed for private rooms
         self.send_join(
             self.remote_hba_user,
             room_id,
             make_join_expected_code=HTTPStatus.FORBIDDEN,
-            send_join_expected_code=HTTPStatus.FORBIDDEN,
+        )
+
+
+class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
+    """
+    Test that disabling 'override_public_room_federation' allows federation to function
+    Unlike tests in test_createrooms_remote.py, these have rooms created with no invites
+    """
+
+    # By default, we are SERVER_NAME_FROM_LIST
+    # server_name_for_this_server = "tim.test.gematik.de"
+    # This test case will model being an PRO server on the federation list
+
+    # Test with two remote PRO user(one hba and one unlisted) and one EPA user
+    remote_hba_user = f"@mxid:{DOMAIN_IN_LIST}"
+    # remote_pro_user = f"unlisted:{DOMAIN_IN_LIST}"
+    remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
+    # The default "fake" remote server name that has its server signing keys auto-injected
+    OTHER_SERVER_NAME = DOMAIN_IN_LIST
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        #  "a" is a practitioner
+        #  "b" is an organization
+        #  "c" is an 'orgPract'
+        self.user_a = self.register_user("a", "password")
+        self.access_token_a = self.login("a", "password")
+        # self.user_b = self.register_user("b", "password")
+        # self.access_token_b = self.login("b", "password")
+        # self.user_c = self.register_user("c", "password")
+        # self.access_token_c = self.login("c", "password")
+
+        # "d" is none of those types of actor and should be just a 'User'. For
+        # context, this could be a chatbot or an office manager
+        self.user_d = self.register_user("d", "password")
+        self.access_token_d = self.login("d", "password")
+
+        self.user_id_to_token = {
+            self.user_a: self.access_token_a,
+            # self.user_b: self.access_token_b,
+            # self.user_c: self.access_token_c,
+            self.user_d: self.access_token_d,
+        }
+
+        self.inv_checker: InviteChecker = self.hs.mockmod
+
+        # OTHER_SERVER_NAME already has it's signing key injected into our database so
+        # our server doesn't have to make that request. Add the other servers we will be
+        # using as well
+        self.map_server_name_to_signing_key.update(
+            {
+                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
+                    INSURANCE_DOMAIN_IN_LIST
+                ),
+            },
+        )
+
+    def user_create_room(
+        self,
+        creating_user: str,
+        invitee_list: list[str],
+        is_public: bool,
+        expected_code: int = HTTPStatus.OK,
+    ) -> str | None:
+        """
+        Helper to send an api request with a full set of required additional room state
+        to the room creation matrix endpoint.
+        """
+        return self.helper.create_room_as(
+            creating_user,
+            is_public=is_public,
+            tok=self.user_id_to_token.get(creating_user),
+            expect_code=expected_code,
+            extra_content=construct_extra_content(creating_user, invitee_list),
+        )
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {"override_public_room_federation": False}
+        )
+
+        return conf
+
+    def test_room_federation(self) -> None:
+        """
+        Test that the local server can successfully allow joining a remote room when
+        there are no invites
+        """
+        room_id = self.user_create_room(self.user_a, [], is_public=True)
+        assert room_id is not None, "Room should have been created"
+
+        # make_join should succeed, as the override was blocked
+        self.send_join(
+            self.remote_hba_user,
+            room_id,
         )
 
 
