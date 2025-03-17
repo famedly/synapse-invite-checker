@@ -52,7 +52,16 @@ from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import LoggingTransaction, make_conn
-from synapse.types import Requester, RoomID, ScheduledTask, StateMap, TaskStatus, UserID
+from synapse.types import (
+    Requester,
+    RoomID,
+    ScheduledTask,
+    StateMap,
+    TaskStatus,
+    UserID,
+    create_requester,
+)
+from synapse.storage.roommember import RoomsForUser
 from synapse.types.handlers import ShutdownRoomParams
 from synapse.types.state import StateFilter
 from synapse.util.metrics import measure_func
@@ -801,6 +810,57 @@ class InviteChecker:
             statuses=statuses,
         )
 
+    async def kick_all_local_users(self, room_id: str) -> None:
+        """
+        First block the room from further interaction from this server, then kick all
+        local members
+
+        Args:
+            room_id:
+        """
+        requester_user_id = (
+            f"@_synapse-invite-checker:{self.api._hs.config.server.server_name}"
+        )
+
+        # Block the room, this prevents inadvertent rejoins and stray events/messages
+        # from becoming part of the room after the fact but will still allow the user
+        # leaving to occur.
+        # NOTE: This call is idempotent, so even if some unforeseen error occurs that
+        # causes the user to fail to leave the room, it will still be blocked and
+        # calling this again won't unblock it or otherwise interfere.
+        await self.api._store.block_room(room_id, requester_user_id)
+
+        users = await self.api._store.get_local_users_related_to_room(room_id)
+        for user_id, membership in users:
+            # If the user is not in the room (or is banned), nothing to do.
+            if membership not in (Membership.JOIN, Membership.INVITE, Membership.KNOCK):
+                continue
+
+            logger.info("Kicking %s from %s...", user_id, room_id)
+            # Use the actual user as a puppet. Don't use the auto-kicker
+            # user id above, as it won't pass room auth
+            target_requester = create_requester(user_id, authenticated_entity=user_id)
+
+            try:
+                # Kick users from room
+                (
+                    _,
+                    stream_id,
+                ) = await self.api._hs.get_room_member_handler().update_membership(
+                    requester=target_requester,
+                    target=target_requester.user,
+                    room_id=room_id,
+                    action=Membership.LEAVE,
+                    content={},
+                    ratelimit=False,
+                    require_consent=False,
+                )
+
+            except Exception:
+                logger.exception(
+                    "Failed to kick user '%s' from room %s", user_id, room_id
+                )
+
     async def schedule_room_for_purge(self, room_id: str) -> None:
         """
         Schedules the deletion of a room from Synapse's database after kicking all users
@@ -845,11 +905,29 @@ class InviteChecker:
 
         logger.debug("Detected %d total rooms", len(all_room_ids))
 
-        rooms_to_purge = set()
+        server_notice_rooms = set()
+        # On servers that don't have server notices set up, the mxid will be None
+        if self.api._hs.config.servernotices.server_notices_mxid is not None:
+            # This database call was chosen over `is_server_notice_room()` as batching
+            # the data should be much more efficient than calling the latter for every
+            # single room
+            server_notice_rooms_list: list[RoomsForUser] = (
+                await self.api._store.get_rooms_for_local_user_where_membership_is(
+                    self.api._hs.config.servernotices.server_notices_mxid,
+                    [Membership.JOIN],
+                    [],
+                )
+            )
+            # Simplify notice room list for fast lookup
+            server_notice_rooms = {room.room_id for room in server_notice_rooms_list}
+
         if self.config.insured_room_scan_options.enabled:
             for room_id in all_room_ids:
-                # only purge rooms that only have EPA hosts in them
-
+                # Server notice rooms are exempt, don't want to necessarily hide that
+                # a notice showed up before the user has a chance to see it.
+                if room_id in server_notice_rooms:
+                    continue
+                # only shut down rooms that only have EPA hosts in them
                 if await self.have_all_pro_hosts_left(room_id):
                     last_user_left_timestamp = await self.get_timestamp_from_eligible_events_for_epa_room_purge(
                         room_id
@@ -860,16 +938,9 @@ class InviteChecker:
                         + self.config.insured_room_scan_options.grace_period_ms
                         <= self.api._hs.get_clock().time_msec()
                     ):
-                        rooms_to_purge.add(room_id)
-
-        # may as well get these moving
-        for room_id in rooms_to_purge:
-            await self.schedule_room_for_purge(room_id)
+                        await self.kick_all_local_users(room_id)
 
         if self.config.inactive_room_scan_options.enabled:
-            # It doesn't make sense to look at a room that was already queued for purge
-            all_room_ids.difference_update(rooms_to_purge)
-            rooms_to_purge.clear()
             for room_id in all_room_ids:
                 last_message_ts = (
                     await self.get_timestamp_of_last_eligible_activity_in_room(room_id)
@@ -879,10 +950,7 @@ class InviteChecker:
                     + self.config.inactive_room_scan_options.grace_period_ms
                     <= self.api._hs.get_clock().time_msec()
                 ):
-                    rooms_to_purge.add(room_id)
-
-        for room_id in rooms_to_purge:
-            await self.schedule_room_for_purge(room_id)
+                    await self.schedule_room_for_purge(room_id)
 
     async def have_all_pro_hosts_left(self, room_id: str) -> bool:
         hosts = await self.api._store.get_current_hosts_in_room(room_id)

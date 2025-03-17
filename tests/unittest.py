@@ -803,7 +803,7 @@ class HomeserverTestCase(TestCase):
         if soft_failed:
             event.internal_metadata.soft_failed = True
 
-        self.get_success(
+        self.get_success_or_raise(
             event_creator.handle_new_client_event(
                 requester, events_and_context=[(event, context)]
             )

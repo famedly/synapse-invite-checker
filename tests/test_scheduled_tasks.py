@@ -18,6 +18,7 @@ from typing import Any
 
 from parameterized import parameterized
 from synapse.api.constants import Membership
+from synapse.api.errors import AuthError
 from synapse.handlers.pagination import SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME
 from synapse.server import HomeServer
 from synapse.types import TaskStatus, UserID
@@ -75,6 +76,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
                 "inactive_room_scan": {"enabled": False},
             }
         )
+        conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
 
         return conf
 
@@ -86,6 +88,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.user_d_id = UserID.from_string(self.user_d)
         self.user_e = self.register_user("e", "password")
         self.access_token_d = self.login("d", "password")
+        self.access_token_e = self.login("e", "password")
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
@@ -121,66 +124,22 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
             )
         return None
 
-    def assert_task_status_for_room_is(
-        self,
-        room_id: str,
-        task_name: str,
-        status_list: list[TaskStatus] | None = None,
-        comment: str = "",
-    ) -> None:
-        """
-        Assert that for a given room id, the Statuses listed have a single entry
-
-        If the status_list is empty or None, there should be no tasks to find
-        """
-        purge_task_list = self.get_success_or_raise(
-            self.task_scheduler.get_tasks(actions=[task_name], resource_id=room_id)
-        )
-
-        if status_list:
-            assert (
-                len(purge_task_list) > 0
-            ), f"{comment} | GT status_list: {status_list}, purge_list: {purge_task_list}"
-        else:
-            assert (
-                len(purge_task_list) == 0
-            ), f"{comment} | EQ status_list: {status_list}, purge_list: {purge_task_list}"
-
-        completed_task = [
-            task for task in purge_task_list if task.status == TaskStatus.COMPLETE
-        ]
-        active_task = [
-            task for task in purge_task_list if task.status == TaskStatus.ACTIVE
-        ]
-        scheduled_task = [
-            task for task in purge_task_list if task.status == TaskStatus.SCHEDULED
-        ]
-        assert len(completed_task) == (
-            1 if TaskStatus.COMPLETE in status_list else 0
-        ), f"{comment} | completed {completed_task}"
-        assert len(active_task) == (
-            1 if TaskStatus.ACTIVE in status_list else 0
-        ), f"{comment} | active {active_task}"
-        assert len(scheduled_task) == (
-            1 if TaskStatus.SCHEDULED in status_list else 0
-        ), f"{comment} | scheduled {scheduled_task}"
-
     @parameterized.expand([("pro_join_and_leave", True), ("pro_never_join", False)])
     def test_room_scan_detects_epa_rooms(
         self, pro_activity: str, pro_join: bool
     ) -> None:
         """
         Test that a room is deleted when a single EPA user and a single PRO user are in
-        a room, but the PRO user leaves
+        a room, but the PRO user leaves. Also test the same scenario, but if the PRO user
+        never joined/left to test that 'maybe broken' rooms are detected
         """
-        self.add_permission_to_a_user(self.remote_pro_user, self.user_d)
-
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
-        assert room_id is not None
+        assert room_id is not None, "Room should be created"
 
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        # Needs to be either None or False
+        assert not is_room_blocked, "Room should not be blocked yet(try 1)"
 
         # doctor joins
         if pro_join:
@@ -189,153 +148,86 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # Send a junk hex message into the room, like a sentinel
         self.create_and_send_event(room_id, self.user_d_id)
 
-        # verify there are no tasks associated with this room
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], "first check"
-        )
-
         # doctor leaves room
         if pro_join:
             self.send_leave(self.remote_pro_user, room_id)
 
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 2)"
 
-        # wait for cleanup, should take 6 hours(based on above configuration)
-        count = 0
-        while True:
-            count += 1
-            if count == 6:
-                break
-
-            # advance() is in seconds, this should be 1 hour
-            self.reactor.advance(60 * 60)
-
-            current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert current_rooms is not None
-
-            self.assert_task_status_for_room_is(
-                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], f"loop count: {count}"
-            )
-
-        # Stopped the loop above before advancing the time, so advance() for one more
-        # hour, which should allow the task to be scheduled
-        self.reactor.advance(60 * 60)
+        self.reactor.advance(5 * 60 * 60)
 
         # Room should still exist
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None, "Room should still exist"
-
-        self.assert_task_status_for_room_is(
-            room_id,
-            SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
-            [TaskStatus.SCHEDULED],
-            "end loop",
-        )
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 3)"
 
         # The TaskScheduler has a heartbeat of 1 minute, give it that much
-        self.reactor.advance(1 * 60)
+        self.reactor.advance(60 * 60)
 
         # Now the room should be gone
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is None, f"Room should be gone now: {current_rooms}"
-
-        # verify a scheduled task "completed" for this room
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
-        )
-
-    def test_room_scan_ignores_pro_joined_rooms(self) -> None:
-        """
-        Test that a room is ignored when a single EPA user and a single PRO user are in
-        a room, and the EPA user leaves
-
-        As a side note: I don't know what to do about this. Our local user has left the
-        room, so it's dangling and won't be cleaned up unless `forget_room_on_leave` is
-        turned on. I'm not sure I need to test for this?
-        """
-        self.add_permission_to_a_user(self.remote_pro_user, self.user_d)
-
-        # Make a room and invite the doctor
-        room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
-        assert room_id is not None
-
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None
-
-        # doctor joins
-        self.send_join(self.remote_pro_user, room_id)
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert is_room_blocked, "Room should be blocked now(try 4)"
 
         # Send a junk hex message into the room, like a sentinel
-        self.create_and_send_event(room_id, self.user_d_id)
+        # Inside EventCreationHandler.handle_new_client_event(), this raises as an
+        # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
+        with self.assertRaises(AuthError):
+            self.create_and_send_event(room_id, self.user_d_id)
 
-        # verify there are no scheduled tasks associated with this room
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-        )
-
-        # insured leaves room
-        self.helper.leave(room_id, self.user_d, tok=self.access_token_d)
-
-        # TODO: find out if `forget_room_on_leave` is supposed to be configured
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None
-
-        # wait for cleanup, should take 6 hours
-        count = 0
-        while True:
-            count += 1
-            if count == 6:
-                break
-            # advance() is in seconds as a float
-            self.reactor.advance(60 * 60)
-            current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-
-            assert current_rooms is not None
-            self.assert_task_status_for_room_is(
-                room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
+    def test_room_scan_ignores_server_notices_rooms(self) -> None:
+        """
+        Test that a room is ignored when it is a server notices room
+        """
+        event_base = self.get_success_or_raise(
+            self.hs.get_server_notices_manager().send_notice(
+                self.user_d, {"body": "Server Notice message", "msgtype": "m.text"}
             )
+        )
+        room_id = event_base.room_id
+        # Retrieving the room_id is a sign that the room was created, the user was
+        # invited, and the message was sent
+        assert room_id, "Server notices room should have been found"
 
-        # Stopped the loop above before advancing the time, so advance() for one more
-        # hour, which should allow the task to be scheduled
-        self.reactor.advance(60 * 60)
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        # Needs to be either None or False
+        assert not is_room_blocked, "Room should not be blocked yet(try 1)"
+
+        self.reactor.advance(5 * 60 * 60)
 
         # Room should still exist
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None, "Room should still exist"
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 3)"
 
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-        )
+        # One more hour should be the 6 hours from settings
+        self.reactor.advance(60 * 60)
 
-        # The TaskScheduler has a heartbeat of 1 minute, give it that much
-        self.reactor.advance(1 * 60)
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should still exist"
 
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None, "Room should still be around"
-
-        # verify no scheduled tasks were created for this room
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
+        # Message should succeed, showing the room has not yet been left
+        self.get_success_or_raise(
+            self.hs.get_server_notices_manager().send_notice(
+                self.user_d, {"body": "Server Notice message #2", "msgtype": "m.text"}
+            )
         )
 
     def test_room_scan_detects_only_epa_rooms_with_multiple_hosts(self) -> None:
         """
         Test that a room is not deleted until the last PRO user leaves a room
         """
-        self.add_permission_to_a_user(self.remote_pro_user, self.user_d)
-
         # Make a room and invite the doctor
         room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
         assert room_id is not None
 
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        # Needs to be either None or False
+        assert not is_room_blocked, "Room should not be blocked yet(try 1)"
 
         # doctor joins
         self.send_join(self.remote_pro_user, room_id)
 
-        # doctor invites another patient, because the first patient isn't allowed
+        # doctor invites 2 more patients, because the first patient isn't allowed. One
+        # is remote and the other is from this EPA server
         self.get_success_or_raise(
             event_injection.inject_member_event(
                 self.hs,
@@ -348,6 +240,18 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # other patient joins
         self.send_join(self.remote_epa_user, room_id)
+
+        self.get_success_or_raise(
+            event_injection.inject_member_event(
+                self.hs,
+                room_id,
+                self.remote_pro_user,
+                Membership.INVITE,
+                target=self.user_e,
+            )
+        )
+
+        self.helper.join(room_id, self.user_e, tok=self.access_token_e)
 
         # doctor invites another doctor
         self.get_success_or_raise(
@@ -365,11 +269,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # Send a junk hex message into the room, like a sentinel
         self.create_and_send_event(room_id, self.user_d_id)
-
-        # verify there are no purge tasks associated with this room
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-        )
 
         # They all just found out a friend of the remote patient may have more info
         self.get_success_or_raise(
@@ -394,107 +293,44 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # doctor 1 leaves room
         self.send_leave(self.remote_pro_user, room_id)
 
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None
+        # The other local insured leaves the room
+        self.helper.leave(room_id, self.user_e, tok=self.access_token_e)
 
-        def wait_some_time() -> None:
-            count = 0
-            while True:
-                count += 1
-                if count == 6:
-                    return
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 2)"
 
-                # advance() is in seconds, this should be 1 hour
-                self.reactor.advance(60 * 60)
+        self.reactor.advance(5 * 60 * 60)
 
-                current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-                assert current_rooms is not None
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 3)"
 
-                self.assert_task_status_for_room_is(
-                    room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-                )
-
-        # wait for cleanup, should take 6 hours(based on above configuration)
-        wait_some_time()
-        # Stopped the loop above before advancing the time, so advance() for one more
-        # hour, which should allow the task to be scheduled
+        # Normally, this would trigger the auto-kicker. But the doctor hasn't left yet
         self.reactor.advance(60 * 60)
 
-        # Room should still exist
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None, "Room should still exist"
-
-        # Task was not scheduled, as expected
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-        )
-
-        # The TaskScheduler has a heartbeat of 1 minute, give it that much
-        self.reactor.advance(1 * 60)
-
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None, "Room should still be around"
-
-        # verify no scheduled tasks were created for this room
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, []
-        )
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 4)"
 
         # doctor 2 leaves
         self.send_leave(self.remote_pro_user_2, room_id)
 
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 5)"
 
-        # wait for cleanup, should take 6 hours(based on above configuration)
-        wait_some_time()
+        self.reactor.advance(5 * 60 * 60)
 
-        # Stopped the loop above before advancing the time, so advance() for one more
-        # hour, which should allow the task to be scheduled
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 6)"
+
+        # One more hour should be the 6 hours from settings
         self.reactor.advance(60 * 60)
 
-        # Room should still exist
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is not None, "Room should still exist"
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert is_room_blocked, "Room should be blocked now"
 
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.SCHEDULED]
-        )
-
-        # The TaskScheduler has a heartbeat of 1 minute, give it that much
-        self.reactor.advance(1 * 60)
-
-        # Now the room should be gone
-        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is None, f"Room should be gone now: {current_rooms}"
-
-        # verify a scheduled task "completed" for this room
-        self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE]
-        )
-
-    def test_scheduling_a_room_delete_is_idempotent(self) -> None:
-        # self.hs.mockmod: InviteChecker
-        room_id = f"!fake_room_name:{self.server_name_for_this_server}"
-        pretest_delete_tasks = self.get_success_or_raise(
-            self.hs.mockmod.get_delete_tasks_by_room(room_id)
-        )
-        assert len(pretest_delete_tasks) == 0
-
-        self.get_success_or_raise(self.hs.mockmod.schedule_room_for_purge(room_id))
-        delete_tasks = self.get_success_or_raise(
-            self.hs.mockmod.get_delete_tasks_by_room(room_id)
-        )
-        assert len(delete_tasks) == 1
-        delete_task_id = delete_tasks[0].id
-
-        self.get_success_or_raise(self.hs.mockmod.schedule_room_for_purge(room_id))
-        second_delete_tasks = self.get_success_or_raise(
-            self.hs.mockmod.get_delete_tasks_by_room(room_id)
-        )
-        assert len(second_delete_tasks) == 1
-        second_delete_task_id = second_delete_tasks[0].id
-        self.assertEqual(delete_task_id, second_delete_task_id)
+        # Inside EventCreationHandler.handle_new_client_event(), this raises as an
+        # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
+        with self.assertRaises(AuthError):
+            self.create_and_send_event(room_id, self.user_d_id)
 
 
 class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
@@ -757,3 +593,25 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.assert_task_status_for_room_is(
             room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
         )
+
+    def test_scheduling_a_room_delete_is_idempotent(self) -> None:
+        room_id = f"!fake_room_name:{self.server_name_for_this_server}"
+        pretest_delete_tasks = self.get_success_or_raise(
+            self.inv_checker.get_delete_tasks_by_room(room_id)
+        )
+        assert len(pretest_delete_tasks) == 0
+
+        self.get_success_or_raise(self.inv_checker.schedule_room_for_purge(room_id))
+        delete_tasks = self.get_success_or_raise(
+            self.inv_checker.get_delete_tasks_by_room(room_id)
+        )
+        assert len(delete_tasks) == 1
+        delete_task_id = delete_tasks[0].id
+
+        self.get_success_or_raise(self.inv_checker.schedule_room_for_purge(room_id))
+        second_delete_tasks = self.get_success_or_raise(
+            self.inv_checker.get_delete_tasks_by_room(room_id)
+        )
+        assert len(second_delete_tasks) == 1
+        second_delete_task_id = second_delete_tasks[0].id
+        self.assertEqual(delete_task_id, second_delete_task_id)
