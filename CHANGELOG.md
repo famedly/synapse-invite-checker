@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2025-03-17
+
+This release now also enforces permission checks for local users. To offset the
+UX impact from that the module defaults to "allow all" in permission checks. The
+old contacts API is removed because it is redundant now. The localization checks
+are removed for the same reason and because they are not part of the new TIM
+specs.
+
+Additionally invites to and from public rooms for remote users are now blocked.
+To do that public rooms are now forced during room creation to not federate.
+This behaviour can be disabled by setting `override_public_room_federation` to
+`false`.
+
+- feat: apply permissions locally (Nicolas Werner)
+- feat: Forbid local users from joining remote rooms without an invite (Jason Little)
+- feat: Forbid public room federation by forcing `m.federate` to False (Jason Little)
+- fix: Silence startup warning for room scan being disabled on incorrect Synapse worker (Jason Little)
+- chore: Forbid local users being invited to remote public rooms (Jason Little)
+- chore: Forbid local users from sending remote users an invite to a local public room (Jason Little)
+- chore: Only enable the Contact Rest API when in PRO server mode (Jason Little)
+- chore: Refactor several tests to include some edge cases that were missed and some house cleaning (Jason Little)
+
 ## [0.3.1] - 2025-02-25
 
 - fix publishing via github releases
