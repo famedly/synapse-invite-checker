@@ -334,12 +334,7 @@ class RestHelper:
                 ), f"Expected field {expect_key}, got {channel.json_body}"
                 assert (
                     channel.json_body[expect_key] == expect_value
-                ), "Expected: {} at {}, got: {}, resp: {}".format(
-                    expect_value,
-                    expect_key,
-                    channel.json_body[expect_key],
-                    channel.json_body,
-                )
+                ), f"Expected: {expect_value} at {expect_key}, got: {channel.json_body[expect_key]}, resp: {channel.json_body}"
 
         self.auth_user_id = temp_id
 

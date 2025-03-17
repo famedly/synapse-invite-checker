@@ -36,7 +36,6 @@ from tests.test_utils import (
     event_injection,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -690,12 +689,6 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         Test that a room is deleted when a local PRO user and various others don't touch
         a room for "inactive_room_scan.grace_period" amount of time
         """
-        for other_user in other_users:
-            # just unilaterally add the contact, instead of deciding if it's a publicly
-            # visible practitioner or not. NOTE: when moving to ALLOW ALL mode, this
-            # can be removed
-            self.add_a_contact_to_user_by_token(other_user, self.access_token_a)
-
         # Make a room and invite the other occupant(s)
         room_id = self.user_a_create_room([], is_public=is_public)
         assert room_id is not None, "Room should exist"

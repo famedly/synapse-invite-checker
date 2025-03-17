@@ -15,8 +15,9 @@
 import base64
 import functools
 import logging
+from collections.abc import Callable
 from contextlib import suppress
-from typing import Any, Callable, Dict, Literal
+from typing import Any, Literal
 from urllib.parse import quote, urlparse
 
 from cachetools import TTLCache, keys
@@ -51,7 +52,7 @@ from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import LoggingTransaction, make_conn
-from synapse.types import Requester, RoomID, ScheduledTask, TaskStatus, UserID
+from synapse.types import Requester, RoomID, ScheduledTask, StateMap, TaskStatus, UserID
 from synapse.types.handlers import ShutdownRoomParams
 from synapse.types.state import StateFilter
 from synapse.util.metrics import measure_func
@@ -65,21 +66,14 @@ from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.permissions import (
     InviteCheckerPermissionsHandler,
 )
-from synapse_invite_checker.rest.contacts import (
-    ContactManagementInfoResource,
-    ContactResource,
-    ContactsResource,
-)
 from synapse_invite_checker.rest.messenger_info import (
     INFO_API_PREFIX,
     MessengerFindByIkResource,
     MessengerInfoResource,
     MessengerIsInsuranceResource,
 )
-
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import FederationList, TimType
-
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +202,6 @@ class InviteChecker:
 
         self.permissions_handler = InviteCheckerPermissionsHandler(
             self.api,
-            self.fetch_localization_for_mxid,
             self.is_domain_insurance,
         )
 
@@ -227,20 +220,7 @@ class InviteChecker:
                 self.room_scan, self.config.room_scan_run_interval_ms
             )
 
-        # Separate out the resources for Contacts, since they will be going away
-        self.contact_resource = JsonResource(api._hs)
-
         if self.config.tim_type == TimType.PRO:
-            # The Contact Management API resources
-            ContactManagementInfoResource(self.config).register(self.contact_resource)
-            ContactsResource(self.api, self.store, self.permissions_handler).register(
-                self.contact_resource
-            )
-            ContactResource(self.api, self.store, self.permissions_handler).register(
-                self.contact_resource
-            )
-            self.api.register_web_resource(BASE_API_PREFIX, self.contact_resource)
-
             # The TiMessengerInformation API resource
             self.resource = JsonResource(api._hs)
             MessengerInfoResource(self.api, self.config).register(self.resource)
@@ -257,7 +237,7 @@ class InviteChecker:
         logger.info("Module initialized at %s", BASE_API_PREFIX)
 
     @staticmethod
-    def parse_config(config: Dict[str, Any]) -> InviteCheckerConfig:
+    def parse_config(config: dict[str, Any]) -> InviteCheckerConfig:
         logger.error("PARSE CONFIG")
         _config = InviteCheckerConfig()
 
@@ -268,23 +248,10 @@ class InviteChecker:
             "federation_list_client_cert", ""
         )
         _config.federation_list_url = config.get("federation_list_url", "")
-        _config.federation_localization_url = config.get(
-            "federation_localization_url", ""
-        )
         _config.gematik_ca_baseurl = config.get("gematik_ca_baseurl", "")
 
         if not _config.federation_list_url or not _config.gematik_ca_baseurl:
             msg = "Incomplete federation list config"
-            raise Exception(msg)
-
-        if (
-            not _config.federation_localization_url
-            or urlparse(_config.federation_list_url).hostname
-            != urlparse(_config.federation_localization_url).hostname
-            or urlparse(_config.federation_list_url).scheme
-            != urlparse(_config.federation_localization_url).scheme
-        ):
-            msg = "Expected localization url on the same host as federation list"
             raise Exception(msg)
 
         if (
@@ -303,14 +270,13 @@ class InviteChecker:
                 "Please remember to set `tim-type` in your configuration. Defaulting to 'Pro' mode"
             )
 
+        elif _tim_type == "epa":
+            _config.tim_type = TimType.EPA
+        elif _tim_type == "pro":
+            _config.tim_type = TimType.PRO
         else:
-            if _tim_type == "epa":
-                _config.tim_type = TimType.EPA
-            elif _tim_type == "pro":
-                _config.tim_type = TimType.PRO
-            else:
-                msg = "`tim-type` setting is not a recognized value. Please fix."
-                raise ConfigError(msg)
+            msg = "`tim-type` setting is not a recognized value. Please fix."
+            raise ConfigError(msg)
 
         _allowed_room_versions = config.get("allowed_room_versions", ["9", "10"])
         if not _allowed_room_versions or not isinstance(_allowed_room_versions, list):
@@ -385,8 +351,7 @@ class InviteChecker:
     async def _after_startup(self) -> None:
         """
         To be called when the reactor is running. Validates that the epa setting matches
-        the insurance setting in the federation list and *might* perform forced contact
-        migration.
+        the insurance setting in the federation list.
         """
         fed_list = await self._fetch_federation_list()
         if self.config.tim_type == TimType.EPA and not fed_list.is_insurance(
@@ -396,93 +361,6 @@ class InviteChecker:
                 "This server has enabled ePA Mode in its config, but is not found on "
                 "the Federation List as an Insurance Domain!"
             )
-
-        # Only let this run on the worker assigned to handle background tasks
-        if self.api.should_run_background_tasks():
-            await self.run_migration()
-
-    async def run_migration(self) -> None:
-        """
-        Migrate Contacts from the database to Account Data in Synapse, one owning user at
-        a time. This WILL delete the contacts table after it has completed!
-
-        Safe to run multiple times
-        """
-        contact_owners = await self.store.get_all_contact_owners_for_migration()
-        if not contact_owners:
-            logger.warning("No Contacts to migrate. Skipping")
-            return
-
-        logger.warning("BEGINNING MASS MIGRATION OF CONTACTS")
-
-        while contact_owners:
-            # Recursively process, in the extremely unlikely event that new data was found
-            for owner in contact_owners:
-                contacts = await self.store.get_contacts(owner)
-
-                permissions = await self.permissions_handler.get_permissions(owner)
-                for contact in contacts.contacts:
-                    permissions.userExceptions.setdefault(contact.mxid, {})
-
-                await self.permissions_handler.update_permissions(owner, permissions)
-                await self.store.del_contacts(owner)
-
-            # This will reset contact_owners and break if there are none
-            contact_owners = await self.store.get_all_contact_owners_for_migration()
-
-        logger.warning("FINISHED MASS MIGRATION OF CONTACTS. DROPPING CONTACT TABLE!!")
-        await self.store.drop_table()
-
-    async def _raw_localization_fetch(self, mxid: str) -> str:  # pragma: no cover
-        resp = await self.federation_list_client.get_raw(
-            self.config.federation_localization_url, {"mxid": mxid}
-        )
-        return resp.decode().strip(
-            '"'
-        )  # yes, they sometimes are quoted and we don't know what is right yet
-
-    async def fetch_localization_for_mxid(self, mxid: str) -> str:
-        """Fetches from the VZD if this mxid is org, pract, orgPract or none.
-        Sadly the specification mixes mxids and matrix uris (in incorrect formats) several times,
-        which is why we need to try all of the variations for now until we know what is correct.
-        """
-
-        with suppress(errors.HttpResponseException):
-            # this format matches the matrix spec, but not the gematik documentation...
-            matrix_uri = f"matrix:u/{quote(mxid[1:], safe='')}"
-            loc = await self._raw_localization_fetch(matrix_uri)
-            if loc != "none":
-                return loc
-
-        with suppress(errors.HttpResponseException):
-            # this format matches the matrix spec apart from not encoding the :
-            matrix_uri = f"matrix:u/{quote(mxid[1:], safe=':')}"
-            loc = await self._raw_localization_fetch(matrix_uri)
-            if loc != "none":
-                return loc
-
-        with suppress(errors.HttpResponseException):
-            # this format matches the gematik spec, but not the matrix spec for URIs nor the actual practice...
-            matrix_uri = f"matrix:user/{quote(mxid[1:], safe='')}"
-            loc = await self._raw_localization_fetch(matrix_uri)
-            if loc != "none":
-                return loc
-
-        with suppress(errors.HttpResponseException):
-            # this format matches the gematik spec, but not the matrix spec for URIs nor the actual practice...
-            # It also doesn't encode the : since we have seen such entries in the wild...
-            matrix_uri = f"matrix:user/{quote(mxid[1:], safe=':')}"
-            loc = await self._raw_localization_fetch(matrix_uri)
-            if loc != "none":
-                return loc
-
-        with suppress(errors.HttpResponseException):
-            # The test servers all have written mxids into them instead of matrix uris as required
-            loc = await self._raw_localization_fetch(mxid)
-            if loc != "none":
-                return loc
-
-        return "none"
 
     async def _raw_federation_list_fetch(self) -> str:
         resp = await self.federation_list_client.get_raw(
@@ -729,16 +607,10 @@ class InviteChecker:
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str | None = None
     ) -> Literal["NOT_SPAM"] | errors.Codes:
-        # Check local invites first, no need to check federation invites for those
+        # Verify that local users can't invite into their DMs as verified by a few
+        # tests in the Testsuite. In the context of calling this directly from
+        # `on_create_room()` above, there may not be a room_id yet.
         if self.api.is_mine(inviter):
-            if self.config.tim_type == TimType.EPA:
-                # The TIM-ePA backend forbids all local invites
-                if self.api.is_mine(invitee):
-                    return errors.Codes.FORBIDDEN
-
-            # Verify that local users can't invite into their DMs as verified by a few
-            # tests in the Testsuite. In the context of calling this directly from
-            # `on_create_room()` above, there may not be a room_id yet.
             if room_id:
                 direct = await self.api.account_data_manager.get_global(
                     inviter, AccountDataTypes.DIRECT
@@ -754,26 +626,19 @@ class InviteChecker:
                             )
                             return errors.Codes.FORBIDDEN
 
-            # local invites are always valid, if they are not to a dm (and not in EPA mode).
-            if self.api.is_mine(invitee):
-                logger.debug("Local invite from %s to %s allowed", inviter, invitee)
-                return NOT_SPAM
-
-        remote_user_id = inviter if not self.api.is_mine(inviter) else invitee
-        remote_domain = UserID.from_string(remote_user_id).domain
-        local_user_id = invitee if self.api.is_mine(invitee) else inviter
-        local_domain = UserID.from_string(local_user_id).domain
+        inviter_domain = UserID.from_string(inviter).domain
+        invitee_domain = UserID.from_string(invitee).domain
 
         # Step 1a, check federation allow list. See:
         # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#A_25534
         if not (
-            await self.is_domain_allowed(remote_domain)
-            and await self.is_domain_allowed(local_domain)
+            await self.is_domain_allowed(inviter_domain)
+            and await self.is_domain_allowed(invitee_domain)
         ):
             logger.warning(
                 "Discarding invite between domains: (%s) and (%s)",
-                remote_domain,
-                local_domain,
+                inviter_domain,
+                invitee_domain,
             )
             return errors.Codes.FORBIDDEN
 
@@ -781,10 +646,12 @@ class InviteChecker:
         # Per AF_10233: Deny incoming remote invites if in ePA mode(which means the
         # local user is an 'insured') and if the remote domain is type 'insurance'.
         if await self.is_domain_insurance(
-            local_domain
-        ) and await self.is_domain_insurance(remote_domain):
+            inviter_domain
+        ) and await self.is_domain_insurance(invitee_domain):
             logger.warning(
-                "Discarding invite from remote insurance domain: %s", remote_domain
+                "Discarding invite from between insured users: %s and %s",
+                inviter,
+                invitee,
             )
             return errors.Codes.FORBIDDEN
 
@@ -792,8 +659,8 @@ class InviteChecker:
         # The domains are different, or the first section would have caught it. The same
         # context as above applies, there may not yet be a room_id if this is a room
         # creation in progress
-        if room_id:
-            state_mapping: dict[tuple[str, str], EventBase] = (
+        if room_id and (not self.api.is_mine(inviter) or not self.api.is_mine(invitee)):
+            state_mapping: StateMap[EventBase] = (
                 await self.api._storage_controllers.state.get_current_state(
                     room_id,
                     StateFilter.from_types([(EventTypes.JoinRules, None)]),
@@ -802,60 +669,30 @@ class InviteChecker:
             if event := state_mapping.get((EventTypes.JoinRules, "")):
                 if event.content["join_rule"] == JoinRules.PUBLIC:
                     logger.debug(
-                        "Forbidding invite to a local public room to a remote user (%s)",
-                        remote_user_id,
+                        "Forbidding invite to a local public room to a remote user (%s -> %s)",
+                        inviter,
+                        invitee,
                     )
                     return errors.Codes.FORBIDDEN
 
         # Step 2, check invite settings
-        # Get the local user permissions, because our server doesn't have the remote users
-        if await self.permissions_handler.is_user_allowed(
-            local_user_id, remote_user_id
-        ):
-            logger.debug(
-                "Allowing invite since local user (%s) allowed the remote user (%s) in their permissions",
-                local_user_id,
-                remote_user_id,
-            )
-            return NOT_SPAM
-
-        # Step 3, no active invite settings found, ensure we
-        # - either invite an org
-        # - or both users are practitioners and the invitee has no restricted visibility
-        # The values org, pract, orgPract stand for org membership, practitioner and both respectively.
-        invitee_loc = await self.fetch_localization_for_mxid(invitee)
-        if invitee_loc in {"orgPract", "org"}:
-            logger.debug(
-                "Allowing invite since invitee %s is an organization (%s)",
-                invitee,
-                invitee_loc,
-            )
-            return NOT_SPAM
-        else:
-            logger.debug("Invitee %s is not an organization (%s)", invitee, invitee_loc)
-
-        visiblePract = {"pract", "orgPract"}
-        inviter_loc = await self.fetch_localization_for_mxid(inviter)
-        if invitee_loc in visiblePract and inviter_loc in visiblePract:
-            logger.debug(
-                "Allowing invite since invitee (%s) and inviter (%s) are both practitioners (%s and %s)",
-                invitee,
-                inviter,
-                invitee_loc,
-                inviter_loc,
-            )
-            return NOT_SPAM
+        # Skip remote users as we can't check their account data
+        if self.api.is_mine(invitee):
+            if not await self.permissions_handler.is_user_allowed(invitee, inviter):
+                logger.debug(
+                    "Not allowing invite since local user (%s) did not allow the remote user (%s) in their permissions",
+                    invitee,
+                    inviter,
+                )
+                return errors.Codes.FORBIDDEN
 
         logger.debug(
-            "Not allowing invite since invitee (%s) and inviter (%s) are not both practitioners (%s and %s) and all previous checks failed",
+            "Not allowing invite since permission checks did not pass. (%s -> %s)",
             invitee,
             inviter,
-            invitee_loc,
-            inviter_loc,
         )
 
-        # Forbid everything else (so remote invites not matching step1, 2 or 3)
-        return errors.Codes.FORBIDDEN
+        return NOT_SPAM
 
     async def get_all_room_ids(self) -> set[str]:
         """Retrieve all room IDS."""

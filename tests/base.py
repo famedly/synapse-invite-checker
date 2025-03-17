@@ -24,7 +24,6 @@ from synapse.api.errors import SynapseError
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
 from synapse.crypto.event_signing import add_hashes_and_signatures
 from synapse.events import make_event_from_dict
-from synapse.module_api import errors
 from synapse.rest import admin
 from synapse.rest.client import (
     account_data,
@@ -43,15 +42,13 @@ from typing_extensions import override
 
 import tests.unittest as synapsetest
 from synapse_invite_checker import InviteChecker
+from synapse_invite_checker.types import PermissionConfig
 from tests.server import FakeChannel
 from tests.test_utils import (
-    DOMAIN_IN_LIST,
-    DOMAIN2_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST,
     SERVER_NAME_FROM_LIST,
 )
 from tests.test_utils.fake_room_creation import FakeRoom
-
 
 # ruff: noqa: E501
 # We don't care about long lines in our testdata
@@ -142,48 +139,6 @@ def return_gem_cert(cn: str) -> bytes:
     raise Exception("Could not find cert" + cn)
 
 
-def return_localization(mxid: str) -> str:
-    # Normally, this function in the InviteChecker would retrieve data from a configured
-    # url. As such, these are all fake and do not require any registering outside of
-    # that found in a given test.
-    if mxid in {
-        f"@mxid:{DOMAIN_IN_LIST}",
-        f"matrix:u/matrixuri%3A{DOMAIN_IN_LIST}",
-        f"matrix:u/matrixuri2:{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuri%3A{DOMAIN2_IN_LIST}",
-        f"matrix:user/gematikuri2:{DOMAIN2_IN_LIST}",
-        f"matrix:u/a%3A{SERVER_NAME_FROM_LIST}",
-    }:
-        return "pract"
-    if mxid in {
-        f"@mxidorg:{DOMAIN_IN_LIST}",
-        f"matrix:u/matrixuriorg%3A{DOMAIN_IN_LIST}",
-        f"matrix:u/matrixuri2org:{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuriorg%3A{DOMAIN2_IN_LIST}",
-        f"matrix:user/gematikuri2org:{DOMAIN2_IN_LIST}",
-        f"matrix:u/b%3A{SERVER_NAME_FROM_LIST}",
-    }:
-        return "org"
-    if mxid in {
-        f"@mxidorgpract:{DOMAIN_IN_LIST}",
-        f"matrix:u/matrixuriorgpract%3A{DOMAIN_IN_LIST}",
-        f"matrix:u/matrixuri2orgpract:{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuriorgpract%3A{DOMAIN2_IN_LIST}",
-        f"matrix:user/gematikuri2orgpract:{DOMAIN2_IN_LIST}",
-        f"matrix:u/c%3A{SERVER_NAME_FROM_LIST}",
-    }:
-        return "orgPract"
-    if mxid in {
-        f"@mxid404:{DOMAIN_IN_LIST}",
-        f"matrix:u/matrixuri404%3A{DOMAIN_IN_LIST}",
-        f"matrix:u/matrixuri2404:{DOMAIN_IN_LIST}",
-        f"matrix:user/gematikuri404%3A{DOMAIN2_IN_LIST}",
-        f"matrix:user/gematikuri2404:{DOMAIN2_IN_LIST}",
-    }:
-        raise errors.HttpResponseException(404, "Not found", b"")
-    return "none"
-
-
 # Namespaced various room related strings for state events as defined by gematik in:
 # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#5.5
 #
@@ -270,21 +225,15 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
             "synapse_invite_checker.InviteChecker._raw_gematik_intermediate_cert_fetch",
             new=AsyncMock(side_effect=return_gem_cert),
         )
-        cls._patcher4 = patch(
-            "synapse_invite_checker.InviteChecker._raw_localization_fetch",
-            new=AsyncMock(side_effect=return_localization),
-        )
         cls._patcher1.start()
         cls._patcher2.start()
         cls._patcher3.start()
-        cls._patcher4.start()
 
     @classmethod
     def tearDownClass(cls):
         cls._patcher1.stop()
         cls._patcher2.stop()
         cls._patcher3.stop()
-        cls._patcher4.stop()
 
     servlets = [
         admin.register_servlets,
@@ -338,7 +287,6 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
                     "config": {
                         "tim-type": "pro",
                         "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
-                        "federation_localization_url": "http://dummy.test/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                         "allowed_room_versions": ["9", "10"],
@@ -348,22 +296,12 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         conf["default_room_version"] = "10"
         return conf
 
-    def add_a_contact_to_user_by_token(
-        self, contact_user: str, tok: str, display_name: str = "Test User"
+    def set_permissions_for_user(
+        self, user: str, permissions: PermissionConfig
     ) -> None:
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": display_name,
-                "mxid": contact_user,
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=tok,
+        self.get_success_or_raise(
+            self.inv_checker.permissions_handler.update_permissions(user, permissions)
         )
-        assert channel.code == 200, channel.result
 
     def add_permission_to_a_user(self, user_to_permit: str, owning_user: str) -> None:
         perms = self.get_success_or_raise(
@@ -394,21 +332,15 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             "synapse_invite_checker.InviteChecker._raw_gematik_intermediate_cert_fetch",
             new=AsyncMock(side_effect=return_gem_cert),
         )
-        cls._patcher4 = patch(
-            "synapse_invite_checker.InviteChecker._raw_localization_fetch",
-            new=AsyncMock(side_effect=return_localization),
-        )
         cls._patcher1.start()
         cls._patcher2.start()
         cls._patcher3.start()
-        cls._patcher4.start()
 
     @classmethod
     def tearDownClass(cls):
         cls._patcher1.stop()
         cls._patcher2.stop()
         cls._patcher3.stop()
-        cls._patcher4.stop()
 
     servlets = [
         admin.register_servlets,
@@ -474,22 +406,12 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             ]
         return conf
 
-    def add_a_contact_to_user_by_token(
-        self, contact_user: str, tok: str, display_name: str = "Test User"
+    def set_permissions_for_user(
+        self, user: str, permissions: PermissionConfig
     ) -> None:
-        channel = self.make_request(
-            "PUT",
-            "/_synapse/client/com.famedly/tim/v1/contacts",
-            {
-                "displayName": display_name,
-                "mxid": contact_user,
-                "inviteSettings": {
-                    "start": 0,
-                },
-            },
-            access_token=tok,
+        self.get_success_or_raise(
+            self.inv_checker.permissions_handler.update_permissions(user, permissions)
         )
-        assert channel.code == 200, channel.result
 
     def add_permission_to_a_user(self, user_to_permit: str, owning_user: str) -> None:
         perms = self.get_success_or_raise(

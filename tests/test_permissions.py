@@ -14,19 +14,10 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import json
 
-from synapse.server import HomeServer
-from synapse.util import Clock
-from twisted.internet import defer
-from twisted.internet.testing import MemoryReactor
-
-from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import (
-    Contact,
     GroupName,
-    InviteSettings,
     PermissionConfig,
 )
-from tests.base import ModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST
 from tests.unittest import TestCase
 
@@ -315,104 +306,3 @@ class PermissionConfigTest(TestCase):
         )
 
         assert_test_json_matches_permissions(test_json, test_permission_object)
-
-
-class PermissionsForcedMigrationTestCase(ModuleApiTestCase):
-    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
-        super().prepare(reactor, clock, homeserver)
-
-        # An unfortunate side effect of side loading the InviteChecker(or any module)
-        # is that it then runs it's startup routines twice. This is subpar, but this test
-        # takes care that the test data is injected after that startup has run.
-        # Unfortunately, Synapse has not provided a way to access these kinds of modules
-        # loaded into it's context; this is what we have to work with.
-        self.invchecker = InviteChecker(
-            self.hs.config.modules.loaded_modules[0][1], self.hs.get_module_api()
-        )
-
-        # users
-        self.user_a = self.register_user("a", "password")
-        self.user_b = self.register_user("b", "password")
-
-        # various contacts for 'a'
-        self.contact_alice = Contact(
-            displayName="Alice",
-            mxid="@alice:example.com",
-            inviteSettings=InviteSettings(start=0, end=None),
-        )
-        self.contact_bob = Contact(
-            displayName="Bob",
-            mxid="@bob:fakeserver.com",
-            inviteSettings=InviteSettings(start=0, end=None),
-        )
-        self.contact_charlie = Contact(
-            displayName="Charlie",
-            mxid="@charlie:some-other-server.com",
-            inviteSettings=InviteSettings(start=0, end=None),
-        )
-        # various contacts for 'b'
-        self.contact_darren = Contact(
-            displayName="Darren",
-            mxid="@darren:fakeserver.com",
-            inviteSettings=InviteSettings(start=0, end=None),
-        )
-        self.contact_elliott = Contact(
-            displayName="Elliott",
-            mxid="@elliot:example.com",
-            inviteSettings=InviteSettings(start=0, end=None),
-        )
-
-        self.get_success(self.invchecker.store.ensure_table_exists())
-        self.get_success(
-            self.invchecker.store.add_contact(self.user_a, self.contact_alice)
-        )
-        self.get_success(
-            self.invchecker.store.add_contact(self.user_a, self.contact_bob)
-        )
-
-        self.get_success(
-            self.invchecker.store.add_contact(self.user_a, self.contact_charlie)
-        )
-        self.get_success(
-            self.invchecker.store.add_contact(self.user_b, self.contact_darren)
-        )
-        self.get_success(
-            self.invchecker.store.add_contact(self.user_b, self.contact_elliott)
-        )
-
-    def test_startup_contact_migration(self) -> None:
-        # test table exists, because above
-        table_exists = self.get_success_or_raise(
-            self.invchecker.store.table_exists(True)
-        )
-        self.assertTrue(table_exists, "Beginning table exists")
-        # test get contacts, should have 2 owners in list
-        owner_contacts = self.get_success_or_raise(
-            self.invchecker.store.get_all_contact_owners_for_migration()
-        )
-
-        self.assertEquals(
-            len(owner_contacts),
-            2,
-            "should have been 2, where did they go?",
-        )
-        # trigger force migration
-        migration_deferred = defer.maybeDeferred(self.invchecker.after_startup)
-        self.get_success_or_raise(migration_deferred)
-
-        # test get contacts, should have 0 for any
-        owner_contacts = self.get_success_or_raise(
-            self.invchecker.store.get_all_contact_owners_for_migration()
-        )
-
-        self.assertEquals(
-            len(owner_contacts),
-            0,
-            "should have been 0, where did they come from?",
-        )
-
-        # let's just make sure
-        table_exists = self.get_success_or_raise(
-            (self.invchecker.store.table_exists(True))
-        )
-        self.assertFalse(table_exists, "Table should be gone at end")

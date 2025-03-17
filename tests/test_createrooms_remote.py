@@ -22,12 +22,11 @@ from twisted.internet.testing import MemoryReactor
 
 from tests.base import ModuleApiTestCase, construct_extra_content
 from tests.test_utils import (
-    DOMAIN_IN_LIST,
     DOMAIN2_IN_LIST,
+    DOMAIN_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL,
 )
-
 
 """
 These tests all focus on room creation at the API level. This allows us to test:
@@ -97,9 +96,9 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
         return None
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_hba_to_hba_create_room(self, label: str, is_public: bool) -> None:
+    def test_pro_to_pro_create_room(self, label: str, is_public: bool) -> None:
         """
-        Tests room creation from a local User-HBA to a remote User-HBA behaves as expected
+        Tests room creation from a local Pro-User to a remote Pro-User behaves as expected
         """
         room_id = self.user_create_room(
             self.pro_user_a,
@@ -108,59 +107,12 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
         )
         assert (
             (room_id is None) if is_public else room_id
-        ), f"User-HBA {label} room with remote User-HBA should be: {'denied' if is_public else 'allowed'}"
+        ), f"Pro-User {label} room with remote Pro-User should be: {'denied' if is_public else 'allowed'}"
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_user_and_hba_create_room(self, label: str, is_public: bool) -> None:
+    def test_pro_to_epa_create_room(self, label: str, is_public: bool) -> None:
         """
-        Tests room creation between a User and a User-HBA where either can be remote
-        """
-        # this one should fail if it's a public room or if local user has not given
-        # permission to another organization's User-HBA
-        room_id = self.user_create_room(
-            self.pro_user_b,
-            [self.remote_pro_user],
-            is_public=is_public,
-        )
-        assert (
-            room_id is None
-        ), f"Local User {label} room with remote User-HBA should be denied"
-
-        # this one should fail, no contact details
-        room_id = self.user_create_room(
-            self.pro_user_d,
-            [self.remote_pro_user],
-            is_public=is_public,
-        )
-        assert (
-            room_id is None
-        ), f"Local unlisted User {label} room with remote User-HBA should be denied"
-
-        # this one should fail, this remote user is not in publicly visible and user
-        # "a" has not given permission
-        room_id = self.user_create_room(
-            self.pro_user_a,
-            [self.remote_unlisted_user],
-            is_public=is_public,
-        )
-        assert (
-            room_id is None
-        ), f"Local User-HBA {label} room with remote unlisted User should be denied"
-
-        # this one should pass, as it's an organization User and the room is private
-        room_id = self.user_create_room(
-            self.pro_user_a,
-            [self.remote_org_user],
-            is_public=is_public,
-        )
-        assert (
-            (room_id is None) if is_public else room_id
-        ), f"Local User-HBA {label} room with remote User should be: {'denied' if is_public else 'allowed'}"
-
-    @parameterized.expand([("public", True), ("private", False)])
-    def test_hba_to_epa_create_room(self, label: str, is_public: bool) -> None:
-        """
-        Tests room creation from a local User-HBA to a remote insured User behaves as expected
+        Tests room creation from a local Pro-User to a remote insured User behaves as expected
         """
         room_id = self.user_create_room(
             self.pro_user_a,
@@ -168,20 +120,8 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
             is_public=is_public,
         )
         assert (
-            room_id is None
-        ), f"User-HBA {label} room with remote insured should be denied"
-
-        # Need to add in contact permission
-        self.add_a_contact_to_user_by_token(self.remote_epa_user, self.access_token_a)
-
-        room_id = self.user_create_room(
-            self.pro_user_a,
-            [self.remote_epa_user],
-            is_public=is_public,
-        )
-        assert (
             (room_id is None) if is_public else room_id
-        ), f"User-HBA {label} room with remote insured should be: {'denied' if is_public else 'allowed'}"
+        ), f"Pro-User {label} room with remote Epa-User should be: {'denied' if is_public else 'allowed'}"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_any_user_to_non_fed_domain_create_room_fails(
@@ -252,7 +192,7 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
             self.remote_non_fed_list_user,
             self.pro_user_b,
         ):
-            self.add_a_contact_to_user_by_token(remote_user_to_add, self.access_token_a)
+            self.add_permission_to_a_user(remote_user_to_add, self.pro_user_a)
 
         # Then try with contact permissions added
         for invitee_list in [
@@ -336,21 +276,10 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         return None
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_epa_to_hba_create_room(self, label: str, is_public: bool) -> None:
+    def test_epa_to_pro_create_room(self, label: str, is_public: bool) -> None:
         """
-        Tests room creation from a local insured User to a remote User-HBA behaves as expected
+        Tests room creation from a local insured User to a remote Pro-User behaves as expected
         """
-        room_id = self.user_create_room(
-            self.epa_user_d,
-            [self.remote_pro_user],
-            is_public=is_public,
-        )
-        assert (
-            room_id is None
-        ), f"User-ePA {label} room with remote User-HBA should not be created(before permission)"
-
-        self.add_permission_to_a_user(self.remote_pro_user, self.epa_user_d)
-
         room_id = self.user_create_room(
             self.epa_user_d,
             [self.remote_pro_user],
@@ -358,7 +287,7 @@ class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
         )
         assert (
             (room_id is None) if is_public else room_id
-        ), f"User-ePA {label} room with remote User-HBA should be(after permission): {'denied' if is_public else 'allowed'}"
+        ), f"Epa-User {label} room with remote Pro-User should be: {'denied' if is_public else 'allowed'}"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_epa_to_epa_create_room_fails(self, label: str, is_public: bool) -> None:

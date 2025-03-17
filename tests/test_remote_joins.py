@@ -15,22 +15,21 @@
 import logging
 from http import HTTPStatus
 from typing import Any
-
-from typing_extensions import override
 from unittest.mock import AsyncMock, Mock
 
 from parameterized import parameterized
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
+from typing_extensions import override
 
 from synapse_invite_checker import InviteChecker
+from synapse_invite_checker.types import PermissionConfig, PermissionDefaultSetting
 from tests.base import (
     FederatingModuleApiTestCase,
     construct_extra_content,
 )
 from tests.test_utils import DOMAIN_IN_LIST, INSURANCE_DOMAIN_IN_LIST
-
 
 logger = logging.getLogger(__name__)
 
@@ -132,40 +131,12 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test _with invites_ behavior for public and private rooms when there is an
         incoming remote user
         """
-        room_id = self.user_create_room(self.user_a, [], is_public=is_public)
-        assert room_id is not None, "Room should have been created"
-
-        # Test first with user 'a' who is 'pract' but is using permission of 'block all'
-        # Why this user would send an invite without granting permission first, I will
-        # never know.
-        # For a public room this should fail
-        # For a private room this will fail because lack of permissions
-        self.helper.invite(
-            room_id,
-            self.user_a,
-            self.remote_epa_user,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_a,
-        )
-
-        # public room should be forbidden
-        # private room should be forbidden, because invite was denied
-        self.send_join(
-            self.remote_epa_user,
-            room_id,
-            make_join_expected_code=HTTPStatus.FORBIDDEN,
-            # send_join_expected_code=HTTPStatus.FORBIDDEN,
-        )
-
-        # Try again with user "d", make a fresh room
+        # Try with user "d", make a fresh room
         room_id = self.user_create_room(self.user_d, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
-        # This user is granting permission for remote_epa_user to contact them
-        self.add_permission_to_a_user(self.remote_epa_user, self.user_d)
-
         # for a public room this should fail
-        # for a private room this should succeed(because permissions)
+        # for a private room this should succeed
         self.helper.invite(
             room_id,
             self.user_d,
@@ -239,27 +210,26 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         self, _: str, is_public: bool
     ) -> None:
         """
-        Test with invites behavior for public and private rooms when there is an
-        incoming remote user and local user has no visibility
+        Test with invites behavior for public and private rooms when inviting a remote user.
         """
         room_id = self.user_create_room(self.user_d, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
-        # Private room this should fail(remote user is 'pract' but local user is only 'org')
-        # Public room this should fail
+        # Inviting a remote user is allowed by default
         self.helper.invite(
             room_id,
             self.user_d,
             self.remote_hba_user,
-            expect_code=HTTPStatus.FORBIDDEN,
+            expect_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
             tok=self.access_token_d,
         )
 
-        # make_join should always fail, as the invite is blocked
         self.send_join(
             self.remote_hba_user,
             room_id,
-            make_join_expected_code=HTTPStatus.FORBIDDEN,
+            make_join_expected_code=(
+                HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK
+            ),
         )
 
 
@@ -504,6 +474,11 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         remote_room_id = self.create_remote_room(self.remote_epa_user, "10", is_public)
         assert remote_room_id is not None
 
+        self.set_permissions_for_user(
+            self.user_a,
+            PermissionConfig(defaultSetting=PermissionDefaultSetting.BLOCK_ALL),
+        )
+
         # Use user 'a' first
 
         # This should be enough to inject the "fact" we got an invite, and should
@@ -546,7 +521,13 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         assert remote_room_id is not None
 
         # User 'd' must grant their permission
-        self.add_permission_to_a_user(self.remote_epa_user, self.user_d)
+        self.set_permissions_for_user(
+            self.user_d,
+            PermissionConfig(
+                defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                userExceptions={self.remote_epa_user: dict()},
+            ),
+        )
 
         # This should be enough to inject the "fact" we got an invite, and should
         # allow private room joining.

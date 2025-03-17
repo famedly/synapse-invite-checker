@@ -20,7 +20,6 @@ from twisted.internet.testing import MemoryReactor
 
 from tests.base import ModuleApiTestCase
 
-
 logger = logging.getLogger(__name__)
 
 

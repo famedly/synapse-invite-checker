@@ -13,8 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import re
+from collections.abc import Awaitable, Callable
 from http import HTTPStatus
-from typing import Awaitable, Callable, List
 
 from synapse.http.servlet import RestServlet, parse_string
 from synapse.http.site import SynapseRequest
@@ -32,7 +32,7 @@ _TMI_schema_version = "1.0.0"
 INFO_API_PREFIX = "/tim-information"
 
 
-def tim_info_patterns(path_regex: str) -> List[re.Pattern]:
+def tim_info_patterns(path_regex: str) -> list[re.Pattern]:
     return invite_checker_pattern(INFO_API_PREFIX, path_regex)
 
 

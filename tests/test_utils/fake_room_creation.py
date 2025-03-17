@@ -91,11 +91,10 @@ class FakeRoom:
             _join_rule = JoinRules.PUBLIC
             _his_vis = HistoryVisibility.SHARED
             _guest_access = GuestAccess.FORBIDDEN
-        elif room_preset == RoomCreationPreset.PRIVATE_CHAT:
-            _join_rule = JoinRules.INVITE
-            _his_vis = HistoryVisibility.SHARED
-            _guest_access = GuestAccess.CAN_JOIN
-        elif room_preset == RoomCreationPreset.TRUSTED_PRIVATE_CHAT:
+        elif (
+            room_preset == RoomCreationPreset.PRIVATE_CHAT
+            or room_preset == RoomCreationPreset.TRUSTED_PRIVATE_CHAT
+        ):
             _join_rule = JoinRules.INVITE
             _his_vis = HistoryVisibility.SHARED
             _guest_access = GuestAccess.CAN_JOIN
@@ -574,6 +573,6 @@ def strip_state_event(pdu: dict[str, Any]) -> dict[str, Any]:
       * content
     """
     new_pdu = {}
-    for pdu_key in {"type", "state_key", "sender", "content"}:
+    for pdu_key in ("type", "state_key", "sender", "content"):
         new_pdu.update({pdu_key: pdu[pdu_key]})
     return new_pdu

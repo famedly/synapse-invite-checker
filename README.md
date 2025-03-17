@@ -34,7 +34,6 @@ modules:
         description: "Custom description for the endpoint", # Description for the info endpoint, optional
         contact: "random@example.com", # Contact information for the info endpoint, optional
         federation_list_url: "https://localhost:8080", # Full url where to fetch the federation list from, required
-        federation_localization_url: "https://localhost:8080/localization", # Full url where to fetch the federation localization from, required. Should be the same host as federation list.
         federation_list_client_cert: "tests/certs/client.pem", # path to a pem encoded client certificate for mtls, required if federation list url is https
         gematik_ca_baseurl: "https://download-ref.tsl.ti-dienste.de/", # the baseurl to the ca to use for the federation list, required
         tim-type: "epa" or "pro", # Patient/Insurance or Professional mode, defaults to "pro" mode. Optional currently, but will be required in a later release
@@ -50,10 +49,13 @@ modules:
           grace_period: see 'Duration Parsing' below # Length of time a room is allowed to have no message activity before it is eligible for deletion. Ignored if 'enabled' is false. Defaults to "26w" which is 6 months
         override_public_room_federation: true or false, # Forces the `m.federate` flag to be set to False when creating a public room to prevent it from federating. Default is "true", disable with "false"
 ```
+
 ### Duration Parsing
+
 Settings labeled as 'duration_parsing' allow for a string representation of the value
 that is converted to milliseconds. Suffixes with 's', 'm', 'h', 'd', 'w', or 'y' may be used. For example:
 `1h` would translate to `3600000` milliseconds
+
 ## Testing
 
 The tests uses twisted's testing framework trial, with the development

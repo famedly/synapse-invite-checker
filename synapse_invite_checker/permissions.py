@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from synapse.module_api import ModuleApi
 from synapse.types import UserID
@@ -35,12 +35,10 @@ class InviteCheckerPermissionsHandler:
     def __init__(
         self,
         api: ModuleApi,
-        localization_cb: Callable[[str], Awaitable[str]],
         is_domain_insurance_cb: Callable[[str], Awaitable[bool]],
     ) -> None:
         self.api = api
         self.account_data_manager = self.api.account_data_manager
-        self.fetch_localization_for_mxid = localization_cb
         self.is_domain_insurance = is_domain_insurance_cb
 
     async def get_permissions(self, user_id: str) -> PermissionConfig:
@@ -50,7 +48,7 @@ class InviteCheckerPermissionsHandler:
         )
         if account_data is None:
             permissions = PermissionConfig(
-                defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
             )
         else:
             permissions = PermissionConfig.model_validate(account_data)

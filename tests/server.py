@@ -90,8 +90,8 @@ from tests.utils import (
     POSTGRES_PORT,
     POSTGRES_USER,
     SQLITE_PERSIST_DB,
-    MockClock,
     USE_POSTGRES_FOR_TESTS,
+    MockClock,
     default_config,
 )
 
@@ -649,7 +649,7 @@ def validate_connector(connector: tcp.Connector, expected_ip: str) -> None:
     if cls is not None:
         try:
             cls(expected_ip)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             msg = f"Invalid IP type and resolution for {destination}. Expected {expected_ip} to be {cls.__name__}"
             raise ValueError(msg) from exc
     else:
@@ -733,7 +733,7 @@ class ThreadPool:
             else:
                 onResult(True, res)
 
-        d: "Deferred[None]" = Deferred()
+        d: Deferred[None] = Deferred()
         d.addCallback(lambda _: function(*args, **kwargs))
         d.addBoth(_)
         self._reactor.callLater(0, d.callback, True)
