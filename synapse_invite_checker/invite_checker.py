@@ -34,7 +34,9 @@ from OpenSSL.crypto import (
 from synapse.api.constants import (
     AccountDataTypes,
     Direction,
+    EventContentFields,
     EventTypes,
+    HistoryVisibility,
     JoinRules,
     Membership,
     RoomCreationPreset,
@@ -194,6 +196,9 @@ class InviteChecker:
         self.api.register_third_party_rules_callbacks(
             on_upgrade_room=self.on_upgrade_room
         )
+        self.api.register_third_party_rules_callbacks(
+            check_event_allowed=self.check_event_allowed
+        )
 
         dbconfig = None
         for dbconf in api._store.config.database.databases:
@@ -352,6 +357,14 @@ class InviteChecker:
             msg = "`override_public_room_federation` must be a boolean"
             raise ConfigError(msg)
         _config.override_public_room_federation = _override_public_room_federation
+
+        _prohibit_world_readable_rooms = config.get(
+            "prohibit_world_readable_rooms", _config.prohibit_world_readable_rooms
+        )
+        if not isinstance(_prohibit_world_readable_rooms, bool):
+            msg = "`prohibit_world_readable_rooms` must be a boolean"
+            raise ConfigError(msg)
+        _config.prohibit_world_readable_rooms = _prohibit_world_readable_rooms
         return _config
 
     def after_startup(self) -> None:
@@ -506,6 +519,59 @@ class InviteChecker:
                         return errors.Codes.FORBIDDEN
         return NOT_SPAM
 
+    async def check_event_allowed(
+        self, event: EventBase, context: StateMap[EventBase]
+    ) -> tuple[bool, dict | None] | None:
+        """
+        Check the 'event' to see if it is allowed to exist. This takes place before
+        the event is actually stored.
+        Args:
+            event: The unpersisted EventBase for the new Event
+            context: The StateMapping for the new Event, from just before the new Event
+
+        Returns: tuple of bool, for if the Event is 'allowed' and an optional dict of the
+        replacement to use for the new event, in case modification is needed. WARNING:
+        this has hazardous potential to break federation, and it is extremely unlikely
+        we will ever use it
+        """
+        # This call check has many places it can be used, short-circuit out as swiftly
+        # as is feasible
+        if not event.is_state() or not self.api.is_mine(event.sender):
+            # We only touch state events, and never anything from another server
+            return True, None
+        # Important Note: This callback also runs during room creation, and may end up
+        # being appropriate for checking the same things we check in `on_create_room()`.
+        # However, this callback is run for *every single event created* and should be
+        # kept as "light weight" as possible
+
+        # Forbid "m.room.join_rules" being anything but "private" for EPA, and only being
+        # "public" on PRO if "m.federate" is set to True in the creation event
+        if (
+            event.type == EventTypes.JoinRules
+            and event.content["join_rule"] == JoinRules.PUBLIC
+        ):
+            # EPA gets no public rooms, full stop
+            if self.config.tim_type == TimType.EPA:
+                return False, None
+            creation_event = context.get((EventTypes.Create, ""))
+            # `m.federate` defaults to True if unspecified
+            federated_flag = creation_event["content"].get(
+                EventContentFields.FEDERATE, True
+            )
+            # Remember to account for the override disabler
+            if federated_flag and self.config.override_public_room_federation:
+                return False, None
+
+        # If configured, forbid "m.room.history_visibility" to be set as "world_readable"
+        elif (
+            self.config.prohibit_world_readable_rooms
+            and event.type == EventTypes.RoomHistoryVisibility
+            and event.content["history_visibility"] == HistoryVisibility.WORLD_READABLE
+        ):
+            return False, None
+
+        return True, None
+
     async def on_create_room(
         self,
         requester: Requester,
@@ -571,22 +637,6 @@ class InviteChecker:
         is_public = (
             room_preset == RoomCreationPreset.PUBLIC_CHAT or room_visibility == "public"
         )
-        if not is_public:
-            # Also prevent a potential security issue by denying initial state from
-            # setting "public" for the room through the join_rule
-            if initial_state_list := request_content.get("initial_state"):
-                for initial_state_event in initial_state_list:
-                    state_type = initial_state_event.get("type")
-                    if state_type == EventTypes.JoinRules:
-                        join_rule = initial_state_event.get("content", {}).get(
-                            "join_rule"
-                        )
-                        if join_rule == JoinRules.PUBLIC:
-                            logger.warning(
-                                "User '%s' tried to create a public room by altering the join_rule in the initial_state",
-                                requester.user.to_string(),
-                            )
-                            is_public = True
 
         if self.config.tim_type == TimType.PRO:
             creation_content = request_content.get("creation_content", {})

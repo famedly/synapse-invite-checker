@@ -13,9 +13,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import contextlib
-from typing import Any
+from http import HTTPStatus
 
 from parameterized import parameterized
+from typing import Any
+
+from synapse.api.constants import EventTypes, HistoryVisibility, JoinRules
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
@@ -166,6 +169,44 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
         # invited, and the message was sent
         assert room_id, "Server notices room should have been found"
 
+    @parameterized.expand([("private", False), ("public", True)])
+    def test_create_room_then_modify_join_rules(
+        self, label: str, is_public: bool
+    ) -> None:
+        """
+        Test that a misbehaving client can not accidentally make their room public after
+        the room was created
+        """
+        room_id = self.user_create_room(self.pro_user_a, [], is_public=is_public)
+        assert room_id, f"{label} room should be created"
+        # This should be ALLOWED for an already public room, it's silly but is idempotent
+        self.helper.send_state(
+            room_id,
+            EventTypes.JoinRules,
+            {"join_rule": JoinRules.PUBLIC},
+            tok=self.access_token_a,
+            expect_code=HTTPStatus.OK if is_public else HTTPStatus.FORBIDDEN,
+        )
+
+    @parameterized.expand([("private", False), ("public", True)])
+    def test_create_room_then_modify_history_visibility(
+        self, label: str, is_public: bool
+    ) -> None:
+        """
+        Test that a misbehaving client can not accidentally make their room visible
+        after the room was created
+        """
+        room_id = self.user_create_room(self.pro_user_a, [], is_public=is_public)
+        assert room_id, f"{label} room should be created"
+        # This should be FORBIDDEN for any room
+        self.helper.send_state(
+            room_id,
+            EventTypes.RoomHistoryVisibility,
+            {"history_visibility": HistoryVisibility.WORLD_READABLE},
+            tok=self.access_token_a,
+            expect_code=HTTPStatus.FORBIDDEN,
+        )
+
 
 class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
     """
@@ -251,10 +292,7 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
             room_id is None
         ), f"{label} room should not be created with invites to: {invitee_list}"
 
-    @parameterized.expand([("public", True), ("private", False)])
-    def test_create_room_with_modified_join_rules(
-        self, label: str, is_public: bool
-    ) -> None:
+    def test_create_room_with_modified_join_rules(self) -> None:
         """
         Test that a misbehaving insurance client can not accidentally make their room public
         """
@@ -266,10 +304,59 @@ class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
         initial_state = {"initial_state": [join_rule]}
 
         room_id = self.user_d_create_room(
-            [], is_public=is_public, custom_initial_state=initial_state
+            [], is_public=False, custom_initial_state=initial_state
         )
         # Without the blocking put in place, this fails for private rooms
-        assert room_id is None, f"{label} room should NOT have been created"
+        assert room_id is None, "Private room should NOT have been created"
+
+    def test_create_room_with_modified_history_visibility(self) -> None:
+        """
+        Test that a misbehaving insurance client can not accidentally make their room visible
+        """
+        history_visibility = {
+            "type": EventTypes.RoomHistoryVisibility,
+            "state_key": "",
+            "content": {"history_visibility": HistoryVisibility.WORLD_READABLE},
+        }
+        initial_state = {"initial_state": [history_visibility]}
+
+        room_id = self.user_d_create_room(
+            [], is_public=False, custom_initial_state=initial_state
+        )
+        # Without the blocking put in place, this fails for private rooms
+        assert room_id is None, "Private room should NOT have been created"
+
+    def test_create_room_then_modify_join_rules(self) -> None:
+        """
+        Test that a misbehaving insurance client can not accidentally make their room
+        public after room was created
+        """
+        room_id = self.user_d_create_room([], is_public=False)
+        assert room_id, "Private room should be created"
+        # This should be FORBIDDEN
+        self.helper.send_state(
+            room_id,
+            EventTypes.JoinRules,
+            {"join_rule": JoinRules.PUBLIC},
+            tok=self.access_token,
+            expect_code=HTTPStatus.FORBIDDEN,
+        )
+
+    def test_create_room_then_modify_history_visibility(self) -> None:
+        """
+        Test that a misbehaving insurance client can not accidentally make their room
+        public after room was created
+        """
+        room_id = self.user_d_create_room([], is_public=False)
+        assert room_id, "Private room should be created"
+        # This should be FORBIDDEN
+        self.helper.send_state(
+            room_id,
+            EventTypes.RoomHistoryVisibility,
+            {"history_visibility": HistoryVisibility.WORLD_READABLE},
+            tok=self.access_token,
+            expect_code=HTTPStatus.FORBIDDEN,
+        )
 
     def test_create_server_notices_room(self) -> None:
         """

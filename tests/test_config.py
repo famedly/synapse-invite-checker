@@ -179,3 +179,29 @@ class ConfigParsingTestCase(TestCase):
         test_config = self.config.copy()
         test_config.update({"override_public_room_federation": "nope"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+    def test_prohibit_world_readable_rooms_override_defaults_to_true(self) -> None:
+        test_config = self.config.copy()
+        config = InviteChecker.parse_config(test_config)
+        assert (
+            config.prohibit_world_readable_rooms
+        ), "`prohibit_world_readable_rooms` should default to 'True'"
+
+    def test_prohibit_world_readable_rooms_override_can_be_disabled(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"prohibit_world_readable_rooms": False})
+        config = InviteChecker.parse_config(test_config)
+        assert (
+            config.prohibit_world_readable_rooms is False
+        ), "`prohibit_world_readable_rooms` should be `False`'"
+
+    def test_prohibit_world_readable_rooms_override_raises(self) -> None:
+        test_config = self.config.copy()
+        # Although a boolean is an int, and int is not a boolean
+        test_config.update({"prohibit_world_readable_rooms": "1"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # No silly strings. Shame, really....
+        test_config = self.config.copy()
+        test_config.update({"prohibit_world_readable_rooms": "hi_mom!"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
