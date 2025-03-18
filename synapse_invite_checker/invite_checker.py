@@ -687,7 +687,7 @@ class InviteChecker:
                 return errors.Codes.FORBIDDEN
 
         logger.debug(
-            "Not allowing invite since permission checks did not pass. (%s -> %s)",
+            "Allowing invite since no other permission checks block. (%s -> %s)",
             invitee,
             inviter,
         )
