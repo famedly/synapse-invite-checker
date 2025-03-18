@@ -102,7 +102,7 @@ class FakeRoom:
             raise ValueError("'room_preset' was an unknown value")
 
         join_rule = join_rule_override or _join_rule
-        history_visibiltity = history_visibility_override or _his_vis
+        history_visibility = history_visibility_override or _his_vis
         guest_access = guest_access_override or _guest_access
 
         # Build the room
@@ -111,7 +111,7 @@ class FakeRoom:
         _power_levels_event = self.initial_power_levels_event()
         _join_rules_event = self.initial_join_rules_event(join_rule)
         _history_visibility_event = self.initial_history_visibility_event(
-            history_visibiltity
+            history_visibility
         )
         _guest_access_event = self.initial_guest_access_event(guest_access)
         # TODO: sort out what other state bits should add
