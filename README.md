@@ -37,6 +37,16 @@ modules:
         federation_list_client_cert: "tests/certs/client.pem", # path to a pem encoded client certificate for mtls, required if federation list url is https
         gematik_ca_baseurl: "https://download-ref.tsl.ti-dienste.de/", # the baseurl to the ca to use for the federation list, required
         tim-type: "epa" or "pro", # Patient/Insurance or Professional mode, defaults to "pro" mode. Optional currently, but will be required in a later release
+        defaultPermissions: # see 'defaultPermissions' below. The server defaults for new users or existing users with no permissions already set. Other than the noted default for 'defaultSetting', no other defaults are established
+          defaultSetting: "allow all" or "block all" # Default "allow all"
+          serverExceptions:
+            "<server_name>": # The server names to include. Note the ':' on the end and that double quotes are needed around server names
+            "@LOCAL_SERVER@": # A special option to template the local server into without having to know its name. Note that the double quotes are required for this special case.
+          userExceptions:
+            "<mxid>": # Any users that should be an exception to the 'defaultSetting'.
+            "@user:some_server.com": # An example. Note the ':' on the end and that double quotes are needed around user names
+          groupException:
+          - groupName: "isInsuredPerson" # For the moment, the only option. Note the double quotes and the hyphen at the start of the line
         allowed_room_versions: # The list(as strings) of allowed room versions. Currently optional, defaults are listed
           - "9"
           - "10"
@@ -50,6 +60,30 @@ modules:
         override_public_room_federation: true or false, # Forces the `m.federate` flag to be set to False when creating a public room to prevent it from federating. Default is "true", disable with "false"
         prohibit_world_readable_rooms: true or false, # Prevent setting any rooms history visibility as 'world_readable'. Defaults to "true"
         block_invites_into_dms: true or false, # Prevent invites into existing DM chats. Defaults to true
+```
+### defaultPermissions
+
+For establishing the default permissions for the users on this server. As the simplest
+example:
+```yaml
+defaultPermissions:
+  defaultSetting: "allow all"
+```
+This is what the default will be if no setting is entered for this section.
+
+an example to allow all communication except for insured users
+```yaml
+defaultPermissions:
+  defaultSetting: "allow all"
+  groupException:
+    - groupName: "isInsuredPerson"
+```
+and an example of blocking all communication except for users on the local server
+```yaml
+defaultPermissions:
+  defaultSetting: "block all"
+  serverExceptions:
+    "@LOCAL_SERVER@":
 ```
 
 ### Duration Parsing

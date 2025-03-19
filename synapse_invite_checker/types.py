@@ -14,9 +14,15 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from enum import Enum, auto
 from functools import cached_property
-from typing import Annotated, Any
+from typing import Annotated, Any, Final
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+)
 from synapse.types import UserID
 
 
@@ -84,6 +90,49 @@ class PermissionConfig(BaseModel):
             for groupException in self.groupExceptions
             if groupException.get("groupName") == group_name.value
         )
+
+
+LOCAL_SERVER_TEMPLATE: Final[str] = "@LOCAL_SERVER@"
+
+
+class DefaultPermissionConfig(PermissionConfig):
+    """
+    Extend PermissionConfig to include a few additional necessities. Use a
+    @field_validator() call to set the objects required per gematik spec on the sub-keys
+    of serverExceptions and userExceptions. This way can avoid having to hard-wire a '
+    {}' into the generated configuration for the module
+    """
+
+    @field_validator("serverExceptions", "userExceptions", mode="before")
+    @staticmethod
+    def transform_field(keys: dict) -> dict:
+        """
+        This will run on model_validate(and it's variants) to transform the fields to
+        include the required empty object as the value per gematik spec.
+        """
+        # Use this to transform the fields in PermissionConfig from(for example):
+        # {"serverExceptions": {"server_name.com": None}}
+        # to
+        # {"serverExceptions": {"server_name.com": {}}}
+        for key, value in dict(keys).items():
+            if value is None:
+                keys[key] = {}
+        return keys
+
+    def maybe_update_server_exceptions(self, local_server_name: str) -> None:
+        """
+        Swap out the template variable assigned by LOCAL_SERVER_TEMPLATE(above) to
+        register the *actual* local server name
+        Args:
+            local_server_name: the local server name
+
+        Returns: None
+        """
+        if LOCAL_SERVER_TEMPLATE in self.serverExceptions:
+            self.serverExceptions.setdefault(
+                local_server_name, self.serverExceptions.get(LOCAL_SERVER_TEMPLATE)
+            )
+            del self.serverExceptions[LOCAL_SERVER_TEMPLATE]
 
 
 class FederationDomain(BaseModel):

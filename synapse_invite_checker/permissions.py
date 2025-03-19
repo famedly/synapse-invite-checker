@@ -18,9 +18,9 @@ from synapse.module_api import ModuleApi
 from synapse.types import UserID
 
 from synapse_invite_checker.types import (
+    DefaultPermissionConfig,
     PermissionConfig,
     PermissionConfigType,
-    PermissionDefaultSetting,
 )
 
 
@@ -36,20 +36,25 @@ class InviteCheckerPermissionsHandler:
         self,
         api: ModuleApi,
         is_domain_insurance_cb: Callable[[str], Awaitable[bool]],
+        default_perms_from_config: DefaultPermissionConfig,
     ) -> None:
         self.api = api
         self.account_data_manager = self.api.account_data_manager
         self.is_domain_insurance = is_domain_insurance_cb
+        self.default_perms = default_perms_from_config
 
     async def get_permissions(self, user_id: str) -> PermissionConfig:
         config_type = await self.get_config_type_from_mxid(user_id)
         account_data = await self.account_data_manager.get_global(
             user_id, config_type.value
         )
-        if account_data is None:
-            permissions = PermissionConfig(
-                defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
-            )
+
+        # Overwrite or set the permissions in two cases:
+        # 1. No existing permissions or if they are somehow mis-set as {}
+        # 2. The defaultSetting key is missing, indicating a broken permission structure
+        if not account_data or not account_data.get("defaultSetting"):
+            permissions = self.default_perms
+            await self.update_permissions(user_id, permissions)
         else:
             permissions = PermissionConfig.model_validate(account_data)
         return permissions

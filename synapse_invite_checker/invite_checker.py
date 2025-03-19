@@ -15,7 +15,7 @@
 import base64
 import functools
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from contextlib import suppress
 from typing import Any, Literal
 from urllib.parse import quote, urlparse
@@ -73,7 +73,7 @@ from twisted.web.client import HTTPConnectionPool
 from twisted.web.iweb import IPolicyForHTTPS
 from zope.interface import implementer
 
-from synapse_invite_checker.config import InviteCheckerConfig
+from synapse_invite_checker.config import DefaultPermissionConfig, InviteCheckerConfig
 from synapse_invite_checker.permissions import (
     InviteCheckerPermissionsHandler,
 )
@@ -84,7 +84,11 @@ from synapse_invite_checker.rest.messenger_info import (
     MessengerIsInsuranceResource,
 )
 from synapse_invite_checker.store import InviteCheckerStore
-from synapse_invite_checker.types import FederationList, TimType
+from synapse_invite_checker.types import (
+    FederationList,
+    PermissionDefaultSetting,
+    TimType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +187,11 @@ class InviteChecker:
         # Need this for the @measure_func decorator to work
         self.clock = api._hs.get_clock()
         self.config = config
+        # Can not do this as part of parse_config() as there is no access to the server
+        # name yet
+        self.config.default_permissions.maybe_update_server_exceptions(
+            self.api._hs.config.server.server_name
+        )
 
         self.federation_list_client = FederationAllowListClient(api._hs, self.config)
 
@@ -199,6 +208,9 @@ class InviteChecker:
         self.api.register_third_party_rules_callbacks(
             check_event_allowed=self.check_event_allowed
         )
+        self.api.register_spam_checker_callbacks(
+            check_login_for_spam=self.check_login_for_spam
+        )
 
         dbconfig = None
         for dbconf in api._store.config.database.databases:
@@ -214,9 +226,12 @@ class InviteChecker:
         ) as db_conn:
             self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
+        # Make sure this doesn't get initialized until after the default permissions
+        # were potentially modified to account for the local server template
         self.permissions_handler = InviteCheckerPermissionsHandler(
             self.api,
             self.is_domain_insurance,
+            self.config.default_permissions,
         )
 
         self.task_scheduler = api._hs.get_task_scheduler()
@@ -291,6 +306,12 @@ class InviteChecker:
         else:
             msg = "`tim-type` setting is not a recognized value. Please fix."
             raise ConfigError(msg)
+
+        _default_permissions = config.get(
+            "defaultPermissions", {"defaultSetting": PermissionDefaultSetting.ALLOW_ALL}
+        )
+        def_perm_model = DefaultPermissionConfig(**_default_permissions)
+        _config.default_permissions = def_perm_model
 
         _allowed_room_versions = config.get("allowed_room_versions", ["9", "10"])
         if not _allowed_room_versions or not isinstance(_allowed_room_versions, list):
@@ -667,6 +688,21 @@ class InviteChecker:
                     "Creation of a public room is not allowed",
                     errors.Codes.FORBIDDEN,
                 )
+
+    async def check_login_for_spam(
+        self,
+        user_id: str,
+        device_id: str | None,
+        initial_display_name: str | None,
+        request_info: Collection[tuple[str | None, str]],
+        auth_provider_id: str | None = None,
+    ) -> Literal["NOT_SPAM"] | errors.Codes:
+        # Default permissions are populated automatically when fetching them. This
+        # ensures users can see the default permissions in their client when they sign
+        # in.
+        await self.permissions_handler.get_permissions(user_id)
+
+        return NOT_SPAM
 
     async def user_may_invite(
         self, inviter: str, invitee: str, room_id: str | None = None
