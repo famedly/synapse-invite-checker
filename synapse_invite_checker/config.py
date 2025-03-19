@@ -47,3 +47,4 @@ class InviteCheckerConfig:
         default_factory=InactiveRoomScanConfig
     )
     override_public_room_federation: bool = True
+    prohibit_world_readable_rooms: bool = True
