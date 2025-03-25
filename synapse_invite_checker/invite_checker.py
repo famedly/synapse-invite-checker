@@ -610,14 +610,50 @@ class InviteChecker:
     ) -> None:
         """
         Raise a SynapseError if creating a room should be denied. Currently, this checks
-        invites
-        room version
+        * invites
+        * room version
+        * room public-ness via room creation presets
         """
+        # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
+        # Do not allow "public_chat". Default is based on setting of visibility
+        room_preset: str = request_content.get("preset")
+        # visibility can be either "public" or "private". If not included, it defaults to "private"
+        room_visibility: str = request_content.get("visibility", "private")
+        # Determine based on above that the room is probably public
+        is_public = (
+            room_preset == RoomCreationPreset.PUBLIC_CHAT or room_visibility == "public"
+        )
+
+        if self.config.tim_type == TimType.PRO:
+            creation_content = request_content.get("creation_content", {})
+            # m.federate defaults to True if unspecified
+            can_federate = creation_content.get("m.federate", True)
+
+            if can_federate and is_public:
+                if self.config.override_public_room_federation:
+                    logger.debug("Overriding `m.room.create` to disable federation")
+                    request_content.setdefault("creation_content", {}).update(
+                        {"m.federate": False}
+                    )
+                else:
+                    logger.warning(
+                        "Room creation with a public room allowed to federate detected."
+                    )
+
+        # Forbid EPA servers from creating any kind of public room
+        if self.config.tim_type == TimType.EPA:
+            if is_public:
+                raise SynapseError(
+                    400,
+                    "Creation of a public room is not allowed",
+                    errors.Codes.FORBIDDEN,
+                )
+
         if is_request_admin:
             return
 
         # Unlike `user_may_invite()`, `on_create_room()` only runs with the inviter being
-        # a local user and the invitee is remote. Unfortunately, the spam check module
+        # a local user; the invitee can be local/remote. Unfortunately, the spam check module
         # function `user_may_create_room()` only accepts the user creating the room and
         # has no other information provided.
 
@@ -657,41 +693,6 @@ class InviteChecker:
                 f"Room version ('{room_version}') not allowed",
                 errors.Codes.FORBIDDEN,
             )
-
-        # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
-        # Do not allow "public_chat". Default is based on setting of visibility
-        room_preset: str = request_content.get("preset")
-        # visibility can be either "public" or "private". If not included, it defaults to "private"
-        room_visibility: str = request_content.get("visibility", "private")
-        # Determine based on above that the room is probably public
-        is_public = (
-            room_preset == RoomCreationPreset.PUBLIC_CHAT or room_visibility == "public"
-        )
-
-        if self.config.tim_type == TimType.PRO:
-            creation_content = request_content.get("creation_content", {})
-            # m.federate defaults to True if unspecified
-            can_federate = creation_content.get("m.federate", True)
-
-            if can_federate and is_public:
-                if self.config.override_public_room_federation:
-                    logger.debug("Overriding `m.room.create` to disable federation")
-                    request_content.setdefault("creation_content", {}).update(
-                        {"m.federate": False}
-                    )
-                else:
-                    logger.warning(
-                        "Room creation with a public room allowed to federate detected."
-                    )
-
-        # Forbid EPA servers from creating any kind of public room
-        if self.config.tim_type == TimType.EPA:
-            if is_public:
-                raise SynapseError(
-                    400,
-                    "Creation of a public room is not allowed",
-                    errors.Codes.FORBIDDEN,
-                )
 
     async def check_login_for_spam(
         self,

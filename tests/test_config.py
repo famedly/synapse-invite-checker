@@ -91,7 +91,6 @@ class ConfigParsingTestCase(TestCase):
 
     def test_allowed_room_versions_is_not_a_list(self) -> None:
         test_config = self.config.copy()
-        # test_config.update({"allowed_room_versions": "['9', '10']"})
 
         assert InviteChecker.parse_config(test_config)
 
@@ -112,7 +111,7 @@ class ConfigParsingTestCase(TestCase):
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
 
         # This one is okay, these are integers and can be coerced into strings
-        test_config.update({"allowed_room_versions": [9, 10]})  # type: ignore[arg-type]
+        test_config.update({"allowed_room_versions": [9, 10]})
         assert InviteChecker.parse_config(test_config)
 
         # This is allowed
@@ -139,7 +138,7 @@ class ConfigParsingTestCase(TestCase):
         test_config.update({"insured_only_room_scan": "bad value"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
 
-        # Shouldn't work if set to a
+        # Shouldn't work if set to a list of strings
         test_config.update({"insured_only_room_scan": ["what", "is", "a", "list?"]})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
 
@@ -148,7 +147,7 @@ class ConfigParsingTestCase(TestCase):
         test_config.update({"inactive_room_scan": "not a dict"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
 
-        # Shouldn't work if set to a
+        # Shouldn't work if set to a list of strings
         test_config.update(
             {"inactive_room_scan": ["lists", "are", "only", "good", "on", "mondays"]}
         )
@@ -171,7 +170,7 @@ class ConfigParsingTestCase(TestCase):
 
     def test_public_room_override_raises(self) -> None:
         test_config = self.config.copy()
-        # Although a boolean is an int, and int is not a boolean
+        # Although a boolean is an int, an int is not a boolean
         test_config.update({"override_public_room_federation": "0"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
 
@@ -197,7 +196,7 @@ class ConfigParsingTestCase(TestCase):
 
     def test_prohibit_world_readable_rooms_override_raises(self) -> None:
         test_config = self.config.copy()
-        # Although a boolean is an int, and int is not a boolean
+        # Although a boolean is an int, an int is not a boolean
         test_config.update({"prohibit_world_readable_rooms": "1"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
 

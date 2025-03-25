@@ -34,7 +34,10 @@ from synapse.util import Clock, stringutils
 
 class FakeRoom:
     """
-    This creates enough of a room to allow a remote join to complete processing
+    This creates enough of a room to allow a remote join to complete processing. Do not
+    re-use these rooms like can be done for local rooms: the infrastructure does not
+    exist to properly send new information into the room and repeated invites/joins will
+    not work.
     """
 
     room_version: RoomVersion

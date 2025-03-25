@@ -18,37 +18,27 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import ModuleApiTestCase
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 
-class LocalProModeInviteTest(ModuleApiTestCase):
+class LocalProModeInviteTest(FederatingModuleApiTestCase):
     """
-    These tests do not cover invites during room creation.
+    These PRO server tests are for invites that happen after the room creation process
+    has completed
     """
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
         self.user_a = self.register_user("a", "password")
         self.access_token = self.login("a", "password")
         self.user_b = self.register_user("b", "password")
         self.user_c = self.register_user("c", "password")
-
-        # @d:test is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
         self.user_d = self.register_user("d", "password")
-
-        # authenticated as user_a
-        self.helper.auth_user_id = self.user_a
 
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, but nobody else invited"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -88,9 +78,7 @@ class LocalProModeInviteTest(ModuleApiTestCase):
 
     def test_invite_to_group(self) -> None:
         """Tests that a group with local users works normally"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -129,9 +117,7 @@ class LocalProModeInviteTest(ModuleApiTestCase):
 
     def test_invite_to_group_without_dm_event(self) -> None:
         """Tests that a group with local users works normally in case the user has no m.direct set"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room not created"
 
         # Can invite other users
@@ -158,35 +144,20 @@ class LocalProModeInviteTest(ModuleApiTestCase):
         )
 
 
-class LocalEpaModeInviteTest(ModuleApiTestCase):
+class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     """
-    These tests do not cover invites during room creation.
-
-        NOTE: This should not be allowed to work. Strictly speaking, a server that is
-    in 'epa' mode should always appear on the federation list as an 'isInsurance'.
-    For the moment, all we do is log a warning. This will be changed in the future
-    which will require assuming the identity of an insurance domain to test with.
-
+    These EPA server tests are for invites that happen after the room creation process
+    has completed
     """
 
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        # Can't use any of:
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
-        # as they should not exist on an 'ePA' mode server backend
-
-        # 'd', 'e' and 'f' is none of those types of actor and should be just regular 'User's
         self.user_d = self.register_user("d", "password")
         self.user_e = self.register_user("e", "password")
         self.user_f = self.register_user("f", "password")
         self.access_token = self.login("d", "password")
-
-        # authenticated as user_d
-        self.helper.auth_user_id = self.user_d
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -200,9 +171,7 @@ class LocalEpaModeInviteTest(ModuleApiTestCase):
 
     def test_invite_to_dm_post_room_creation(self) -> None:
         """Tests that a private room as a dm will deny inviting any local users"""
-        room_id = self.helper.create_room_as(
-            self.user_d, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -235,9 +204,7 @@ class LocalEpaModeInviteTest(ModuleApiTestCase):
 
     def test_invite_to_group_post_room_creation(self) -> None:
         """Tests that a private room for a group will deny inviting any local users, with an unrelated m.direct tag"""
-        room_id = self.helper.create_room_as(
-            self.user_d, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -269,9 +236,7 @@ class LocalEpaModeInviteTest(ModuleApiTestCase):
 
     def test_invite_to_group_without_dm_event_post_room_creation(self) -> None:
         """Tests that a group with local users is denied when the user has no m.direct set"""
-        room_id = self.helper.create_room_as(
-            self.user_d, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id, "Room not created"
 
         # Can't invite other users
@@ -291,7 +256,7 @@ class LocalEpaModeInviteTest(ModuleApiTestCase):
         )
 
 
-class DisabledDMCheckInviteTest(ModuleApiTestCase):
+class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
     """
     This tests to make sure the DM check can be disabled
     """
@@ -319,9 +284,7 @@ class DisabledDMCheckInviteTest(ModuleApiTestCase):
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, and others can be invited"""
         # This just copies the test from LocalProModeInviteTest but adjusts the expect_code to 200
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event

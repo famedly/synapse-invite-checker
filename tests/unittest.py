@@ -836,9 +836,8 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, hs: HomeServer) -> None:
         super().prepare(reactor, clock, hs)
-
-        signing_key = self.inject_servers_signing_key(self.OTHER_SERVER_NAME)
-        self.map_server_name_to_signing_key = {self.OTHER_SERVER_NAME: signing_key}
+        self.map_server_name_to_signing_key = {}
+        self.inject_servers_signing_key(self.OTHER_SERVER_NAME)
 
     def inject_servers_signing_key(self, remote_server_name: str) -> SigningKey:
         # poke the other server's signing key into the key store, so that we don't
@@ -869,6 +868,9 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
                 },
             )
         )
+        # Save it to the map
+        self.map_server_name_to_signing_key[remote_server_name] = private_signature_key
+
         return private_signature_key
 
     def create_resource_dict(self) -> dict[str, Resource]:
@@ -893,7 +895,9 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         """
 
         custom_headers = [] if custom_headers is None else list(custom_headers)
-
+        assert (
+            from_server in self.map_server_name_to_signing_key
+        ), f"Signing key for {from_server} not found in map"
         custom_headers.append(
             (
                 "Authorization",
@@ -931,6 +935,9 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         Returns:
              The modified event dict, for convenience
         """
+        assert (
+            server_name in self.map_server_name_to_signing_key
+        ), f"Signing key for {server_name} not found in map"
         add_hashes_and_signatures(
             room_version,
             event_dict,

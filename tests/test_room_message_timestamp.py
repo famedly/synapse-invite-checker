@@ -18,46 +18,24 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import ModuleApiTestCase
+from tests.base import FederatingModuleApiTestCase
 
 logger = logging.getLogger(__name__)
 
 
-class MessageTimestampTestCase(ModuleApiTestCase):
+class MessageTimestampTestCase(FederatingModuleApiTestCase):
+    """
+    Test to prove the last message timestamp can be obtained for room scanning purposes
+    """
+
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
         self.user_a = self.register_user("a", "password")
-        self.access_token_a = self.login("a", "password")
         self.user_b = self.register_user("b", "password")
+        self.access_token_a = self.login("a", "password")
         self.access_token_b = self.login("b", "password")
-        self.user_c = self.register_user("c", "password")
-
-        # @d:test is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
-        self.user_d = self.register_user("d", "password")
-        self.access_token_d = self.login("d", "password")
-
-    def user_a_create_room(
-        self,
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        return self.helper.create_room_as(
-            self.user_a,
-            is_public=is_public,
-            tok=self.access_token_a,
-        )
 
     def test_can_find_last_message_timestamp(self) -> None:
-        # self.hs.mockmod: InviteChecker
         # create a room, add another user
         # send a message, get the timestamp
         # send two more messages, get the timestamp
@@ -71,12 +49,12 @@ class MessageTimestampTestCase(ModuleApiTestCase):
             event_ts = event_id.get("origin_server_ts")
 
             ts_found = self.get_success_or_raise(
-                self.hs.mockmod.get_timestamp_of_last_eligible_activity_in_room(room)
+                self.inv_checker.get_timestamp_of_last_eligible_activity_in_room(room)
             )
 
             self.assertEqual(event_ts, ts_found)
 
-        room_id = self.user_a_create_room(is_public=False)
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room created"
 
         self.helper.invite(room_id, targ=self.user_b, tok=self.access_token_a)

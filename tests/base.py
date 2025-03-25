@@ -15,6 +15,8 @@
 
 import base64
 import json
+import logging
+from collections.abc import Iterable
 from http import HTTPStatus
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
@@ -43,13 +45,15 @@ from typing_extensions import override
 import tests.unittest as synapsetest
 from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import PermissionConfig
-from tests.server import FakeChannel
+from tests.server import CustomHeaderType, FakeChannel
 from tests.test_utils import (
     INSURANCE_DOMAIN_IN_LIST,
     SERVER_NAME_FROM_LIST,
 )
 from tests.test_utils.fake_room_creation import FakeRoom
 
+
+logger = logging.getLogger(__name__)
 # ruff: noqa: E501
 # We don't care about long lines in our testdata
 
@@ -208,8 +212,10 @@ class FakeInviteResponse:
     }
 
 
-class ModuleApiTestCase(synapsetest.HomeserverTestCase):
+class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     server_name_for_this_server = SERVER_NAME_FROM_LIST
+    OTHER_SERVER_NAME = INSURANCE_DOMAIN_IN_LIST
+    ROOM_VERSION = "10"
 
     @classmethod
     def setUpClass(cls):
@@ -246,112 +252,6 @@ class ModuleApiTestCase(synapsetest.HomeserverTestCase):
         notifications.register_servlets,
     ]
 
-    # Ignore ARG001
-    @override
-    def prepare(
-        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
-    ) -> None:
-        self.store = homeserver.get_datastores().main
-        self.module_api = homeserver.get_module_api()
-        self.event_creation_handler = homeserver.get_event_creation_handler()
-        self.sync_handler = homeserver.get_sync_handler()
-        self.auth_handler = homeserver.get_auth_handler()
-        self.inv_checker: InviteChecker = self.hs.mockmod
-
-    @override
-    def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
-        # Mock out the calls over federation.
-        self.fed_transport_client = Mock(spec=["send_transaction"])
-        self.fed_transport_client.send_transaction = AsyncMock(return_value={})
-        # Hijack the federation invitation infrastructure in the handler so do not have
-        # to do things like check signature validation and event structure
-        self.fed_handler = Mock(spec=["send_invite"])
-        self.fed_handler.send_invite = AsyncMock(return_value=FakeInviteResponse())
-
-        return self.setup_test_homeserver(
-            # Masquerade as a domain found on the federation list, then we can pass
-            # tests that verify that fact
-            self.server_name_for_this_server,
-            federation_transport_client=self.fed_transport_client,
-            federation_handler=self.fed_handler,
-        )
-
-    def default_config(self) -> dict[str, Any]:
-        # Explicitly set the 'default_room_version', as the upstream default may change
-        # and that won't be valid for gematik spec
-        conf = super().default_config()
-        if "modules" not in conf:
-            conf["modules"] = [
-                {
-                    "module": "synapse_invite_checker.InviteChecker",
-                    "config": {
-                        "tim-type": "pro",
-                        "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
-                        "federation_list_client_cert": "tests/certs/client.pem",
-                        "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
-                        "allowed_room_versions": ["9", "10"],
-                    },
-                }
-            ]
-        conf["default_room_version"] = "10"
-        return conf
-
-    def set_permissions_for_user(
-        self, user: str, permissions: PermissionConfig
-    ) -> None:
-        self.get_success_or_raise(
-            self.inv_checker.permissions_handler.update_permissions(user, permissions)
-        )
-
-    def add_permission_to_a_user(self, user_to_permit: str, owning_user: str) -> None:
-        perms = self.get_success_or_raise(
-            self.inv_checker.permissions_handler.get_permissions(owning_user)
-        )
-        perms.userExceptions.setdefault(user_to_permit, {})
-        self.get_success_or_raise(
-            self.inv_checker.permissions_handler.update_permissions(owning_user, perms)
-        )
-
-
-class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
-    server_name_for_this_server = SERVER_NAME_FROM_LIST
-    OTHER_SERVER_NAME = INSURANCE_DOMAIN_IN_LIST
-    ROOM_VERSION = "10"
-
-    @classmethod
-    def setUpClass(cls):
-        cls._patcher1 = patch(
-            "synapse_invite_checker.InviteChecker._raw_federation_list_fetch",
-            new=AsyncMock(return_value=rawjwt),
-        )
-        cls._patcher2 = patch(
-            "synapse_invite_checker.InviteChecker._raw_gematik_root_ca_fetch",
-            new=AsyncMock(return_value=json.loads(raw_ca_list)),
-        )
-        cls._patcher3 = patch(
-            "synapse_invite_checker.InviteChecker._raw_gematik_intermediate_cert_fetch",
-            new=AsyncMock(side_effect=return_gem_cert),
-        )
-        cls._patcher1.start()
-        cls._patcher2.start()
-        cls._patcher3.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._patcher1.stop()
-        cls._patcher2.stop()
-        cls._patcher3.stop()
-
-    servlets = [
-        admin.register_servlets,
-        account_data.register_servlets,
-        login.register_servlets,
-        room.register_servlets,
-        presence.register_servlets,
-        profile.register_servlets,
-        notifications.register_servlets,
-    ]
-
     def prepare(
         self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
     ) -> None:
@@ -366,6 +266,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
 
         # Map room_id to FakeRoom
         self.remote_rooms: dict[str, FakeRoom] = {}
+        self.map_user_id_to_token = {}
 
     @override
     def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
@@ -511,6 +412,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         self, creator_id: str, room_version: str, is_public: bool
     ) -> str:
         domain = UserID.from_string(creator_id).domain
+        assert (
+            domain in self.map_server_name_to_signing_key
+        ), f"Signing key for {domain} not found in map"
         remote_room = FakeRoom(
             self.hs.config,
             self.clock,
@@ -607,7 +511,6 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                 mock_send_join,
             ),
         ):
-
             try:
                 self.get_success_or_raise(
                     self.hs.get_room_member_handler().update_membership(
@@ -664,3 +567,93 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             remote_room.promote_member_invite(channel.json_body["event"])
 
         return channel.json_body
+
+    def login(
+        self,
+        username: str,
+        password: str,
+        device_id: str | None = None,
+        additional_request_fields: dict[str, str] | None = None,
+        custom_headers: Iterable[CustomHeaderType] | None = None,
+    ) -> str:
+        """
+        Supplement the base class login() call to handle access tokens mapping for future requests
+        Args:
+            username:
+            password:
+            device_id:
+            additional_request_fields:
+            custom_headers:
+
+        Returns: the access token, for backwards compatibilty
+
+        """
+        access_token = super().login(
+            username,
+            password,
+            device_id=device_id,
+            additional_request_fields=additional_request_fields,
+            custom_headers=custom_headers,
+        )
+        # When requests are placed, it will be the full mxid that is provided
+        self.map_user_id_to_token[f"@{username}:{self.server_name_for_this_server}"] = (
+            access_token
+        )
+        return access_token
+
+    def create_local_room(
+        self,
+        creating_user: str,
+        invitee_list: list[str],
+        is_public: bool,
+        override_content: dict[str, Any] | None = None,
+    ) -> str | None:
+        """
+        Custom helper to send an api request with a full set of required additional room
+        state to the room creation matrix endpoint. This allows for a fuller simulation
+        of required gematik bits.
+
+        'override_content' will override every key in the 'content' field except for
+        'initial_state' which is merged instead.
+
+        Returns a room_id if successful or None if not, allowing tests to give the
+            assertion errors they want instead of the http response which is not useful
+        """
+
+        # First create the extra content, then let override_content replace/merge items.
+        # extra_content will be passed to the room creation helper function
+        extra_content = construct_extra_content(creating_user, invitee_list)
+        if override_content:
+            for key, value in override_content.items():
+                # initial_state is special, it's a list so we don't override it as much
+                # as merge it.
+                if key == "initial_state":
+                    assert isinstance(
+                        value, list
+                    ), "initial_state in 'override_content' should be a List"
+                    initial_state = extra_content.get("initial_state", [])
+
+                    initial_state.extend(value)
+                    extra_content.update({key: initial_state})
+                else:
+                    extra_content.update({key: value})
+
+        # Hide the assertion from create_room_as() when the error code is unexpected. It
+        # makes errors for the tests less clear when all we get is the http response,
+        # because then we are not sure which exact test used is the failure(especially
+        # when creating many rooms). Instead, use a simple binary condition; either we
+        # get a room_id or None. This allows the test itself to let us know which test
+        # failed.
+        try:
+            return self.helper.create_room_as(
+                creating_user,
+                is_public=is_public,
+                tok=self.map_user_id_to_token[creating_user],
+                extra_content=extra_content,
+            )
+        except AssertionError as e:
+            logger.warning(
+                "create_room_as failed to create room, this may have been expected: %r",
+                e,
+            )
+            return None

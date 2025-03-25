@@ -12,8 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-import contextlib
-import logging
 from typing import Any
 
 from parameterized import parameterized
@@ -26,10 +24,7 @@ from synapse.types import TaskStatus, UserID
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import (
-    FederatingModuleApiTestCase,
-    construct_extra_content,
-)
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import (
     DOMAIN_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST,
@@ -38,12 +33,10 @@ from tests.test_utils import (
     event_injection,
 )
 
-logger = logging.getLogger(__name__)
-
 
 class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     """
-    Test that insured only room scans are done, and subsequent room purges are run
+    Test that insured only room scans are done, and required room kicks are done
     """
 
     # This test case will model being an EPA server on the federation list
@@ -87,44 +80,18 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.task_scheduler = self.hs.get_task_scheduler()
 
         self.user_d = self.register_user("d", "password")
+        # Need the full UserID in a few places for sending a message into the room
         self.user_d_id = UserID.from_string(self.user_d)
         self.user_e = self.register_user("e", "password")
-        self.access_token_d = self.login("d", "password")
+        self.login("d", "password")
+        # Need this access token for the invite helper below
         self.access_token_e = self.login("e", "password")
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
-        self.map_server_name_to_signing_key.update(
-            {
-                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
-                    INSURANCE_DOMAIN_IN_LIST
-                ),
-                SERVER_NAME_FROM_LIST: self.inject_servers_signing_key(
-                    SERVER_NAME_FROM_LIST
-                ),
-            },
-        )
-
-    def user_d_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.user_d,
-                is_public=is_public,
-                tok=self.access_token_d,
-                extra_content=construct_extra_content(self.user_d, invitee_list),
-            )
-        return None
+        self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
+        self.inject_servers_signing_key(SERVER_NAME_FROM_LIST)
 
     @parameterized.expand([("pro_join_and_leave", True), ("pro_never_join", False)])
     def test_room_scan_detects_epa_rooms(
@@ -136,7 +103,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         never joined/left to test that 'maybe broken' rooms are detected
         """
         # Make a room and invite the doctor
-        room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
+        room_id = self.create_local_room(
+            self.user_d, [self.remote_pro_user], is_public=False
+        )
         assert room_id is not None, "Room should be created"
 
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
@@ -282,7 +251,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         Test that a room is not deleted until the last PRO user leaves a room
         """
         # Make a room and invite the doctor
-        room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
+        room_id = self.create_local_room(
+            self.user_d, [self.remote_pro_user], is_public=False
+        )
         assert room_id is not None
 
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
@@ -441,59 +412,27 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.task_scheduler = self.hs.get_task_scheduler()
 
         self.user_a = self.register_user("a", "password")
-        self.user_a_id = UserID.from_string(self.user_a)
-        self.access_token_a = self.login("a", "password")
         self.user_b = self.register_user("b", "password")
-        self.user_b_id = UserID.from_string(self.user_b)
-        self.access_token_b = self.login("b", "password")
         self.user_c = self.register_user("c", "password")
-        self.user_c_id = UserID.from_string(self.user_c)
-        self.access_token_c = self.login("c", "password")
+
+        # Need this access token for the invite helper below
+        self.access_token_a = self.login("a", "password")
+        # Won't need access tokens for these users directly
+        self.login("b", "password")
+        self.login("c", "password")
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
-        self.map_server_name_to_signing_key.update(
-            {
-                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
-                    INSURANCE_DOMAIN_IN_LIST
-                ),
-            },
-        )
-        self.map_user_name_to_tokens = {
-            self.user_a: self.access_token_a,
-            self.user_b: self.access_token_b,
-            self.user_c: self.access_token_c,
-        }
-
-    def user_a_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.user_a,
-                is_public=is_public,
-                tok=self.access_token_a,
-                extra_content=construct_extra_content(self.user_a, invitee_list),
-            )
-        return None
+        self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
 
     def opinionated_join(self, room_id: str, user: str) -> None:
         """
         Helper to join a room whether this is a local or remote user
         """
-        user_domain = UserID.from_string(user).domain
-        if user_domain == self.server_name_for_this_server:
+        if self.module_api.is_mine(user):
             # local
-            self.helper.join(room_id, user, tok=self.map_user_name_to_tokens.get(user))
+            self.helper.join(room_id, user, tok=self.map_user_id_to_token[user])
         else:
             # remote
             self.send_join(user, room_id)
@@ -592,7 +531,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         a room for "inactive_room_scan.grace_period" amount of time
         """
         # Make a room and invite the other occupant(s)
-        room_id = self.user_a_create_room([], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should exist"
 
         for other_user in other_users:
@@ -607,7 +546,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # Send a junk hex message into the room, this is the message the scan will find
         if send_messages:
-            self.create_and_send_event(room_id, self.user_a_id)
+            self.create_and_send_event(room_id, UserID.from_string(self.user_a))
 
         # verify there are no shutdown tasks associated with this room
         self.assert_task_status_for_room_is(
