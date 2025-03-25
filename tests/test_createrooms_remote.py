@@ -20,7 +20,7 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import ModuleApiTestCase, construct_extra_content
+from tests.base import FederatingModuleApiTestCase, construct_extra_content
 from tests.test_utils import (
     DOMAIN2_IN_LIST,
     DOMAIN_IN_LIST,
@@ -36,7 +36,7 @@ These tests all focus on room creation at the API level. This allows us to test:
 """
 
 
-class RemoteProModeCreateRoomTest(ModuleApiTestCase):
+class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These tests are for invites during room creation. Invites after room creation will
     be tested separately
@@ -213,7 +213,7 @@ class RemoteProModeCreateRoomTest(ModuleApiTestCase):
             ), f"User-HBA {label} room should not be created(after permission) with invites to: {invitee_list}"
 
 
-class RemoteEpaModeCreateRoomTest(ModuleApiTestCase):
+class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These tests are for invites during room creation. Invites after room creation will
     be tested separately

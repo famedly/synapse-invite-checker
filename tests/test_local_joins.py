@@ -19,12 +19,12 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import ModuleApiTestCase, construct_extra_content
+from tests.base import FederatingModuleApiTestCase, construct_extra_content
 
 logger = logging.getLogger(__name__)
 
 
-class LocalJoinTestCase(ModuleApiTestCase):
+class LocalJoinTestCase(FederatingModuleApiTestCase):
     """
     Tests to verify that we don't break local public/private rooms by accident
     """

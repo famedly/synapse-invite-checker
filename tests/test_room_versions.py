@@ -19,11 +19,11 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import ModuleApiTestCase, construct_extra_content
+from tests.base import FederatingModuleApiTestCase, construct_extra_content
 from tests.server import make_request
 
 
-class RoomVersionCreateRoomTest(ModuleApiTestCase):
+class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
     """
     Tests for limiting room versions when creating rooms. Use the defaults of room
     versions "9" or "10"

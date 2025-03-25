@@ -18,12 +18,12 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import ModuleApiTestCase
+from tests.base import FederatingModuleApiTestCase
 
 logger = logging.getLogger(__name__)
 
 
-class MessageTimestampTestCase(ModuleApiTestCase):
+class MessageTimestampTestCase(FederatingModuleApiTestCase):
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         #  @a:test is a practitioner
@@ -57,7 +57,6 @@ class MessageTimestampTestCase(ModuleApiTestCase):
         )
 
     def test_can_find_last_message_timestamp(self) -> None:
-        # self.hs.mockmod: InviteChecker
         # create a room, add another user
         # send a message, get the timestamp
         # send two more messages, get the timestamp
@@ -71,7 +70,7 @@ class MessageTimestampTestCase(ModuleApiTestCase):
             event_ts = event_id.get("origin_server_ts")
 
             ts_found = self.get_success_or_raise(
-                self.hs.mockmod.get_timestamp_of_last_eligible_activity_in_room(room)
+                self.inv_checker.get_timestamp_of_last_eligible_activity_in_room(room)
             )
 
             self.assertEqual(event_ts, ts_found)

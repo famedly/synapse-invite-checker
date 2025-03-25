@@ -17,10 +17,10 @@ from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
 import tests.unittest as synapse_test
-from tests.base import ModuleApiTestCase
+from tests.base import FederatingModuleApiTestCase
 
 
-class MessengerInfoTestCase(ModuleApiTestCase):
+class MessengerInfoTestCase(FederatingModuleApiTestCase):
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.user_a = self.register_user("a", "password")
@@ -86,7 +86,7 @@ class MessengerInfoTestCase(ModuleApiTestCase):
         assert channel.json_body["version"], "Version returned"
 
 
-class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
+class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.user_a = self.register_user("a", "password")
@@ -174,7 +174,7 @@ class MessengerIsInsuranceResourceTest(ModuleApiTestCase):
         assert channel.code == 404, "Endpoint shouldn't exist"
 
 
-class MessengerFindByIkResourceTestCase(ModuleApiTestCase):
+class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.user_a = self.register_user("a", "password")

@@ -26,7 +26,7 @@ from synapse_invite_checker.types import (
     PermissionConfig,
     PermissionDefaultSetting,
 )
-from tests.base import ModuleApiTestCase
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import (
     DOMAIN3_IN_LIST,
     DOMAIN_IN_LIST,
@@ -35,7 +35,7 @@ from tests.test_utils import (
 )
 
 
-class RemoteProModeInviteTest(ModuleApiTestCase):
+class RemoteProModeInviteTest(FederatingModuleApiTestCase):
     """Test remote invites in the default 'pro' mode behave as expected."""
 
     # SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
@@ -229,7 +229,7 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
             ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.pro_user_d} without contact details"
 
 
-class RemoteEpaModeInviteTest(ModuleApiTestCase):
+class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
     """
     Test remote invites in 'epa' mode have expected behavior.
 

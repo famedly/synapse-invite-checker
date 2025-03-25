@@ -24,13 +24,13 @@ from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
 from tests.base import (
-    ModuleApiTestCase,
+    FederatingModuleApiTestCase,
     construct_extra_content,
 )
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 
-class LocalProModeCreateRoomTest(ModuleApiTestCase):
+class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These tests are for invites during room creation. Invites after room creation will
     be tested separately
@@ -208,7 +208,7 @@ class LocalProModeCreateRoomTest(ModuleApiTestCase):
         )
 
 
-class LocalEpaModeCreateRoomTest(ModuleApiTestCase):
+class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These tests are for invites during room creation. Invites after room creation will
     be tested separately

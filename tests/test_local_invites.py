@@ -18,11 +18,11 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import ModuleApiTestCase
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 
-class LocalProModeInviteTest(ModuleApiTestCase):
+class LocalProModeInviteTest(FederatingModuleApiTestCase):
     """
     These tests do not cover invites during room creation.
     """
@@ -158,7 +158,7 @@ class LocalProModeInviteTest(ModuleApiTestCase):
         )
 
 
-class LocalEpaModeInviteTest(ModuleApiTestCase):
+class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     """
     These tests do not cover invites during room creation.
 
@@ -291,7 +291,7 @@ class LocalEpaModeInviteTest(ModuleApiTestCase):
         )
 
 
-class DisabledDMCheckInviteTest(ModuleApiTestCase):
+class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
     """
     This tests to make sure the DM check can be disabled
     """

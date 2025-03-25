@@ -208,111 +208,6 @@ class FakeInviteResponse:
     }
 
 
-class ModuleApiTestCase(synapsetest.HomeserverTestCase):
-    server_name_for_this_server = SERVER_NAME_FROM_LIST
-
-    @classmethod
-    def setUpClass(cls):
-        cls._patcher1 = patch(
-            "synapse_invite_checker.InviteChecker._raw_federation_list_fetch",
-            new=AsyncMock(return_value=rawjwt),
-        )
-        cls._patcher2 = patch(
-            "synapse_invite_checker.InviteChecker._raw_gematik_root_ca_fetch",
-            new=AsyncMock(return_value=json.loads(raw_ca_list)),
-        )
-        cls._patcher3 = patch(
-            "synapse_invite_checker.InviteChecker._raw_gematik_intermediate_cert_fetch",
-            new=AsyncMock(side_effect=return_gem_cert),
-        )
-        cls._patcher1.start()
-        cls._patcher2.start()
-        cls._patcher3.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._patcher1.stop()
-        cls._patcher2.stop()
-        cls._patcher3.stop()
-
-    servlets = [
-        admin.register_servlets,
-        account_data.register_servlets,
-        login.register_servlets,
-        room.register_servlets,
-        room_upgrade_rest_servlet.register_servlets,
-        presence.register_servlets,
-        profile.register_servlets,
-        notifications.register_servlets,
-    ]
-
-    # Ignore ARG001
-    @override
-    def prepare(
-        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
-    ) -> None:
-        self.store = homeserver.get_datastores().main
-        self.module_api = homeserver.get_module_api()
-        self.event_creation_handler = homeserver.get_event_creation_handler()
-        self.sync_handler = homeserver.get_sync_handler()
-        self.auth_handler = homeserver.get_auth_handler()
-        self.inv_checker: InviteChecker = self.hs.mockmod
-
-    @override
-    def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
-        # Mock out the calls over federation.
-        self.fed_transport_client = Mock(spec=["send_transaction"])
-        self.fed_transport_client.send_transaction = AsyncMock(return_value={})
-        # Hijack the federation invitation infrastructure in the handler so do not have
-        # to do things like check signature validation and event structure
-        self.fed_handler = Mock(spec=["send_invite"])
-        self.fed_handler.send_invite = AsyncMock(return_value=FakeInviteResponse())
-
-        return self.setup_test_homeserver(
-            # Masquerade as a domain found on the federation list, then we can pass
-            # tests that verify that fact
-            self.server_name_for_this_server,
-            federation_transport_client=self.fed_transport_client,
-            federation_handler=self.fed_handler,
-        )
-
-    def default_config(self) -> dict[str, Any]:
-        # Explicitly set the 'default_room_version', as the upstream default may change
-        # and that won't be valid for gematik spec
-        conf = super().default_config()
-        if "modules" not in conf:
-            conf["modules"] = [
-                {
-                    "module": "synapse_invite_checker.InviteChecker",
-                    "config": {
-                        "tim-type": "pro",
-                        "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
-                        "federation_list_client_cert": "tests/certs/client.pem",
-                        "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
-                        "allowed_room_versions": ["9", "10"],
-                    },
-                }
-            ]
-        conf["default_room_version"] = "10"
-        return conf
-
-    def set_permissions_for_user(
-        self, user: str, permissions: PermissionConfig
-    ) -> None:
-        self.get_success_or_raise(
-            self.inv_checker.permissions_handler.update_permissions(user, permissions)
-        )
-
-    def add_permission_to_a_user(self, user_to_permit: str, owning_user: str) -> None:
-        perms = self.get_success_or_raise(
-            self.inv_checker.permissions_handler.get_permissions(owning_user)
-        )
-        perms.userExceptions.setdefault(user_to_permit, {})
-        self.get_success_or_raise(
-            self.inv_checker.permissions_handler.update_permissions(owning_user, perms)
-        )
-
-
 class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     server_name_for_this_server = SERVER_NAME_FROM_LIST
     OTHER_SERVER_NAME = INSURANCE_DOMAIN_IN_LIST
@@ -347,6 +242,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         account_data.register_servlets,
         login.register_servlets,
         room.register_servlets,
+        room_upgrade_rest_servlet.register_servlets,
         presence.register_servlets,
         profile.register_servlets,
         notifications.register_servlets,

@@ -23,7 +23,6 @@ from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
-from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import PermissionConfig, PermissionDefaultSetting
 from tests.base import (
     FederatingModuleApiTestCase,
@@ -74,8 +73,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             self.user_c: self.access_token_c,
             self.user_d: self.access_token_d,
         }
-
-        self.inv_checker: InviteChecker = self.hs.mockmod
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
@@ -274,8 +271,6 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
             self.user_d: self.access_token_d,
         }
 
-        self.inv_checker: InviteChecker = self.hs.mockmod
-
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
@@ -387,8 +382,6 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
             self.user_c: self.access_token_c,
             self.user_d: self.access_token_d,
         }
-
-        self.inv_checker: InviteChecker = self.hs.mockmod
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
