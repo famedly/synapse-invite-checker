@@ -641,7 +641,7 @@ class LoginGeneratesDefaultPermissionsTestCase(FederatingModuleApiTestCase):
             "groupExceptions": [{"groupName": "isInsuredPerson"}],
         }
         conf["modules"][0].setdefault("config", {}).update(
-            {"defaultPermissions": default_perms}
+            {"default_permissions": default_perms}
         )
 
         return conf

@@ -37,7 +37,7 @@ modules:
         federation_list_client_cert: "tests/certs/client.pem", # path to a pem encoded client certificate for mtls, required if federation list url is https
         gematik_ca_baseurl: "https://download-ref.tsl.ti-dienste.de/", # the baseurl to the ca to use for the federation list, required
         tim-type: "epa" or "pro", # Patient/Insurance or Professional mode, defaults to "pro" mode. Optional currently, but will be required in a later release
-        defaultPermissions: # see 'defaultPermissions' below. The server defaults for new users or existing users with no permissions already set. Other than the noted default for 'defaultSetting', no other defaults are established
+        default_permissions: # see 'default_permissions' below. The server defaults for new users or existing users with no permissions already set. Other than the noted default for 'defaultSetting', no other defaults are established
           defaultSetting: "allow all" or "block all" # Default "allow all"
           serverExceptions:
             "<server_name>": # The server names to include. Note the ':' on the end and that double quotes are needed around server names
@@ -61,26 +61,26 @@ modules:
         prohibit_world_readable_rooms: true or false, # Prevent setting any rooms history visibility as 'world_readable'. Defaults to "true"
         block_invites_into_dms: true or false, # Prevent invites into existing DM chats. Defaults to true
 ```
-### defaultPermissions
+### default_permissions
 
 For establishing the default permissions for the users on this server. As the simplest
 example:
 ```yaml
-defaultPermissions:
+default_permissions:
   defaultSetting: "allow all"
 ```
 This is what the default will be if no setting is entered for this section.
 
 an example to allow all communication except for insured users
 ```yaml
-defaultPermissions:
+default_permissions:
   defaultSetting: "allow all"
   groupException:
     - groupName: "isInsuredPerson"
 ```
 and an example of blocking all communication except for users on the local server
 ```yaml
-defaultPermissions:
+default_permissions:
   defaultSetting: "block all"
   serverExceptions:
     "@LOCAL_SERVER@":

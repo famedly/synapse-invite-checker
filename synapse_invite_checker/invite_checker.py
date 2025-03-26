@@ -308,7 +308,8 @@ class InviteChecker:
             raise ConfigError(msg)
 
         _default_permissions = config.get(
-            "defaultPermissions", {"defaultSetting": PermissionDefaultSetting.ALLOW_ALL}
+            "default_permissions",
+            {"defaultSetting": PermissionDefaultSetting.ALLOW_ALL},
         )
         def_perm_model = DefaultPermissionConfig(**_default_permissions)
         _config.default_permissions = def_perm_model
