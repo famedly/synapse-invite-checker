@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2025-03-26
+
+This release now allows system administrators to set default permissions for users. The
+permission for allowing all communication is enabled by default(per previous release),
+and is automatically set during login. The general prohibition for communication between
+EPA mode users is not affected. Look for `default_permissions` in the README.md file for
+more information
+
+EPA mode servers will no longer directly purge rooms when kicking users after all PRO
+mode users have left, allowing read-only access. Inactive rooms, however, are still
+purged by default after 6 months.
+
+Also allow disabling the check for DM when inviting other users to a room by setting
+`block_invites_into_dms` to False. By default this is True.
+
+- chore: Allow to disable the DM check for invites (Jason Little)
+- chore: Only kick insured users from their rooms, do not purge (Jason Little)
+- chore: Refactor `m.room.join_rules` and `m.room.history_visibility` handling for a broader pattern (Jason Little)
+- feat: default permissions model for new/existing users (Jason Little)
+- fix: Adjust defaultPermissions to be the snake case default_permissions (Jason Little)
+- fix: Correct debug message (Jason Little)
+
 ## [0.4.0] - 2025-03-17
 
 This release now also enforces permission checks for local users. To offset the
