@@ -365,6 +365,11 @@ class InviteChecker:
             msg = "`prohibit_world_readable_rooms` must be a boolean"
             raise ConfigError(msg)
         _config.prohibit_world_readable_rooms = _prohibit_world_readable_rooms
+
+        _block_invites_into_dms = config.get(
+            "block_invites_into_dms", _config.block_invites_into_dms
+        )
+        _config.block_invites_into_dms = _block_invites_into_dms
         return _config
 
     def after_startup(self) -> None:
@@ -670,7 +675,7 @@ class InviteChecker:
         # tests in the Testsuite. In the context of calling this directly from
         # `on_create_room()` above, there may not be a room_id yet.
         if self.api.is_mine(inviter):
-            if room_id:
+            if room_id and self.config.block_invites_into_dms:
                 direct = await self.api.account_data_manager.get_global(
                     inviter, AccountDataTypes.DIRECT
                 )

@@ -289,3 +289,71 @@ class LocalEpaModeInviteTest(ModuleApiTestCase):
             tok=self.access_token,
             expect_code=403,
         )
+
+
+class DisabledDMCheckInviteTest(ModuleApiTestCase):
+    """
+    This tests to make sure the DM check can be disabled
+    """
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.user_a = self.register_user("a", "password")
+        self.access_token = self.login("a", "password")
+        self.user_b = self.register_user("b", "password")
+        self.user_c = self.register_user("c", "password")
+        self.user_d = self.register_user("d", "password")
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {"block_invites_into_dms": False}
+        )
+        return conf
+
+    def test_invite_to_dm(self) -> None:
+        """Tests that a dm with a local user can be created, and others can be invited"""
+        # This just copies the test from LocalProModeInviteTest but adjusts the expect_code to 200
+        room_id = self.helper.create_room_as(
+            self.user_a, is_public=False, tok=self.access_token
+        )
+        assert room_id, "Room not created"
+
+        # create DM event
+        channel = self.make_request(
+            "PUT",
+            f"/user/{self.user_a}/account_data/m.direct",
+            {
+                self.user_b: [room_id],
+            },
+            access_token=self.access_token,
+        )
+        assert channel.code == 200, channel.result
+
+        # Other users can be invited
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_c,
+            tok=self.access_token,
+            expect_code=200,
+        )
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_d,
+            tok=self.access_token,
+            expect_code=200,
+        )
+        self.helper.invite(
+            room=room_id,
+            src=self.user_a,
+            targ=self.user_b,
+            tok=self.access_token,
+            expect_code=200,
+        )
