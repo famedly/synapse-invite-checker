@@ -12,7 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-import logging
 from typing import Any
 
 from parameterized import parameterized
@@ -33,12 +32,10 @@ from tests.test_utils import (
     event_injection,
 )
 
-logger = logging.getLogger(__name__)
-
 
 class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     """
-    Test that insured only room scans are done, and subsequent room purges are run
+    Test that insured only room scans are done, and required room kicks are done
     """
 
     # This test case will model being an EPA server on the federation list
@@ -81,6 +78,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.task_scheduler = self.hs.get_task_scheduler()
 
         self.user_d = self.register_user("d", "password")
+        # Need the full UserID in a few places for sending a message into the room
         self.user_d_id = UserID.from_string(self.user_d)
         self.user_e = self.register_user("e", "password")
         self.login("d", "password")
@@ -356,14 +354,11 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.task_scheduler = self.hs.get_task_scheduler()
 
         self.user_a = self.register_user("a", "password")
-        self.user_a_id = UserID.from_string(self.user_a)
+        self.user_b = self.register_user("b", "password")
+        self.user_c = self.register_user("c", "password")
+
         # Need this access token for the invite helper below
         self.access_token_a = self.login("a", "password")
-
-        self.user_b = self.register_user("b", "password")
-        self.user_b_id = UserID.from_string(self.user_b)
-        self.user_c = self.register_user("c", "password")
-        self.user_c_id = UserID.from_string(self.user_c)
         # Won't need access tokens for these users directly
         self.login("b", "password")
         self.login("c", "password")
@@ -383,8 +378,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         """
         Helper to join a room whether this is a local or remote user
         """
-        user_domain = UserID.from_string(user).domain
-        if user_domain == self.server_name_for_this_server:
+        if self.module_api.is_mine(user):
             # local
             self.helper.join(room_id, user, tok=self.map_user_id_to_token[user])
         else:
@@ -500,7 +494,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # Send a junk hex message into the room, this is the message the scan will find
         if send_messages:
-            self.create_and_send_event(room_id, self.user_a_id)
+            self.create_and_send_event(room_id, UserID.from_string(self.user_a))
 
         # verify there are no shutdown tasks associated with this room
         self.assert_task_status_for_room_is(

@@ -47,7 +47,11 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
     ) -> str | None:
         """
         Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint. Returns a room_id if successful
+        to the room creation matrix endpoint. Returns a room_id if successful.
+
+        This differs from the create_local_room() helper, as it allows to designate
+        the room version and the expected response code. It also will subvert the
+        invitee_list, as it is not useful when determining if the room would be created.
         """
         # Hide the assertion from create_room_as() when the error code is unexpected. It
         # makes errors for the tests less clear when all we get is the http response

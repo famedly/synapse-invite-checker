@@ -26,26 +26,23 @@ logger = logging.getLogger(__name__)
 
 class LocalJoinTestCase(FederatingModuleApiTestCase):
     """
-    Tests to verify that we don't break local public/private rooms by accident
+    Tests to verify that we don't break local public/private rooms by accident.
+    Specifically, this checks the code for joining a room and not just inviting. This is
+    needed for PRO servers as they are allowed to have public rooms. EPA servers do not
+    need this test, as they do not allow for local joining.
     """
 
     # server_name_for_this_server = "tim.test.gematik.de"
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  "a" is a practitioner
-        #  "b" is an organization
-        #  "c" is an 'orgPract'
         self.user_a = self.register_user("a", "password")
-        self.access_token_a = self.login("a", "password")
         self.user_b = self.register_user("b", "password")
-        self.access_token_b = self.login("b", "password")
         self.user_c = self.register_user("c", "password")
-        self.access_token_c = self.login("c", "password")
-
-        # "d" is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
         self.user_d = self.register_user("d", "password")
+        self.access_token_a = self.login("a", "password")
+        self.access_token_b = self.login("b", "password")
+        self.access_token_c = self.login("c", "password")
         self.access_token_d = self.login("d", "password")
 
     def test_joining_public_with_invites(self) -> None:
@@ -103,21 +100,6 @@ class LocalJoinTestCase(FederatingModuleApiTestCase):
         self.helper.invite(room_id, self.user_a, self.user_c, tok=self.access_token_a)
         self.helper.invite(room_id, self.user_a, self.user_d, tok=self.access_token_a)
 
-        self.helper.join(
-            room_id,
-            self.user_b,
-            expect_code=HTTPStatus.OK,
-            tok=self.access_token_b,
-        )
-        self.helper.join(
-            room_id,
-            self.user_c,
-            expect_code=HTTPStatus.OK,
-            tok=self.access_token_c,
-        )
-        self.helper.join(
-            room_id,
-            self.user_d,
-            expect_code=HTTPStatus.OK,
-            tok=self.access_token_d,
-        )
+        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
+        self.helper.join(room_id, self.user_c, tok=self.access_token_c)
+        self.helper.join(room_id, self.user_d, tok=self.access_token_d)

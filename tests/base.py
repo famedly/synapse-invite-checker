@@ -506,7 +506,6 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                 mock_send_join,
             ),
         ):
-
             try:
                 self.get_success_or_raise(
                     self.hs.get_room_member_handler().update_membership(
