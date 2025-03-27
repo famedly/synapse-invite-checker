@@ -22,35 +22,23 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import (
-    FederatingModuleApiTestCase,
-)
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 
 class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
-    These tests are for invites during room creation. Invites after room creation will
-    be tested separately
-
-    Each single invite test has three parts: not only room creation invites between special Users, such
-    as 'pract' but also with an 'org' User, such as a nurse or a department. Also test
-    Users such as 'Org-Admin' that don't have special rights
+    These PRO server tests are for room creation process, including invite checking for
+    local users and special cases that should be allowed or prevented.
     """
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  "a" is a practitioner
-        #  "b" is an organization
-        #  "c" is an 'orgPract'
         self.pro_user_a = self.register_user("a", "password")
         self.access_token_a = self.login("a", "password")
         self.pro_user_b = self.register_user("b", "password")
         self.access_token_b = self.login("b", "password")
         self.pro_user_c = self.register_user("c", "password")
-
-        # "d" is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
         self.pro_user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
@@ -181,11 +169,8 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
 
 class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
-    These tests are for invites during room creation. Invites after room creation will
-    be tested separately
-
-    ePA mode configurations should never have 'pract', 'org' or 'orgPract' Users, so
-    they are not included in these tests
+    These EPA server tests are for room creation process, including invite checking for
+    local users and special cases that should be allowed or prevented.
     """
 
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL

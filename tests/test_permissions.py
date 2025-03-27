@@ -154,7 +154,7 @@ class PermissionConfigTest(TestCase):
         assert test_permission_object.is_mxid_allowed_to_contact(
             "@billy:power.rangers", is_mxid_epa=False
         )
-        # TODO: make sure this is right
+        # This looks strange, but recall that the defaultSetting is "block all" so it is correct
         assert test_permission_object.is_mxid_allowed_to_contact(
             f"@patient:{INSURANCE_DOMAIN_IN_LIST}", is_mxid_epa=True
         )
@@ -181,7 +181,6 @@ class PermissionConfigTest(TestCase):
         assert test_permission_object.is_mxid_allowed_to_contact(
             "@billy:power.rangers", is_mxid_epa=False
         )
-        # TODO: Make sure this is right
         assert test_permission_object.is_mxid_allowed_to_contact(
             f"@patient:{INSURANCE_DOMAIN_IN_LIST}", is_mxid_epa=True
         )

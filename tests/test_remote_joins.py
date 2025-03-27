@@ -12,7 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-import logging
 from http import HTTPStatus
 from typing import Any
 from unittest.mock import AsyncMock, Mock
@@ -24,12 +23,8 @@ from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
 from synapse_invite_checker.types import PermissionConfig, PermissionDefaultSetting
-from tests.base import (
-    FederatingModuleApiTestCase,
-)
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import DOMAIN_IN_LIST, INSURANCE_DOMAIN_IN_LIST
-
-logger = logging.getLogger(__name__)
 
 
 class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
@@ -42,28 +37,20 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
     # server_name_for_this_server = "tim.test.gematik.de"
     # This test case will model being an PRO server on the federation list
 
-    # Test with two remote PRO user(one hba and one unlisted) and one EPA user
-    remote_hba_user = f"@mxid:{DOMAIN_IN_LIST}"
-    # remote_pro_user = f"unlisted:{DOMAIN_IN_LIST}"
+    remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     # The default "fake" remote server name that has its server signing keys auto-injected
     OTHER_SERVER_NAME = DOMAIN_IN_LIST
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  "a" is a practitioner
-        #  "b" is an organization
-        #  "c" is an 'orgPract'
         self.user_a = self.register_user("a", "password")
-        self.access_token_a = self.login("a", "password")
         self.user_b = self.register_user("b", "password")
-        self.access_token_b = self.login("b", "password")
         self.user_c = self.register_user("c", "password")
-        self.access_token_c = self.login("c", "password")
-
-        # "d" is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
         self.user_d = self.register_user("d", "password")
+        self.access_token_a = self.login("a", "password")
+        self.access_token_b = self.login("b", "password")
+        self.access_token_c = self.login("c", "password")
         self.access_token_d = self.login("d", "password")
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
@@ -138,7 +125,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         # private should also not succeed
         # Since no invites occurred, we never get past make_join
         self.send_join(
-            self.remote_hba_user,
+            self.remote_pro_user,
             room_id,
             make_join_expected_code=HTTPStatus.FORBIDDEN,
         )
@@ -156,11 +143,10 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
 
         # Private rooms, this should be allowed without permission
         # Public rooms, should be denied because public room
-        # Note: both users are 'pract'
         self.helper.invite(
             room_id,
             self.user_a,
-            self.remote_hba_user,
+            self.remote_pro_user,
             expect_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
             tok=self.access_token_a,
         )
@@ -168,7 +154,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         # make_join should only succeed for private rooms, and be forbidden for public
         # send_join should only succeed for private rooms
         self.send_join(
-            self.remote_hba_user,
+            self.remote_pro_user,
             room_id,
             make_join_expected_code=(
                 HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK
@@ -189,13 +175,13 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         self.helper.invite(
             room_id,
             self.user_d,
-            self.remote_hba_user,
+            self.remote_pro_user,
             expect_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
             tok=self.access_token_d,
         )
 
         self.send_join(
-            self.remote_hba_user,
+            self.remote_pro_user,
             room_id,
             make_join_expected_code=(
                 HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK
@@ -213,27 +199,15 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
     # server_name_for_this_server = "tim.test.gematik.de"
     # This test case will model being an PRO server on the federation list
 
-    # Test with two remote PRO user(one hba and one unlisted) and one EPA user
-    remote_hba_user = f"@mxid:{DOMAIN_IN_LIST}"
-    # remote_pro_user = f"unlisted:{DOMAIN_IN_LIST}"
+    remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     # The default "fake" remote server name that has its server signing keys auto-injected
     OTHER_SERVER_NAME = DOMAIN_IN_LIST
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  "a" is a practitioner
-        #  "b" is an organization
-        #  "c" is an 'orgPract'
         self.user_a = self.register_user("a", "password")
         self.access_token_a = self.login("a", "password")
-        # self.user_b = self.register_user("b", "password")
-        # self.access_token_b = self.login("b", "password")
-        # self.user_c = self.register_user("c", "password")
-        # self.access_token_c = self.login("c", "password")
-
-        # "d" is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
         self.user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
@@ -272,7 +246,7 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
 
         # make_join should succeed, as the override was blocked
         self.send_join(
-            self.remote_hba_user,
+            self.remote_pro_user,
             room_id,
         )
 
@@ -308,19 +282,9 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  "a" is a practitioner
-        #  "b" is an organization
-        #  "c" is an 'orgPract'
         self.user_a = self.register_user("a", "password")
-        self.login("a", "password")
-        self.user_b = self.register_user("b", "password")
-        self.login("b", "password")
-        self.user_c = self.register_user("c", "password")
-        self.login("c", "password")
-
-        # "d" is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
         self.user_d = self.register_user("d", "password")
+        self.login("a", "password")
         self.login("d", "password")
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
@@ -359,7 +323,7 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         assert remote_room_id is not None
 
         # This should be enough to inject the "fact" we got an invite, and should
-        # allow private room joining. Both users are 'pract'
+        # allow private room joining
         self.do_remote_invite(self.user_a, self.remote_pro_user, remote_room_id)
 
         # Public rooms should fail with a 403. Private rooms should succeed, because of
@@ -412,8 +376,6 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
             PermissionConfig(defaultSetting=PermissionDefaultSetting.BLOCK_ALL),
         )
 
-        # Use user 'a' first
-
         # This should be enough to inject the "fact" we got an invite, and should
         # allow private room joining. However, user "a" has 'block all' permissions so
         # the invite should always fail
@@ -432,15 +394,6 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
             self.user_a,
             expected_code=HTTPStatus.FORBIDDEN,
         )
-
-        # Re-using this room exposed a flaw. The FakeRoom thinks that the last event
-        # in the room is the invite for 'a'. Our local copy of the room denied that
-        # event, so it doesn't exist. The next invite to occur just below will have that
-        # denied invite as it's prev_event, which will then deny that next invite(since
-        # the event doesn't exist as far as the local room is concerned). In theory,
-        # this is bad. In practice, I don't think it will happen unless a public room
-        # experiences an invite that is denied over federation(which is also not allowed).
-        # Just create a new fake room to test with instead.
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_remote_room_epa_with_invites_allowed(

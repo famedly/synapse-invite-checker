@@ -24,21 +24,16 @@ logger = logging.getLogger(__name__)
 
 
 class MessageTimestampTestCase(FederatingModuleApiTestCase):
+    """
+    Test to prove the last message timestamp can be obtained for room scanning purposes
+    """
+
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
         self.user_a = self.register_user("a", "password")
-        self.access_token_a = self.login("a", "password")
         self.user_b = self.register_user("b", "password")
+        self.access_token_a = self.login("a", "password")
         self.access_token_b = self.login("b", "password")
-        self.user_c = self.register_user("c", "password")
-
-        # @d:test is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
-        self.user_d = self.register_user("d", "password")
-        self.access_token_d = self.login("d", "password")
 
     def test_can_find_last_message_timestamp(self) -> None:
         # create a room, add another user

@@ -24,25 +24,17 @@ from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 class LocalProModeInviteTest(FederatingModuleApiTestCase):
     """
-    These tests do not cover invites during room creation.
+    These PRO server tests are for invites that happen after the room creation process
+    has completed
     """
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
         self.user_a = self.register_user("a", "password")
         self.access_token = self.login("a", "password")
         self.user_b = self.register_user("b", "password")
         self.user_c = self.register_user("c", "password")
-
-        # @d:test is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
         self.user_d = self.register_user("d", "password")
-
-        # authenticated as user_a
-        self.helper.auth_user_id = self.user_a
 
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, but nobody else invited"""
@@ -154,33 +146,18 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
 
 class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     """
-    These tests do not cover invites during room creation.
-
-        NOTE: This should not be allowed to work. Strictly speaking, a server that is
-    in 'epa' mode should always appear on the federation list as an 'isInsurance'.
-    For the moment, all we do is log a warning. This will be changed in the future
-    which will require assuming the identity of an insurance domain to test with.
-
+    These EPA server tests are for invites that happen after the room creation process
+    has completed
     """
 
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        # Can't use any of:
-        #  @a:test is a practitioner
-        #  @b:test is an organization
-        #  @c:test is an 'orgPract'
-        # as they should not exist on an 'ePA' mode server backend
-
-        # 'd', 'e' and 'f' is none of those types of actor and should be just regular 'User's
         self.user_d = self.register_user("d", "password")
         self.user_e = self.register_user("e", "password")
         self.user_f = self.register_user("f", "password")
         self.access_token = self.login("d", "password")
-
-        # authenticated as user_d
-        self.helper.auth_user_id = self.user_d
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()

@@ -27,21 +27,11 @@ from tests.test_utils import (
     INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL,
 )
 
-"""
-These tests all focus on room creation at the API level. This allows us to test:
-* The additional custom state required by gemSpec_TI-M_Basis is not rejected
-* The number of additional users invited during room creation
-
-"""
-
 
 class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
-    These tests are for invites during room creation. Invites after room creation will
-    be tested separately
-
-    Pro mode servers User-HBA, potentially an 'org' User and a user that fills neither
-    of these roles.
+    These PRO server tests are for room creation process, including invite checking for
+    REMOTE users and special cases that should be allowed or prevented.
     """
 
     remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
@@ -187,25 +177,23 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
 
 class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
-    These tests are for invites during room creation. Invites after room creation will
-    be tested separately
+    These EPA server tests are for room creation process, including invite checking for
+    REMOTE users and special cases that should be allowed or prevented.
 
-    ePA mode servers should only have insured Users
-
+    ePA mode servers should only have insured Users.
     Per https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_ePA/latest/#AF_10233 and
     its two additions(A_20704 and A_20704)
     an invitation to a room where both parties are insured should be denied.
     """
 
-    remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"  # this is a 'pract'
-    remote_pro_user_2 = f"@gematikuri2org:{DOMAIN2_IN_LIST}"  # this is an 'org'
+    remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
+    remote_pro_user_2 = f"@gematikuri2org:{DOMAIN2_IN_LIST}"
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        # "d" and "e" are just ePA 'User's
         self.epa_user_d = self.register_user("d", "password")
         self.epa_user_e = self.register_user("e", "password")
         self.login("d", "password")
