@@ -67,13 +67,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         self.user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
-        self.user_id_to_token = {
-            self.user_a: self.access_token_a,
-            self.user_b: self.access_token_b,
-            self.user_c: self.access_token_c,
-            self.user_d: self.access_token_d,
-        }
-
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
@@ -99,7 +92,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         return self.helper.create_room_as(
             creating_user,
             is_public=is_public,
-            tok=self.user_id_to_token.get(creating_user),
+            tok=self.map_user_id_to_token[creating_user],
             expect_code=expected_code,
             extra_content=construct_extra_content(creating_user, invitee_list),
         )
@@ -264,13 +257,6 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
         self.user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
-        self.user_id_to_token = {
-            self.user_a: self.access_token_a,
-            # self.user_b: self.access_token_b,
-            # self.user_c: self.access_token_c,
-            self.user_d: self.access_token_d,
-        }
-
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
@@ -296,7 +282,7 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
         return self.helper.create_room_as(
             creating_user,
             is_public=is_public,
-            tok=self.user_id_to_token.get(creating_user),
+            tok=self.map_user_id_to_token[creating_user],
             expect_code=expected_code,
             extra_content=construct_extra_content(creating_user, invitee_list),
         )
@@ -365,23 +351,16 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         #  "b" is an organization
         #  "c" is an 'orgPract'
         self.user_a = self.register_user("a", "password")
-        self.access_token_a = self.login("a", "password")
+        self.login("a", "password")
         self.user_b = self.register_user("b", "password")
-        self.access_token_b = self.login("b", "password")
+        self.login("b", "password")
         self.user_c = self.register_user("c", "password")
-        self.access_token_c = self.login("c", "password")
+        self.login("c", "password")
 
         # "d" is none of those types of actor and should be just a 'User'. For
         # context, this could be a chatbot or an office manager
         self.user_d = self.register_user("d", "password")
-        self.access_token_d = self.login("d", "password")
-
-        self.user_id_to_token = {
-            self.user_a: self.access_token_a,
-            self.user_b: self.access_token_b,
-            self.user_c: self.access_token_c,
-            self.user_d: self.access_token_d,
-        }
+        self.login("d", "password")
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be

@@ -56,12 +56,6 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         self.pro_user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
-        self.map_user_id_to_token = {
-            self.pro_user_a: self.access_token_a,
-            self.pro_user_b: self.access_token_b,
-            self.pro_user_d: self.access_token_d,
-        }
-
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
         conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}

@@ -87,7 +87,8 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.user_d = self.register_user("d", "password")
         self.user_d_id = UserID.from_string(self.user_d)
         self.user_e = self.register_user("e", "password")
-        self.access_token_d = self.login("d", "password")
+        self.login("d", "password")
+        # Need this access token for the invite helper below
         self.access_token_e = self.login("e", "password")
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
@@ -119,7 +120,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
             return self.helper.create_room_as(
                 self.user_d,
                 is_public=is_public,
-                tok=self.access_token_d,
+                tok=self.map_user_id_to_token[self.user_d],
                 extra_content=construct_extra_content(self.user_d, invitee_list),
             )
         return None
@@ -376,13 +377,16 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         self.user_a = self.register_user("a", "password")
         self.user_a_id = UserID.from_string(self.user_a)
+        # Need this access token for the invite helper below
         self.access_token_a = self.login("a", "password")
+
         self.user_b = self.register_user("b", "password")
         self.user_b_id = UserID.from_string(self.user_b)
-        self.access_token_b = self.login("b", "password")
         self.user_c = self.register_user("c", "password")
         self.user_c_id = UserID.from_string(self.user_c)
-        self.access_token_c = self.login("c", "password")
+        # Won't need access tokens for these users directly
+        self.login("b", "password")
+        self.login("c", "password")
 
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
@@ -394,11 +398,6 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
                 ),
             },
         )
-        self.map_user_name_to_tokens = {
-            self.user_a: self.access_token_a,
-            self.user_b: self.access_token_b,
-            self.user_c: self.access_token_c,
-        }
 
     def user_a_create_room(
         self,
@@ -415,7 +414,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
             return self.helper.create_room_as(
                 self.user_a,
                 is_public=is_public,
-                tok=self.access_token_a,
+                tok=self.map_user_id_to_token[self.user_a],
                 extra_content=construct_extra_content(self.user_a, invitee_list),
             )
         return None
@@ -427,7 +426,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         user_domain = UserID.from_string(user).domain
         if user_domain == self.server_name_for_this_server:
             # local
-            self.helper.join(room_id, user, tok=self.map_user_name_to_tokens.get(user))
+            self.helper.join(room_id, user, tok=self.map_user_id_to_token[user])
         else:
             # remote
             self.send_join(user, room_id)

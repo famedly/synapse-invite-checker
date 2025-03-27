@@ -15,6 +15,7 @@
 
 import base64
 import json
+from collections.abc import Iterable
 from http import HTTPStatus
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
@@ -43,7 +44,7 @@ from typing_extensions import override
 import tests.unittest as synapsetest
 from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import PermissionConfig
-from tests.server import FakeChannel
+from tests.server import CustomHeaderType, FakeChannel
 from tests.test_utils import (
     INSURANCE_DOMAIN_IN_LIST,
     SERVER_NAME_FROM_LIST,
@@ -262,6 +263,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
 
         # Map room_id to FakeRoom
         self.remote_rooms: dict[str, FakeRoom] = {}
+        self.map_user_id_to_token = {}
 
     @override
     def make_homeserver(self, reactor: MemoryReactor, clock: Clock) -> HomeServer:
@@ -560,3 +562,36 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             remote_room.promote_member_invite(channel.json_body["event"])
 
         return channel.json_body
+
+    def login(
+        self,
+        username: str,
+        password: str,
+        device_id: str | None = None,
+        additional_request_fields: dict[str, str] | None = None,
+        custom_headers: Iterable[CustomHeaderType] | None = None,
+    ) -> str:
+        """
+        Supplement the base class login() call to handle access tokens mapping for future requests
+        Args:
+            username:
+            password:
+            device_id:
+            additional_request_fields:
+            custom_headers:
+
+        Returns: the access token, for backwards compatibilty
+
+        """
+        access_token = super().login(
+            username,
+            password,
+            device_id=device_id,
+            additional_request_fields=additional_request_fields,
+            custom_headers=custom_headers,
+        )
+        # When requests are placed, it will be the full mxid that is provided
+        self.map_user_id_to_token[f"@{username}:{self.server_name_for_this_server}"] = (
+            access_token
+        )
+        return access_token

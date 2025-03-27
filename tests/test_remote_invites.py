@@ -46,16 +46,16 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
         #  "b" is an organization
         #  "c" is an 'orgPract'
         self.pro_user_a = self.register_user("a", "password")
-        self.access_token = self.login("a", "password")
+        self.login("a", "password")
         self.pro_user_b = self.register_user("b", "password")
-        self.access_token_b = self.login("b", "password")
+        self.login("b", "password")
         self.pro_user_c = self.register_user("c", "password")
-        self.access_token_c = self.login("c", "password")
+        self.login("c", "password")
 
         # "d" is none of those types of actor and should be just a 'User'. For
         # context, this could be a chatbot or an office manager
         self.pro_user_d = self.register_user("d", "password")
-        self.access_token_d = self.login("d", "password")
+        self.login("d", "password")
 
     def may_invite(self, inviter: str, invitee: str, roomid: str):
         req = defer.ensureDeferred(
@@ -252,7 +252,7 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
         super().prepare(reactor, clock, homeserver)
         # 'd' is just regular insured 'User'
         self.epa_user_d = self.register_user("d", "password")
-        self.access_token_d = self.login("d", "password")
+        self.login("d", "password")
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()

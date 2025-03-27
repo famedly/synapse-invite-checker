@@ -48,13 +48,6 @@ class LocalJoinTestCase(FederatingModuleApiTestCase):
         self.user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
-        self.user_id_to_token = {
-            self.user_a: self.access_token_a,
-            self.user_b: self.access_token_b,
-            self.user_c: self.access_token_c,
-            self.user_d: self.access_token_d,
-        }
-
     def user_create_room(
         self,
         creating_user: str,
@@ -69,7 +62,7 @@ class LocalJoinTestCase(FederatingModuleApiTestCase):
         return self.helper.create_room_as(
             creating_user,
             is_public=is_public,
-            tok=self.user_id_to_token.get(creating_user),
+            tok=self.map_user_id_to_token[creating_user],
             expect_code=expected_code,
             extra_content=construct_extra_content(creating_user, invitee_list),
         )

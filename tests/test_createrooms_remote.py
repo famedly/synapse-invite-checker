@@ -58,21 +58,15 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         #  "b" is an organization
         #  "c" is an 'orgPract'
         self.pro_user_a = self.register_user("a", "password")
-        self.access_token_a = self.login("a", "password")
+        self.login("a", "password")
         self.pro_user_b = self.register_user("b", "password")
-        self.access_token_b = self.login("b", "password")
+        self.login("b", "password")
         self.pro_user_c = self.register_user("c", "password")
 
         # "d" is none of those types of actor and should be just a 'User'. For
         # context, this could be a chatbot or an office manager
         self.pro_user_d = self.register_user("d", "password")
-        self.access_token_d = self.login("d", "password")
-
-        self.map_user_id_to_token = {
-            self.pro_user_a: self.access_token_a,
-            self.pro_user_b: self.access_token_b,
-            self.pro_user_d: self.access_token_d,
-        }
+        self.login("d", "password")
 
     def user_create_room(
         self,
@@ -236,13 +230,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         # "d" and "e" are just ePA 'User's
         self.epa_user_d = self.register_user("d", "password")
         self.epa_user_e = self.register_user("e", "password")
-        self.access_token_d = self.login("d", "password")
-        self.access_token_e = self.login("e", "password")
-
-        self.map_user_id_to_token = {
-            self.epa_user_d: self.access_token_d,
-            self.epa_user_e: self.access_token_e,
-        }
+        self.login("d", "password")
+        self.login("e", "password")
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
