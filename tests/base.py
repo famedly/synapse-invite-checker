@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import base64
+import contextlib
 import json
 from collections.abc import Iterable
 from http import HTTPStatus
@@ -595,3 +596,55 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             access_token
         )
         return access_token
+
+    def create_local_room(
+        self,
+        creating_user: str,
+        invitee_list: list[str],
+        is_public: bool,
+        override_content: dict[str, Any] | None = None,
+    ) -> str | None:
+        """
+        Custom helper to send an api request with a full set of required additional room
+        state to the room creation matrix endpoint. This allows for a fuller simulation
+        of required gematik bits.
+
+        'override_content' will override every key in the 'content' field except for
+        'initial_state' which is merged instead.
+
+        Returns a room_id if successful or None if not, allowing tests to give the
+            assertion errors they want instead of the http response which is not useful
+        """
+
+        # First create the extra content, then let override_content replace/merge items.
+        # extra_content will be passed to the room creation helper function
+        extra_content = construct_extra_content(creating_user, invitee_list)
+        if override_content:
+            for key, value in override_content.items():
+                # initial_state is special, it's a list so we don't override it as much
+                # as merge it.
+                if key == "initial_state":
+                    assert isinstance(
+                        value, list
+                    ), "initial_state in 'override_content' should be a List"
+                    initial_state = extra_content.get("initial_state", [])
+
+                    initial_state.extend(value)
+                    extra_content.update({key: initial_state})
+                else:
+                    extra_content.update({key: value})
+
+        # Hide the assertion from create_room_as() when the error code is unexpected. It
+        # makes errors for the tests less clear when all we get is the http response,
+        # because then we are not sure which exact test used is the failure(especially
+        # when creating many rooms). Instead, use a simple binary condition; either we
+        # get a room_id or None. This allows the test itself to let us know which test
+        # failed.
+        with contextlib.suppress(AssertionError):
+            return self.helper.create_room_as(
+                creating_user,
+                is_public=is_public,
+                tok=self.map_user_id_to_token[creating_user],
+                extra_content=extra_content,
+            )
+        return None

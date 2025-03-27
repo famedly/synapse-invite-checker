@@ -12,7 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-import contextlib
 from typing import Any
 
 from parameterized import parameterized
@@ -20,7 +19,7 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import FederatingModuleApiTestCase, construct_extra_content
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import (
     DOMAIN2_IN_LIST,
     DOMAIN_IN_LIST,
@@ -68,33 +67,12 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         self.pro_user_d = self.register_user("d", "password")
         self.login("d", "password")
 
-    def user_create_room(
-        self,
-        creating_user: str,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                creating_user,
-                is_public=is_public,
-                tok=self.map_user_id_to_token[creating_user],
-                extra_content=construct_extra_content(creating_user, invitee_list),
-            )
-        return None
-
     @parameterized.expand([("public", True), ("private", False)])
     def test_pro_to_pro_create_room(self, label: str, is_public: bool) -> None:
         """
         Tests room creation from a local Pro-User to a remote Pro-User behaves as expected
         """
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.pro_user_a,
             [self.remote_pro_user],
             is_public=is_public,
@@ -108,7 +86,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         Tests room creation from a local Pro-User to a remote insured User behaves as expected
         """
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.pro_user_a,
             [self.remote_epa_user],
             is_public=is_public,
@@ -124,7 +102,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         Tests room creation fails from any local User to a remote domain not on the fed list
         """
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.pro_user_a,
             [self.remote_non_fed_list_user],
             is_public=is_public,
@@ -133,7 +111,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
             room_id is None
         ), f"User-HBA {label} room with remote non-fed-list domain should not be created"
 
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.pro_user_b,
             [self.remote_non_fed_list_user],
             is_public=is_public,
@@ -142,7 +120,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
             room_id is None
         ), f"User {label} room with remote non-fed-list domain should not be created"
 
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.pro_user_d,
             [self.remote_non_fed_list_user],
             is_public=is_public,
@@ -171,7 +149,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
             [self.remote_epa_user, self.pro_user_b],
             [self.remote_non_fed_list_user, self.pro_user_b],
         ]:
-            room_id = self.user_create_room(
+            room_id = self.create_local_room(
                 self.pro_user_a,
                 invitee_list,
                 is_public=is_public,
@@ -197,7 +175,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
             [self.remote_epa_user, self.pro_user_b],
             [self.remote_non_fed_list_user, self.pro_user_b],
         ]:
-            room_id = self.user_create_room(
+            room_id = self.create_local_room(
                 self.pro_user_a,
                 invitee_list,
                 is_public=is_public,
@@ -243,33 +221,12 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
         return conf
 
-    def user_create_room(
-        self,
-        creating_user: str,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                creating_user,
-                is_public=is_public,
-                tok=self.map_user_id_to_token[creating_user],
-                extra_content=construct_extra_content(creating_user, invitee_list),
-            )
-        return None
-
     @parameterized.expand([("public", True), ("private", False)])
     def test_epa_to_pro_create_room(self, label: str, is_public: bool) -> None:
         """
         Tests room creation from a local insured User to a remote Pro-User behaves as expected
         """
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.epa_user_d,
             [self.remote_pro_user],
             is_public=is_public,
@@ -284,7 +241,7 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         Tests room creation from a local insured User to a remote insured User
         fails as expected.
         """
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.epa_user_d,
             [self.remote_epa_user],
             is_public=is_public,
@@ -295,7 +252,7 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
 
         self.add_permission_to_a_user(self.remote_epa_user, self.epa_user_d)
 
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.epa_user_d,
             [self.remote_epa_user],
             is_public=is_public,
@@ -311,7 +268,7 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         Tests room creation from a local insured User to a remote domain not on the fed list fails
         """
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.epa_user_d,
             [self.remote_non_fed_list_user],
             is_public=is_public,
@@ -322,7 +279,7 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
 
         self.add_permission_to_a_user(self.remote_non_fed_list_user, self.epa_user_d)
 
-        room_id = self.user_create_room(
+        room_id = self.create_local_room(
             self.epa_user_d,
             [self.remote_non_fed_list_user],
             is_public=is_public,
@@ -345,7 +302,7 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             [self.remote_pro_user_2, self.remote_epa_user],
             [self.remote_pro_user_2, self.remote_non_fed_list_user],
         ]:
-            room_id = self.user_create_room(
+            room_id = self.create_local_room(
                 self.epa_user_e,
                 invitee_list,
                 is_public=is_public,
@@ -368,7 +325,7 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             [self.remote_pro_user_2, self.remote_epa_user],
             [self.remote_pro_user_2, self.remote_non_fed_list_user],
         ]:
-            room_id = self.user_create_room(
+            room_id = self.create_local_room(
                 self.epa_user_e,
                 invitee_list,
                 is_public=is_public,

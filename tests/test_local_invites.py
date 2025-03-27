@@ -46,9 +46,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, but nobody else invited"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -88,9 +86,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_group(self) -> None:
         """Tests that a group with local users works normally"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -129,9 +125,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_group_without_dm_event(self) -> None:
         """Tests that a group with local users works normally in case the user has no m.direct set"""
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room not created"
 
         # Can invite other users
@@ -200,9 +194,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_dm_post_room_creation(self) -> None:
         """Tests that a private room as a dm will deny inviting any local users"""
-        room_id = self.helper.create_room_as(
-            self.user_d, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -235,9 +227,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_group_post_room_creation(self) -> None:
         """Tests that a private room for a group will deny inviting any local users, with an unrelated m.direct tag"""
-        room_id = self.helper.create_room_as(
-            self.user_d, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -269,9 +259,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_group_without_dm_event_post_room_creation(self) -> None:
         """Tests that a group with local users is denied when the user has no m.direct set"""
-        room_id = self.helper.create_room_as(
-            self.user_d, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id, "Room not created"
 
         # Can't invite other users
@@ -319,9 +307,7 @@ class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, and others can be invited"""
         # This just copies the test from LocalProModeInviteTest but adjusts the expect_code to 200
-        room_id = self.helper.create_room_as(
-            self.user_a, is_public=False, tok=self.access_token
-        )
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room not created"
 
         # create DM event

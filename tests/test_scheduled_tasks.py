@@ -12,7 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-import contextlib
 import logging
 from typing import Any
 
@@ -25,10 +24,7 @@ from synapse.types import TaskStatus, UserID
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import (
-    FederatingModuleApiTestCase,
-    construct_extra_content,
-)
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import (
     DOMAIN_IN_LIST,
     INSURANCE_DOMAIN_IN_LIST,
@@ -105,26 +101,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
             },
         )
 
-    def user_d_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.user_d,
-                is_public=is_public,
-                tok=self.map_user_id_to_token[self.user_d],
-                extra_content=construct_extra_content(self.user_d, invitee_list),
-            )
-        return None
-
     @parameterized.expand([("pro_join_and_leave", True), ("pro_never_join", False)])
     def test_room_scan_detects_epa_rooms(
         self, pro_activity: str, pro_join: bool
@@ -135,7 +111,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         never joined/left to test that 'maybe broken' rooms are detected
         """
         # Make a room and invite the doctor
-        room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
+        room_id = self.create_local_room(
+            self.user_d, [self.remote_pro_user], is_public=False
+        )
         assert room_id is not None, "Room should be created"
 
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
@@ -217,7 +195,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         Test that a room is not deleted until the last PRO user leaves a room
         """
         # Make a room and invite the doctor
-        room_id = self.user_d_create_room([self.remote_pro_user], is_public=False)
+        room_id = self.create_local_room(
+            self.user_d, [self.remote_pro_user], is_public=False
+        )
         assert room_id is not None
 
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
@@ -399,26 +379,6 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
             },
         )
 
-    def user_a_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.user_a,
-                is_public=is_public,
-                tok=self.map_user_id_to_token[self.user_a],
-                extra_content=construct_extra_content(self.user_a, invitee_list),
-            )
-        return None
-
     def opinionated_join(self, room_id: str, user: str) -> None:
         """
         Helper to join a room whether this is a local or remote user
@@ -525,7 +485,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         a room for "inactive_room_scan.grace_period" amount of time
         """
         # Make a room and invite the other occupant(s)
-        room_id = self.user_a_create_room([], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should exist"
 
         for other_user in other_users:

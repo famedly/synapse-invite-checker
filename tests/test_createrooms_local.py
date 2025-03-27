@@ -12,7 +12,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-import contextlib
 from http import HTTPStatus
 
 from parameterized import parameterized
@@ -25,7 +24,6 @@ from twisted.internet.testing import MemoryReactor
 
 from tests.base import (
     FederatingModuleApiTestCase,
-    construct_extra_content,
 )
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
@@ -61,27 +59,6 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
         return conf
 
-    def user_create_room(
-        self,
-        creating_user: str,
-        invitee_list: list[str],
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                creating_user,
-                is_public=is_public,
-                tok=self.map_user_id_to_token[creating_user],
-                extra_content=construct_extra_content(creating_user, invitee_list),
-            )
-        return None
-
     # 'label' as first parameter names the test clearly for failures
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room(self, label: str, is_public: bool) -> None:
@@ -91,7 +68,7 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             self.pro_user_c,
             self.pro_user_d,
         ]:
-            room_id = self.user_create_room(
+            room_id = self.create_local_room(
                 self.pro_user_a,
                 [invitee],
                 is_public=is_public,
@@ -104,7 +81,7 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             self.pro_user_c,
             self.pro_user_d,
         ]:
-            room_id = self.user_create_room(
+            room_id = self.create_local_room(
                 self.pro_user_b,
                 [invitee],
                 is_public=is_public,
@@ -117,7 +94,7 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             self.pro_user_c,
             self.pro_user_a,
         ]:
-            room_id = self.user_create_room(
+            room_id = self.create_local_room(
                 self.pro_user_d,
                 [invitee],
                 is_public=is_public,
@@ -138,7 +115,7 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             [self.pro_user_b, self.pro_user_c],
             [self.pro_user_d, self.pro_user_c],
         ]:
-            room_id = self.user_create_room(
+            room_id = self.create_local_room(
                 self.pro_user_a,
                 invitee_list,
                 is_public=is_public,
@@ -171,7 +148,7 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         Test that a misbehaving client can not accidentally make their room public after
         the room was created
         """
-        room_id = self.user_create_room(self.pro_user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.pro_user_a, [], is_public=is_public)
         assert room_id, f"{label} room should be created"
         # This should be ALLOWED for an already public room, it's silly but is idempotent
         self.helper.send_state(
@@ -190,7 +167,7 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         Test that a misbehaving client can not accidentally make their room visible
         after the room was created
         """
-        room_id = self.user_create_room(self.pro_user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.pro_user_a, [], is_public=is_public)
         assert room_id, f"{label} room should be created"
         # This should be FORBIDDEN for any room
         self.helper.send_state(
@@ -232,28 +209,6 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
         return conf
 
-    def user_d_create_room(
-        self,
-        invitee_list: list[str],
-        is_public: bool,
-        custom_initial_state: dict[str, Any] | None = None,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        with contextlib.suppress(AssertionError):
-            return self.helper.create_room_as(
-                self.epa_user_d,
-                is_public=is_public,
-                tok=self.access_token,
-                extra_content=custom_initial_state
-                or construct_extra_content(self.epa_user_d, invitee_list),
-            )
-        return None
-
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_fails(self, label: str, is_public: bool) -> None:
         """Tests room creation with a local user will be denied"""
@@ -261,7 +216,8 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             self.epa_user_e,
             self.epa_user_f,
         ]:
-            room_id = self.user_d_create_room(
+            room_id = self.create_local_room(
+                self.epa_user_d,
                 [invitee],
                 is_public=is_public,
             )
@@ -278,7 +234,8 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         invited during creation
         """
         invitee_list = [self.epa_user_e, self.epa_user_f]
-        room_id = self.user_d_create_room(
+        room_id = self.create_local_room(
+            self.epa_user_d,
             invitee_list,
             is_public=is_public,
         )
@@ -297,8 +254,8 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         }
         initial_state = {"initial_state": [join_rule]}
 
-        room_id = self.user_d_create_room(
-            [], is_public=False, custom_initial_state=initial_state
+        room_id = self.create_local_room(
+            self.epa_user_d, [], is_public=False, override_content=initial_state
         )
         # Without the blocking put in place, this fails for private rooms
         assert room_id is None, "Private room should NOT have been created"
@@ -314,8 +271,8 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         }
         initial_state = {"initial_state": [history_visibility]}
 
-        room_id = self.user_d_create_room(
-            [], is_public=False, custom_initial_state=initial_state
+        room_id = self.create_local_room(
+            self.epa_user_d, [], is_public=False, override_content=initial_state
         )
         # Without the blocking put in place, this fails for private rooms
         assert room_id is None, "Private room should NOT have been created"
@@ -325,7 +282,7 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         Test that a misbehaving insurance client can not accidentally make their room
         public after room was created
         """
-        room_id = self.user_d_create_room([], is_public=False)
+        room_id = self.create_local_room(self.epa_user_d, [], is_public=False)
         assert room_id, "Private room should be created"
         # This should be FORBIDDEN
         self.helper.send_state(
@@ -341,7 +298,7 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         Test that a misbehaving insurance client can not accidentally make their room
         public after room was created
         """
-        room_id = self.user_d_create_room([], is_public=False)
+        room_id = self.create_local_room(self.epa_user_d, [], is_public=False)
         assert room_id, "Private room should be created"
         # This should be FORBIDDEN
         self.helper.send_state(

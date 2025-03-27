@@ -19,7 +19,7 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import FederatingModuleApiTestCase, construct_extra_content
+from tests.base import FederatingModuleApiTestCase
 
 logger = logging.getLogger(__name__)
 
@@ -48,28 +48,9 @@ class LocalJoinTestCase(FederatingModuleApiTestCase):
         self.user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
-    def user_create_room(
-        self,
-        creating_user: str,
-        invitee_list: list[str],
-        is_public: bool,
-        expected_code: int = HTTPStatus.OK,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        return self.helper.create_room_as(
-            creating_user,
-            is_public=is_public,
-            tok=self.map_user_id_to_token[creating_user],
-            expect_code=expected_code,
-            extra_content=construct_extra_content(creating_user, invitee_list),
-        )
-
     def test_joining_public_with_invites(self) -> None:
         """Test joining a local public room with invites is allowed"""
-        room_id = self.user_create_room(self.user_a, [], is_public=True)
+        room_id = self.create_local_room(self.user_a, [], is_public=True)
         assert room_id is not None, "Room should have been created"
 
         self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)
@@ -82,7 +63,7 @@ class LocalJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_public_no_invites(self) -> None:
         """Test joining a local public room with no invites is allowed"""
-        room_id = self.user_create_room(self.user_a, [], is_public=True)
+        room_id = self.create_local_room(self.user_a, [], is_public=True)
         assert room_id is not None, "Room should have been created"
 
         self.helper.join(room_id, self.user_b, tok=self.access_token_b)
@@ -91,7 +72,7 @@ class LocalJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_private_no_invites(self) -> None:
         """Test joining a local private room with no invites is denied"""
-        room_id = self.user_create_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id is not None, "Room should have been created"
 
         self.helper.join(
@@ -115,7 +96,7 @@ class LocalJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_private_with_invites(self) -> None:
         """Test joining a local private room with invites is allowed"""
-        room_id = self.user_create_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id is not None, "Room should have been created"
 
         self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)

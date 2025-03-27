@@ -26,7 +26,6 @@ from typing_extensions import override
 from synapse_invite_checker.types import PermissionConfig, PermissionDefaultSetting
 from tests.base import (
     FederatingModuleApiTestCase,
-    construct_extra_content,
 )
 from tests.test_utils import DOMAIN_IN_LIST, INSURANCE_DOMAIN_IN_LIST
 
@@ -78,32 +77,13 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
             },
         )
 
-    def user_create_room(
-        self,
-        creating_user: str,
-        invitee_list: list[str],
-        is_public: bool,
-        expected_code: int = HTTPStatus.OK,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        return self.helper.create_room_as(
-            creating_user,
-            is_public=is_public,
-            tok=self.map_user_id_to_token[creating_user],
-            expect_code=expected_code,
-            extra_content=construct_extra_content(creating_user, invitee_list),
-        )
-
     @parameterized.expand([("public", True), ("private", False)])
     def test_local_room_remote_epa_no_invites(self, _: str, is_public: bool) -> None:
         """
         Test _with no invites_ behavior for public and private rooms when there is an
         incoming remote user
         """
-        room_id = self.user_create_room(self.user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # public should not succeed
@@ -122,7 +102,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         incoming remote user
         """
         # Try with user "d", make a fresh room
-        room_id = self.user_create_room(self.user_d, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_d, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # for a public room this should fail
@@ -151,7 +131,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test with no invites behavior for public and private rooms when there is an
         incoming remote user
         """
-        room_id = self.user_create_room(self.user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # public should not succeed
@@ -171,7 +151,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test with invites behavior for public and private rooms when there is an
         incoming remote user
         """
-        room_id = self.user_create_room(self.user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # Private rooms, this should be allowed without permission
@@ -202,7 +182,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         """
         Test with invites behavior for public and private rooms when inviting a remote user.
         """
-        room_id = self.user_create_room(self.user_d, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_d, [], is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # Inviting a remote user is allowed by default
@@ -268,25 +248,6 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
             },
         )
 
-    def user_create_room(
-        self,
-        creating_user: str,
-        invitee_list: list[str],
-        is_public: bool,
-        expected_code: int = HTTPStatus.OK,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        return self.helper.create_room_as(
-            creating_user,
-            is_public=is_public,
-            tok=self.map_user_id_to_token[creating_user],
-            expect_code=expected_code,
-            extra_content=construct_extra_content(creating_user, invitee_list),
-        )
-
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
 
@@ -306,7 +267,7 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
         Test that the local server can successfully allow joining a remote room when
         there are no invites
         """
-        room_id = self.user_create_room(self.user_a, [], is_public=True)
+        room_id = self.create_local_room(self.user_a, [], is_public=True)
         assert room_id is not None, "Room should have been created"
 
         # make_join should succeed, as the override was blocked

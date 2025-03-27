@@ -40,22 +40,6 @@ class MessageTimestampTestCase(FederatingModuleApiTestCase):
         self.user_d = self.register_user("d", "password")
         self.access_token_d = self.login("d", "password")
 
-    def user_a_create_room(
-        self,
-        is_public: bool,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        return self.helper.create_room_as(
-            self.user_a,
-            is_public=is_public,
-            tok=self.access_token_a,
-        )
-
     def test_can_find_last_message_timestamp(self) -> None:
         # create a room, add another user
         # send a message, get the timestamp
@@ -75,7 +59,7 @@ class MessageTimestampTestCase(FederatingModuleApiTestCase):
 
             self.assertEqual(event_ts, ts_found)
 
-        room_id = self.user_a_create_room(is_public=False)
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room created"
 
         self.helper.invite(room_id, targ=self.user_b, tok=self.access_token_a)
