@@ -56,13 +56,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
-        self.map_server_name_to_signing_key.update(
-            {
-                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
-                    INSURANCE_DOMAIN_IN_LIST
-                ),
-            },
-        )
+        self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_local_room_remote_epa_no_invites(self, _: str, is_public: bool) -> None:
@@ -214,13 +208,7 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
-        self.map_server_name_to_signing_key.update(
-            {
-                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
-                    INSURANCE_DOMAIN_IN_LIST
-                ),
-            },
-        )
+        self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -290,13 +278,7 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
-        self.map_server_name_to_signing_key.update(
-            {
-                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
-                    INSURANCE_DOMAIN_IN_LIST
-                ),
-            },
-        )
+        self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_remote_room_pro_no_invites(self, _: str, is_public: bool) -> None:
