@@ -16,13 +16,12 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
-from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import FederationDomain
-from tests.base import ModuleApiTestCase
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import DOMAIN_IN_LIST
 
 
-class FederationDomainSchemaTest(ModuleApiTestCase):
+class FederationDomainSchemaTest(FederatingModuleApiTestCase):
     """
     Test that the required fields for the federation list are present and parsable.
     See:
@@ -42,16 +41,12 @@ class FederationDomainSchemaTest(ModuleApiTestCase):
     ) -> None:
         super().prepare(reactor, clock, homeserver)
 
-        self.invchecker = InviteChecker(
-            self.hs.config.modules.loaded_modules[0][1], self.hs.get_module_api()
-        )
-
     async def extract_entry_from_domainList(self, domain: str) -> FederationDomain:
         """
         Search for a specific domain in the federation list to extract it's associated
         data. Normally this additional information is not used
         """
-        fed_list = await self.invchecker._fetch_federation_list()
+        fed_list = await self.inv_checker._fetch_federation_list()
         assert len(fed_list.domainList) > 0
 
         for domain_entry in fed_list.domainList:
@@ -63,13 +58,13 @@ class FederationDomainSchemaTest(ModuleApiTestCase):
     async def test_federation_list(self) -> None:
         """Ensure we can properly fetch the federation list"""
 
-        fed_list = await self.invchecker._fetch_federation_list()
+        fed_list = await self.inv_checker._fetch_federation_list()
         assert fed_list.allowed("timo.staging.famedly.de")
 
     async def test_is_insurance(self) -> None:
         """Ensure we can properly determine if a domain is insurance"""
 
-        fed_list = await self.invchecker._fetch_federation_list()
+        fed_list = await self.inv_checker._fetch_federation_list()
         assert fed_list.is_insurance("cirosec.de")
 
     async def test_is_domain_allowed_uses_cache(self) -> None:
@@ -79,23 +74,23 @@ class FederationDomainSchemaTest(ModuleApiTestCase):
         # 2. get the value, which should increase counter to 1
         # 3. check that calls == 1, reset mock to 0
         # 4. get the value again, which should retrieve from cache and have a count of 0
-        self.invchecker._raw_federation_list_fetch.reset_mock()
+        self.inv_checker._raw_federation_list_fetch.reset_mock()
 
-        self.invchecker._raw_federation_list_fetch.assert_not_called()
+        self.inv_checker._raw_federation_list_fetch.assert_not_called()
 
-        should_be_true = await self.invchecker.is_domain_allowed(DOMAIN_IN_LIST)
+        should_be_true = await self.inv_checker.is_domain_allowed(DOMAIN_IN_LIST)
         assert should_be_true, "tested domain was not allowed but should have been"
 
-        self.invchecker._raw_federation_list_fetch.assert_called_once()
+        self.inv_checker._raw_federation_list_fetch.assert_called_once()
 
-        self.invchecker._raw_federation_list_fetch.reset_mock()
+        self.inv_checker._raw_federation_list_fetch.reset_mock()
 
-        should_still_be_true = await self.invchecker.is_domain_allowed(DOMAIN_IN_LIST)
+        should_still_be_true = await self.inv_checker.is_domain_allowed(DOMAIN_IN_LIST)
         assert (
             should_still_be_true
         ), "tested domain was still not allowed but should have been"
 
-        self.invchecker._raw_federation_list_fetch.assert_not_called()
+        self.inv_checker._raw_federation_list_fetch.assert_not_called()
 
     async def test_common_fed_domain(self):
         # First test the most common FederationDomain entry

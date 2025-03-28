@@ -31,6 +31,18 @@ from synapse.federation.federation_client import SendJoinResult
 from synapse.types import RoomID
 from synapse.util import Clock, stringutils
 
+"""
+NOTES for robustness:
+    Re-using a room exposed a flaw. The FakeRoom thinks that the last event
+    in the room is the invite for 'a'. Our local copy of the room denied that
+    event, so it doesn't exist. The next invite to occur just below will have that
+    denied invite as it's prev_event, which will then deny that next invite(since
+    the event doesn't exist as far as the local room is concerned). In theory,
+    this is bad. In practice, I don't think it will happen unless a public room
+    experiences an invite that is denied over federation(which is also not allowed).
+    Just create a new fake room to test with instead.
+"""
+
 
 class FakeRoom:
     """

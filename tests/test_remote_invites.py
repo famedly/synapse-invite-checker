@@ -26,7 +26,7 @@ from synapse_invite_checker.types import (
     PermissionConfig,
     PermissionDefaultSetting,
 )
-from tests.base import ModuleApiTestCase
+from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import (
     DOMAIN3_IN_LIST,
     DOMAIN_IN_LIST,
@@ -35,27 +35,24 @@ from tests.test_utils import (
 )
 
 
-class RemoteProModeInviteTest(ModuleApiTestCase):
-    """Test remote invites in the default 'pro' mode behave as expected."""
+class RemoteProModeInviteTest(FederatingModuleApiTestCase):
+    """
+    These PRO server tests are for invites that happen after the room creation process
+    has completed
+    """
 
     # SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  "a" is a practitioner
-        #  "b" is an organization
-        #  "c" is an 'orgPract'
         self.pro_user_a = self.register_user("a", "password")
-        self.access_token = self.login("a", "password")
         self.pro_user_b = self.register_user("b", "password")
-        self.access_token_b = self.login("b", "password")
         self.pro_user_c = self.register_user("c", "password")
-        self.access_token_c = self.login("c", "password")
-
-        # "d" is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
         self.pro_user_d = self.register_user("d", "password")
-        self.access_token_d = self.login("d", "password")
+        self.login("a", "password")
+        self.login("b", "password")
+        self.login("c", "password")
+        self.login("d", "password")
 
     def may_invite(self, inviter: str, invitee: str, roomid: str):
         req = defer.ensureDeferred(
@@ -229,30 +226,24 @@ class RemoteProModeInviteTest(ModuleApiTestCase):
             ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.pro_user_d} without contact details"
 
 
-class RemoteEpaModeInviteTest(ModuleApiTestCase):
+class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
     """
-    Test remote invites in 'epa' mode have expected behavior.
+    These Epa server tests are for invites that happen after the room creation process
+    has completed
 
     Note that if the local server is in 'epa' mode, it means the server 'isInsurance'.
     Therefore, it is the responsibility of the remote server to deny *our* invites.
     Likewise, it is our responsibility to deny *theirs* if they are also 'isInsurance'.
 
     The second behavior is what we test here
-
-        NOTE: This should not be allowed to work. Strictly speaking, a server that is
-    in 'epa' mode should always appear on the federation list as an 'isInsurance'.
-    For the moment, all we do is log a warning. This will be changed in the future
-    which will require assuming the identity of an insurance domain to test with.
-
     """
 
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        # 'd' is just regular insured 'User'
         self.epa_user_d = self.register_user("d", "password")
-        self.access_token_d = self.login("d", "password")
+        self.login("d", "password")
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
