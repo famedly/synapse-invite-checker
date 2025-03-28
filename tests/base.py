@@ -410,6 +410,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         self, creator_id: str, room_version: str, is_public: bool
     ) -> str:
         domain = UserID.from_string(creator_id).domain
+        assert (
+            domain in self.map_server_name_to_signing_key
+        ), f"Signing key for {domain} not found in map"
         remote_room = FakeRoom(
             self.hs.config,
             self.clock,

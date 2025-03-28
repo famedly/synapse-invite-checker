@@ -88,16 +88,8 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
-        self.map_server_name_to_signing_key.update(
-            {
-                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
-                    INSURANCE_DOMAIN_IN_LIST
-                ),
-                SERVER_NAME_FROM_LIST: self.inject_servers_signing_key(
-                    SERVER_NAME_FROM_LIST
-                ),
-            },
-        )
+        self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
+        self.inject_servers_signing_key(SERVER_NAME_FROM_LIST)
 
     @parameterized.expand([("pro_join_and_leave", True), ("pro_never_join", False)])
     def test_room_scan_detects_epa_rooms(
@@ -366,13 +358,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # OTHER_SERVER_NAME already has it's signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
-        self.map_server_name_to_signing_key.update(
-            {
-                INSURANCE_DOMAIN_IN_LIST: self.inject_servers_signing_key(
-                    INSURANCE_DOMAIN_IN_LIST
-                ),
-            },
-        )
+        self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
 
     def opinionated_join(self, room_id: str, user: str) -> None:
         """
