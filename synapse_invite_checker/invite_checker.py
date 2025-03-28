@@ -607,14 +607,12 @@ class InviteChecker:
     ) -> None:
         """
         Raise a SynapseError if creating a room should be denied. Currently, this checks
-        invites
-        room version
+        * invites
+        * room version
+        * room public-ness via room creation presets
         """
-        if is_request_admin:
-            return
-
         # Unlike `user_may_invite()`, `on_create_room()` only runs with the inviter being
-        # a local user and the invitee is remote. Unfortunately, the spam check module
+        # a local user; the invitee can be local/remote. Unfortunately, the spam check module
         # function `user_may_create_room()` only accepts the user creating the room and
         # has no other information provided.
 
