@@ -12,12 +12,16 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+import logging
+from http import HTTPStatus
 from typing import Any
 
+from parameterized import parameterized
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
+from synapse_invite_checker.types import PermissionConfig, PermissionDefaultSetting
 from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
@@ -31,10 +35,179 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.user_a = self.register_user("a", "password")
-        self.access_token = self.login("a", "password")
         self.user_b = self.register_user("b", "password")
         self.user_c = self.register_user("c", "password")
         self.user_d = self.register_user("d", "password")
+
+        self.access_token = self.login("a", "password")
+        self.login("b", "password")
+        self.login("c", "password")
+        self.login("d", "password")
+
+    @parameterized.expand(
+        [
+            (
+                "allow_all_public",
+                PermissionDefaultSetting.ALLOW_ALL,
+                True,
+                HTTPStatus.OK,
+            ),
+            (
+                "allow_all_private",
+                PermissionDefaultSetting.ALLOW_ALL,
+                False,
+                HTTPStatus.OK,
+            ),
+            (
+                "block_all_public",
+                PermissionDefaultSetting.BLOCK_ALL,
+                True,
+                HTTPStatus.FORBIDDEN,
+            ),
+            (
+                "block_all_private",
+                PermissionDefaultSetting.BLOCK_ALL,
+                False,
+                HTTPStatus.FORBIDDEN,
+            ),
+        ]
+    )
+    def test_global_permissions(
+        self,
+        label: str,
+        default_setting: PermissionDefaultSetting,
+        is_public: bool,
+        expected_result: int,
+    ) -> None:
+        room_b = self.create_local_room(
+            self.user_b,
+            [],
+            is_public=is_public,
+        )
+        assert room_b is not None, "Room should have been created"
+        room_c = self.create_local_room(
+            self.user_c,
+            [],
+            is_public=is_public,
+        )
+        assert room_c is not None, "Room should have been created"
+        room_d = self.create_local_room(
+            self.user_d,
+            [],
+            is_public=is_public,
+        )
+        assert room_d is not None, "Room should have been created"
+
+        # Set the perms
+        self.set_permissions_for_user(
+            self.user_a,
+            PermissionConfig(defaultSetting=default_setting),
+        )
+
+        # invite the test user to the other users rooms
+        for inviting_test_user_to, user_inviting in (
+            (room_b, self.user_b),
+            (room_c, self.user_c),
+            (room_d, self.user_d),
+        ):
+            self.helper.invite(
+                inviting_test_user_to,
+                user_inviting,
+                self.user_a,
+                expect_code=expected_result,
+                tok=self.map_user_id_to_token[user_inviting],
+            )
+
+    @parameterized.expand(
+        [
+            (
+                "allow_all_public",  # just a label for test output, ignore
+                PermissionDefaultSetting.ALLOW_ALL,  # the global default
+                True,  # if the room is public
+                # if the expected result should succeed, we use the invert to
+                # test the opposite case on the same test run
+                # (if "b" would succeed, "c" should fail)
+                False,
+            ),
+            (
+                "allow_all_private",
+                PermissionDefaultSetting.ALLOW_ALL,
+                False,
+                False,
+            ),
+            (
+                "block_all_public",
+                PermissionDefaultSetting.BLOCK_ALL,
+                True,
+                True,
+            ),
+            (
+                "block_all_private",
+                PermissionDefaultSetting.BLOCK_ALL,
+                False,
+                True,
+            ),
+        ]
+    )
+    def test_user_exceptions(
+        self,
+        label: str,
+        default_setting: PermissionDefaultSetting,
+        is_public: bool,
+        expected_result: bool,
+    ) -> None:
+        # Our test user "a" will be invited to two different rooms, one from user "b"
+        # and one from user "c". Since we will have a global default permission that
+        # differs, and we are testing userExceptions, the results should be opposite of
+        # each other.
+        user_exceptions = {self.user_b: {}}
+
+        user_b_expectation = HTTPStatus.OK if expected_result else HTTPStatus.FORBIDDEN
+        user_c_expectation = HTTPStatus.FORBIDDEN if expected_result else HTTPStatus.OK
+        # Set the perms. By setting them before the invite takes place, it should
+        # prevent cross-contamination between other test runs
+        self.set_permissions_for_user(
+            self.user_a,
+            PermissionConfig(
+                defaultSetting=default_setting,
+                userExceptions=user_exceptions,
+            ),
+        )
+        thing = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(self.user_a)
+        )
+        logging.getLogger(__name__).info(f"STUFF: %r", thing)
+
+        room_b = self.create_local_room(
+            self.user_b,
+            [],
+            is_public=is_public,
+        )
+        assert room_b is not None, "Room should have been created"
+
+        # invite the test user to the users rooms that has permission
+        self.helper.invite(
+            room_b,
+            self.user_b,
+            self.user_a,
+            expect_code=user_b_expectation,
+            tok=self.map_user_id_to_token[self.user_b],
+        )
+        room_c = self.create_local_room(
+            self.user_c,
+            [],
+            is_public=is_public,
+        )
+        assert room_c is not None, "Room should have been created"
+
+        # invite the test user to the user room that doesn't have permissions
+        self.helper.invite(
+            room_c,
+            self.user_c,
+            self.user_a,
+            expect_code=user_c_expectation,
+            tok=self.map_user_id_to_token[self.user_c],
+        )
 
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, but nobody else invited"""
