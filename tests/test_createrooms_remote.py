@@ -30,8 +30,15 @@ from tests.test_utils import (
 
 class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
-    These PRO server tests are for room creation process, including invite checking for
-    REMOTE users and special cases that should be allowed or prevented.
+    These PRO server tests are for room creation process, to demonstrate that rooms can
+    be created when inviting during it's processing.
+    NOTE: Event though the server is designated as "block all" the outgoing invites are
+    allowed as invites are only checked by the receiving user. This means the room will
+    be created, but empty of the other user. Public rooms with invites to a remote user
+    will still fail as expected
+
+    Also test special cases that should be allowed or prevented, like trying to invite
+    2 users during room creation.
     """
 
     remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
@@ -43,47 +50,40 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
-        #  "a" is a practitioner
-        #  "b" is an organization
-        #  "c" is an 'orgPract'
         self.pro_user_a = self.register_user("a", "password")
-        self.login("a", "password")
         self.pro_user_b = self.register_user("b", "password")
+        self.login("a", "password")
         self.login("b", "password")
-        self.pro_user_c = self.register_user("c", "password")
 
-        # "d" is none of those types of actor and should be just a 'User'. For
-        # context, this could be a chatbot or an office manager
-        self.pro_user_d = self.register_user("d", "password")
-        self.login("d", "password")
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
 
-    @parameterized.expand([("public", True), ("private", False)])
-    def test_pro_to_pro_create_room(self, label: str, is_public: bool) -> None:
-        """
-        Tests room creation from a local Pro-User to a remote Pro-User behaves as expected
-        """
-        room_id = self.create_local_room(
-            self.pro_user_a,
-            [self.remote_pro_user],
-            is_public=is_public,
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "block all"}}
         )
-        assert (
-            (room_id is None) if is_public else room_id
-        ), f"Pro-User {label} room with remote Pro-User should be: {'denied' if is_public else 'allowed'}"
+        return conf
 
-    @parameterized.expand([("public", True), ("private", False)])
-    def test_pro_to_epa_create_room(self, label: str, is_public: bool) -> None:
+    @parameterized.expand([("public", True, False), ("private", False, True)])
+    def test_create_room(
+        self, label: str, is_public: bool, expect_creation: bool
+    ) -> None:
         """
-        Tests room creation from a local Pro-User to a remote insured User behaves as expected
+        Tests room creation from a local User to a remote User behaves as expected
         """
-        room_id = self.create_local_room(
-            self.pro_user_a,
-            [self.remote_epa_user],
-            is_public=is_public,
-        )
-        assert (
-            (room_id is None) if is_public else room_id
-        ), f"Pro-User {label} room with remote Epa-User should be: {'denied' if is_public else 'allowed'}"
+        for remote_user in (self.remote_pro_user, self.remote_epa_user):
+            room_id = self.create_local_room(
+                self.pro_user_a,
+                [remote_user],
+                is_public=is_public,
+            )
+            assert (
+                room_id is not None
+            ) is expect_creation, f"Creating {label} room from {self.pro_user_a} while inviting {remote_user}: {'denied' if expect_creation else 'allowed'}"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_any_user_to_non_fed_domain_create_room_fails(
@@ -92,32 +92,15 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         Tests room creation fails from any local User to a remote domain not on the fed list
         """
-        room_id = self.create_local_room(
-            self.pro_user_a,
-            [self.remote_non_fed_list_user],
-            is_public=is_public,
-        )
-        assert (
-            room_id is None
-        ), f"User-HBA {label} room with remote non-fed-list domain should not be created"
-
-        room_id = self.create_local_room(
-            self.pro_user_b,
-            [self.remote_non_fed_list_user],
-            is_public=is_public,
-        )
-        assert (
-            room_id is None
-        ), f"User {label} room with remote non-fed-list domain should not be created"
-
-        room_id = self.create_local_room(
-            self.pro_user_d,
-            [self.remote_non_fed_list_user],
-            is_public=is_public,
-        )
-        assert (
-            room_id is None
-        ), f"Non-VZD listed user {label} room with remote non-fed-list domain should not be created"
+        for local_user in (self.pro_user_a, self.pro_user_b):
+            room_id = self.create_local_room(
+                local_user,
+                [self.remote_non_fed_list_user],
+                is_public=is_public,
+            )
+            assert (
+                room_id is None
+            ), f"User '{local_user}'s {label} room with remote non-fed-list domain should not be created"
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -127,7 +110,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         Tests that a room can NOT be created when more than one additional member is
         invited during creation
         """
-        # First try with no contact permissions in place
+        # First try with no contact permissions in place, the server default is "block all"
         for invitee_list in [
             # Specifically invite the local user first, as that should always
             # have succeeded
@@ -154,6 +137,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
             self.remote_non_fed_list_user,
             self.pro_user_b,
         ):
+            # Grant the exception, but it won't matter
             self.add_permission_to_a_user(remote_user_to_add, self.pro_user_a)
 
         # Then try with contact permissions added
@@ -207,6 +191,9 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         assert len(conf["modules"]) == 1, "more than one module found in config"
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
         return conf
 
     @parameterized.expand([("public", True), ("private", False)])
@@ -238,6 +225,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             room_id is None
         ), f"User-ePA {label} room with remote insured should not be created(before permissions)"
 
+        # Touching the permission(since the server is "allow all") should not help them
+        # get a room made
         self.add_permission_to_a_user(self.remote_epa_user, self.epa_user_d)
 
         room_id = self.create_local_room(
@@ -265,6 +254,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             room_id is None
         ), f"User-ePA {label} room with remote non-fed-list domain should not be created(before permissions)"
 
+        # Touching the permission(since the server is "allow all") should not help them
+        # get a room made
         self.add_permission_to_a_user(self.remote_non_fed_list_user, self.epa_user_d)
 
         room_id = self.create_local_room(
@@ -299,7 +290,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
                 room_id is None
             ), f"User-ePA {label} room should not be created(before permission) with invites to: {invitee_list}"
 
-        # Add in contact permissions and try again
+        # Touching the permission(since the server is "allow all") should not help them
+        # get a room made
         for remote_user_to_add in (
             self.remote_pro_user,
             self.remote_epa_user,
