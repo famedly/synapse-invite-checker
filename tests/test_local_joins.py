@@ -53,59 +53,50 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
         room_id = self.create_local_room(self.user_a, [], is_public=True)
         assert room_id is not None, "Room should have been created"
 
-        self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)
-        self.helper.invite(room_id, self.user_a, self.user_c, tok=self.access_token_a)
-        self.helper.invite(room_id, self.user_a, self.user_d, tok=self.access_token_a)
-
-        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
-        self.helper.join(room_id, self.user_c, tok=self.access_token_c)
-        self.helper.join(room_id, self.user_d, tok=self.access_token_d)
+        for user, token in (
+            (self.user_b, self.access_token_b),
+            (self.user_c, self.access_token_c),
+            (self.user_d, self.access_token_d),
+        ):
+            self.helper.invite(room_id, self.user_a, user, tok=self.access_token_a)
+            self.helper.join(room_id, user, tok=token)
 
     def test_joining_public_no_invites(self) -> None:
         """Test joining a local public room with no invites is allowed"""
         room_id = self.create_local_room(self.user_a, [], is_public=True)
         assert room_id is not None, "Room should have been created"
 
-        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
-        self.helper.join(room_id, self.user_c, tok=self.access_token_c)
-        self.helper.join(room_id, self.user_d, tok=self.access_token_d)
+        for user, token in (
+            (self.user_b, self.access_token_b),
+            (self.user_c, self.access_token_c),
+            (self.user_d, self.access_token_d),
+        ):
+            self.helper.join(room_id, user, tok=token)
 
     def test_joining_private_no_invites(self) -> None:
         """Test joining a local private room with no invites is denied"""
         room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id is not None, "Room should have been created"
 
-        self.helper.join(
-            room_id,
-            self.user_b,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_b,
-        )
-        self.helper.join(
-            room_id,
-            self.user_c,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_c,
-        )
-        self.helper.join(
-            room_id,
-            self.user_d,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_d,
-        )
+        for user, token in (
+            (self.user_b, self.access_token_b),
+            (self.user_c, self.access_token_c),
+            (self.user_d, self.access_token_d),
+        ):
+            self.helper.join(room_id, user, expect_code=HTTPStatus.FORBIDDEN, tok=token)
 
     def test_joining_private_with_invites(self) -> None:
         """Test joining a local private room with invites is allowed"""
         room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id is not None, "Room should have been created"
 
-        self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)
-        self.helper.invite(room_id, self.user_a, self.user_c, tok=self.access_token_a)
-        self.helper.invite(room_id, self.user_a, self.user_d, tok=self.access_token_a)
-
-        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
-        self.helper.join(room_id, self.user_c, tok=self.access_token_c)
-        self.helper.join(room_id, self.user_d, tok=self.access_token_d)
+        for user, token in (
+            (self.user_b, self.access_token_b),
+            (self.user_c, self.access_token_c),
+            (self.user_d, self.access_token_d),
+        ):
+            self.helper.invite(room_id, self.user_a, user, tok=self.access_token_a)
+            self.helper.join(room_id, user, tok=token)
 
 
 class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
@@ -150,27 +141,18 @@ class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
 
         # Actually you can invite to a room with no ID, but will still fail for us
         # because invites between two EPA members is forbidden
-        self.helper.invite(
-            room_id,
-            self.user_a,
-            self.user_b,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_a,
-        )
-        self.helper.invite(
-            room_id,
-            self.user_a,
-            self.user_c,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_a,
-        )
-        self.helper.invite(
-            room_id,
-            self.user_a,
-            self.user_d,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_a,
-        )
+        for user, token in (
+            (self.user_b, self.access_token_b),
+            (self.user_c, self.access_token_c),
+            (self.user_d, self.access_token_d),
+        ):
+            self.helper.invite(
+                room_id,
+                self.user_a,
+                user,
+                expect_code=HTTPStatus.FORBIDDEN,
+                tok=self.access_token_a,
+            )
 
         # Trying to join a room with a "None" as a room ID returns a 400(because the
         # "room id" does not start with a "!" as it's supposed to). We don't have to
@@ -181,67 +163,28 @@ class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
         room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id is not None, "Room should have been created"
 
-        self.helper.join(
-            room_id,
-            self.user_b,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_b,
-        )
-        self.helper.join(
-            room_id,
-            self.user_c,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_c,
-        )
-        self.helper.join(
-            room_id,
-            self.user_d,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_d,
-        )
+        for user, token in (
+            (self.user_b, self.access_token_b),
+            (self.user_c, self.access_token_c),
+            (self.user_d, self.access_token_d),
+        ):
+            self.helper.join(room_id, user, expect_code=HTTPStatus.FORBIDDEN, tok=token)
 
     def test_joining_private_with_invites(self) -> None:
-        """Test joining a local private room with invites is allowed"""
+        """Test joining a local private room with invites is denied"""
         room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id is not None, "Room should have been created"
 
-        self.helper.invite(
-            room_id,
-            self.user_a,
-            self.user_b,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_a,
-        )
-        self.helper.invite(
-            room_id,
-            self.user_a,
-            self.user_c,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_a,
-        )
-        self.helper.invite(
-            room_id,
-            self.user_a,
-            self.user_d,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_a,
-        )
-
-        self.helper.join(
-            room_id,
-            self.user_b,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_b,
-        )
-        self.helper.join(
-            room_id,
-            self.user_c,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_c,
-        )
-        self.helper.join(
-            room_id,
-            self.user_d,
-            expect_code=HTTPStatus.FORBIDDEN,
-            tok=self.access_token_d,
-        )
+        for user, token in (
+            (self.user_b, self.access_token_b),
+            (self.user_c, self.access_token_c),
+            (self.user_d, self.access_token_d),
+        ):
+            self.helper.invite(
+                room_id,
+                self.user_a,
+                user,
+                expect_code=HTTPStatus.FORBIDDEN,
+                tok=self.access_token_a,
+            )
+            self.helper.join(room_id, user, expect_code=HTTPStatus.FORBIDDEN, tok=token)
