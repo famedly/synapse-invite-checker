@@ -408,6 +408,8 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
         self.user_e = self.register_user("e", "password")
         self.user_f = self.register_user("f", "password")
         self.access_token = self.login("d", "password")
+        self.login("e", "password")
+        self.login("f", "password")
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -418,6 +420,183 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
         return conf
+
+    @parameterized.expand(
+        [
+            (
+                "allow_all_private",
+                PermissionDefaultSetting.ALLOW_ALL,
+                HTTPStatus.FORBIDDEN,
+            ),
+            (
+                "block_all_private",
+                PermissionDefaultSetting.BLOCK_ALL,
+                HTTPStatus.FORBIDDEN,
+            ),
+        ]
+    )
+    def test_global_permissions(
+        self,
+        label: str,
+        default_setting: PermissionDefaultSetting,
+        expected_result: int,
+    ) -> None:
+        room_e = self.create_local_room(
+            self.user_e,
+            [],
+            is_public=False,
+        )
+        assert room_e is not None, "Room should have been created"
+        room_f = self.create_local_room(
+            self.user_f,
+            [],
+            is_public=False,
+        )
+        assert room_f is not None, "Room should have been created"
+
+        # Set the perms
+        self.set_permissions_for_user(
+            self.user_d,
+            PermissionConfig(defaultSetting=default_setting),
+        )
+
+        # invite the test user to the other users rooms
+        for inviting_test_user_to, user_inviting in (
+            (room_e, self.user_e),
+            (room_f, self.user_f),
+        ):
+            self.helper.invite(
+                inviting_test_user_to,
+                user_inviting,
+                self.user_d,
+                expect_code=expected_result,
+                tok=self.map_user_id_to_token[user_inviting],
+            )
+
+    @parameterized.expand(
+        [
+            (
+                "allow_all_private",
+                PermissionDefaultSetting.ALLOW_ALL,
+                HTTPStatus.FORBIDDEN,
+            ),
+            (
+                "block_all_private",
+                PermissionDefaultSetting.BLOCK_ALL,
+                HTTPStatus.FORBIDDEN,
+            ),
+        ]
+    )
+    def test_server_exceptions(
+        self,
+        label: str,
+        default_setting: PermissionDefaultSetting,
+        expected_result: int,
+    ) -> None:
+        room_e = self.create_local_room(
+            self.user_e,
+            [],
+            is_public=False,
+        )
+        assert room_e is not None, "Room should have been created"
+        room_f = self.create_local_room(
+            self.user_f,
+            [],
+            is_public=False,
+        )
+        assert room_f is not None, "Room should have been created"
+
+        # Set the perms
+        self.set_permissions_for_user(
+            self.user_d,
+            PermissionConfig(
+                defaultSetting=default_setting,
+                serverExceptions={self.server_name_for_this_server: {}},
+            ),
+        )
+
+        # invite the test user to the other users rooms
+        for inviting_test_user_to, user_inviting in (
+            (room_e, self.user_e),
+            (room_f, self.user_f),
+        ):
+            self.helper.invite(
+                inviting_test_user_to,
+                user_inviting,
+                self.user_d,
+                expect_code=expected_result,
+                tok=self.map_user_id_to_token[user_inviting],
+            )
+
+    @parameterized.expand(
+        [
+            (
+                "allow_all_private",  # just a label for test output, ignore
+                PermissionDefaultSetting.ALLOW_ALL,  # the global default
+                HTTPStatus.FORBIDDEN,  # the expected return code
+            ),
+            (
+                "block_all_private",
+                PermissionDefaultSetting.BLOCK_ALL,
+                HTTPStatus.FORBIDDEN,
+            ),
+        ]
+    )
+    def test_user_exceptions(
+        self,
+        label: str,
+        default_setting: PermissionDefaultSetting,
+        expected_result: int,
+    ) -> None:
+        # Our test user "d" will be invited to two different rooms, one from user "e"
+        # and one from user "f". For an EPA server, this shouldn't matter as any local
+        # invites are denied
+        user_exceptions = {self.user_e: {}}
+
+        # Set the perms. By setting them before the invite takes place, it should
+        # prevent cross-contamination between other test runs
+        self.set_permissions_for_user(
+            self.user_d,
+            PermissionConfig(
+                defaultSetting=default_setting,
+                userExceptions=user_exceptions,
+            ),
+        )
+        thing = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(self.user_d)
+        )
+        logging.getLogger(__name__).info(f"STUFF: %r", thing)
+
+        room_e = self.create_local_room(
+            self.user_e,
+            [],
+            is_public=False,
+        )
+        assert room_e is not None, "Room should have been created"
+
+        # invite the test user to the users rooms that has permission
+        self.helper.invite(
+            room_e,
+            self.user_e,
+            self.user_d,
+            expect_code=expected_result,
+            tok=self.map_user_id_to_token[self.user_e],
+        )
+        room_f = self.create_local_room(
+            self.user_f,
+            [],
+            is_public=False,
+        )
+        assert room_f is not None, "Room should have been created"
+
+        # invite the test user to the user room that doesn't have permissions
+        self.helper.invite(
+            room_f,
+            self.user_f,
+            self.user_d,
+            expect_code=expected_result,
+            tok=self.map_user_id_to_token[self.user_d],
+        )
 
     def test_invite_to_dm_post_room_creation(self) -> None:
         """Tests that a private room as a dm will deny inviting any local users"""
