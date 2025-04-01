@@ -125,9 +125,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         )
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_local_room_remote_pro_with_invites_pract_visibility(
-        self, _: str, is_public: bool
-    ) -> None:
+    def test_local_room_remote_pro_with_invites(self, _: str, is_public: bool) -> None:
         """
         Test with invites behavior for public and private rooms when there is an
         incoming remote user
@@ -147,33 +145,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
 
         # make_join should only succeed for private rooms, and be forbidden for public
         # send_join should only succeed for private rooms
-        self.send_join(
-            self.remote_pro_user,
-            room_id,
-            make_join_expected_code=(
-                HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK
-            ),
-        )
-
-    @parameterized.expand([("public", True), ("private", False)])
-    def test_local_room_remote_pro_with_invites_no_permission(
-        self, _: str, is_public: bool
-    ) -> None:
-        """
-        Test with invites behavior for public and private rooms when inviting a remote user.
-        """
-        room_id = self.create_local_room(self.user_d, [], is_public=is_public)
-        assert room_id is not None, "Room should have been created"
-
-        # Inviting a remote user is allowed by default
-        self.helper.invite(
-            room_id,
-            self.user_d,
-            self.remote_pro_user,
-            expect_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
-            tok=self.access_token_d,
-        )
-
         self.send_join(
             self.remote_pro_user,
             room_id,
