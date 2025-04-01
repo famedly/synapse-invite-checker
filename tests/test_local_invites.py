@@ -121,6 +121,83 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
     @parameterized.expand(
         [
             (
+                "allow_all_public",
+                PermissionDefaultSetting.ALLOW_ALL,
+                True,
+                HTTPStatus.FORBIDDEN,
+            ),
+            (
+                "allow_all_private",
+                PermissionDefaultSetting.ALLOW_ALL,
+                False,
+                HTTPStatus.FORBIDDEN,
+            ),
+            (
+                "block_all_public",
+                PermissionDefaultSetting.BLOCK_ALL,
+                True,
+                HTTPStatus.OK,
+            ),
+            (
+                "block_all_private",
+                PermissionDefaultSetting.BLOCK_ALL,
+                False,
+                HTTPStatus.OK,
+            ),
+        ]
+    )
+    def test_server_exceptions(
+        self,
+        label: str,
+        default_setting: PermissionDefaultSetting,
+        is_public: bool,
+        expected_result: int,
+    ) -> None:
+        room_b = self.create_local_room(
+            self.user_b,
+            [],
+            is_public=is_public,
+        )
+        assert room_b is not None, "Room should have been created"
+        room_c = self.create_local_room(
+            self.user_c,
+            [],
+            is_public=is_public,
+        )
+        assert room_c is not None, "Room should have been created"
+        room_d = self.create_local_room(
+            self.user_d,
+            [],
+            is_public=is_public,
+        )
+        assert room_d is not None, "Room should have been created"
+
+        # Set the perms
+        self.set_permissions_for_user(
+            self.user_a,
+            PermissionConfig(
+                defaultSetting=default_setting,
+                serverExceptions={self.server_name_for_this_server: {}},
+            ),
+        )
+
+        # invite the test user to the other users rooms
+        for inviting_test_user_to, user_inviting in (
+            (room_b, self.user_b),
+            (room_c, self.user_c),
+            (room_d, self.user_d),
+        ):
+            self.helper.invite(
+                inviting_test_user_to,
+                user_inviting,
+                self.user_a,
+                expect_code=expected_result,
+                tok=self.map_user_id_to_token[user_inviting],
+            )
+
+    @parameterized.expand(
+        [
+            (
                 "allow_all_public",  # just a label for test output, ignore
                 PermissionDefaultSetting.ALLOW_ALL,  # the global default
                 True,  # if the room is public
