@@ -44,6 +44,14 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
         conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
         return conf
 
@@ -191,6 +199,9 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         assert len(conf["modules"]) == 1, "more than one module found in config"
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
         conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
         return conf
 

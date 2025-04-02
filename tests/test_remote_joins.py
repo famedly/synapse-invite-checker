@@ -58,6 +58,19 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         # using as well
         self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
 
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
+        return conf
+
     @parameterized.expand([("public", True), ("private", False)])
     def test_local_room_remote_epa_no_invites(self, _: str, is_public: bool) -> None:
         """
@@ -125,9 +138,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         )
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_local_room_remote_pro_with_invites_pract_visibility(
-        self, _: str, is_public: bool
-    ) -> None:
+    def test_local_room_remote_pro_with_invites(self, _: str, is_public: bool) -> None:
         """
         Test with invites behavior for public and private rooms when there is an
         incoming remote user
@@ -147,33 +158,6 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
 
         # make_join should only succeed for private rooms, and be forbidden for public
         # send_join should only succeed for private rooms
-        self.send_join(
-            self.remote_pro_user,
-            room_id,
-            make_join_expected_code=(
-                HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK
-            ),
-        )
-
-    @parameterized.expand([("public", True), ("private", False)])
-    def test_local_room_remote_pro_with_invites_no_permission(
-        self, _: str, is_public: bool
-    ) -> None:
-        """
-        Test with invites behavior for public and private rooms when inviting a remote user.
-        """
-        room_id = self.create_local_room(self.user_d, [], is_public=is_public)
-        assert room_id is not None, "Room should have been created"
-
-        # Inviting a remote user is allowed by default
-        self.helper.invite(
-            room_id,
-            self.user_d,
-            self.remote_pro_user,
-            expect_code=HTTPStatus.FORBIDDEN if is_public else HTTPStatus.OK,
-            tok=self.access_token_d,
-        )
-
         self.send_join(
             self.remote_pro_user,
             room_id,
@@ -279,6 +263,19 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
         self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
+        return conf
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_remote_room_pro_no_invites(self, _: str, is_public: bool) -> None:
