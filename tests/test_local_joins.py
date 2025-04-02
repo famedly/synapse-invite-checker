@@ -48,6 +48,19 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
         self.access_token_c = self.login("c", "password")
         self.access_token_d = self.login("d", "password")
 
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
+        return conf
+
     def test_joining_public_with_invites(self) -> None:
         """Test joining a local public room with invites is allowed"""
         room_id = self.create_local_room(self.user_a, [], is_public=True)
@@ -126,6 +139,9 @@ class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
         assert len(conf["modules"]) == 1, "more than one module found in config"
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
         return conf
 
     def test_joining_public_fails(self) -> None:

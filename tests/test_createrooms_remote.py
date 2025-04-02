@@ -57,6 +57,19 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         self.pro_user_d = self.register_user("d", "password")
         self.login("d", "password")
 
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
+        return conf
+
     @parameterized.expand([("public", True), ("private", False)])
     def test_pro_to_pro_create_room(self, label: str, is_public: bool) -> None:
         """
@@ -207,6 +220,9 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         assert len(conf["modules"]) == 1, "more than one module found in config"
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
         return conf
 
     @parameterized.expand([("public", True), ("private", False)])

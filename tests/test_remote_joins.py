@@ -58,6 +58,19 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         # using as well
         self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
 
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
+        return conf
+
     @parameterized.expand([("public", True), ("private", False)])
     def test_local_room_remote_epa_no_invites(self, _: str, is_public: bool) -> None:
         """
@@ -250,6 +263,19 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
         self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": {"defaultSetting": "allow all"}}
+        )
+        return conf
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_remote_room_pro_no_invites(self, _: str, is_public: bool) -> None:
