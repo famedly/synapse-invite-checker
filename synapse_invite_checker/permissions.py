@@ -12,16 +12,22 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+import logging
 from collections.abc import Awaitable, Callable
 
 from synapse.module_api import ModuleApi
 from synapse.types import UserID
 
+from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.types import (
     DefaultPermissionConfig,
     PermissionConfig,
     PermissionConfigType,
+    TimType,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class InviteCheckerPermissionsHandler:
@@ -35,10 +41,12 @@ class InviteCheckerPermissionsHandler:
     def __init__(
         self,
         api: ModuleApi,
+        config: InviteCheckerConfig,
         is_domain_insurance_cb: Callable[[str], Awaitable[bool]],
         default_perms_from_config: DefaultPermissionConfig,
     ) -> None:
         self.api = api
+        self.config = config
         self.account_data_manager = self.api.account_data_manager
         self.is_domain_insurance = is_domain_insurance_cb
         self.default_perms = default_perms_from_config
@@ -79,11 +87,23 @@ class InviteCheckerPermissionsHandler:
         Identify(as best can be done) what type of local User it is
         """
         local_mxid_domain = UserID.from_string(local_user_id).domain
-        # Recall that the request used here is cached from the federation list
-        if await self.is_domain_insurance(local_mxid_domain):
-            config_type = PermissionConfigType.EPA_ACCOUNT_DATA_TYPE
-        else:
-            config_type = PermissionConfigType.PRO_ACCOUNT_DATA_TYPE
+        try:
+            # Recall that the request used here is cached from the federation list
+            if await self.is_domain_insurance(local_mxid_domain):
+                config_type = PermissionConfigType.EPA_ACCOUNT_DATA_TYPE
+            else:
+                config_type = PermissionConfigType.PRO_ACCOUNT_DATA_TYPE
+        except Exception as e:
+            logger.warning(
+                "Federation list was not available, falling back to local configuration. Reason: %r",
+                e,
+            )
+            if self.config.tim_type == TimType.EPA:
+                config_type = PermissionConfigType.EPA_ACCOUNT_DATA_TYPE
+            else:
+                # Since we default to PRO, this seems prudent unless a better option
+                config_type = PermissionConfigType.PRO_ACCOUNT_DATA_TYPE
+
         return config_type
 
     async def is_user_allowed(self, local_user_id: str, remote_mxid: str) -> bool:

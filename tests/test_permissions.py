@@ -14,9 +14,11 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import json
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import yaml
-from synapse.api.errors import Codes
+from parameterized import parameterized_class
+from synapse.api.errors import Codes, HttpResponseException
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
@@ -26,6 +28,7 @@ from synapse_invite_checker.types import (
     GroupName,
     LOCAL_SERVER_TEMPLATE,
     PermissionConfig,
+    PermissionConfigType,
 )
 from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST
@@ -628,6 +631,7 @@ class LoginGeneratesDefaultPermissionsTestCase(FederatingModuleApiTestCase):
 
         self.user_a = self.register_user("a", "password")
         self.user_b = self.register_user("b", "password")
+        self.user_c = self.register_user("c", "password")
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -697,3 +701,82 @@ class LoginGeneratesDefaultPermissionsTestCase(FederatingModuleApiTestCase):
             )
         )
         assert result == Codes.FORBIDDEN, "Invite should have been FORBIDDEN"
+
+
+@parameterized_class(
+    [
+        {
+            "overridden_server_mode": "epa",
+            "expected_perm_type": PermissionConfigType.EPA_ACCOUNT_DATA_TYPE,
+        },
+        {
+            "overridden_server_mode": "pro",
+            "expected_perm_type": PermissionConfigType.PRO_ACCOUNT_DATA_TYPE,
+        },
+    ]
+)
+class FederationListFailureDefaultPermissionsTestCase(FederatingModuleApiTestCase):
+    """
+    Test logins generate initial set of permissions for contacting other users even when
+    the federation list errors for both kinds of server modes
+    """
+
+    overridden_server_mode = None
+    expected_perm_type = None
+    # This test case does not use any federation features
+    # NOTE: because this test does not actually check permissions or invites, it does
+    #  not actually set the server name as something appropriate. In theory, this is
+    #  wrong, but the only outward facing sign would be the startup warning in the logs
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+
+        self.user_c = self.register_user("c", "password")
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+        conf["modules"][0].setdefault("config", {}).update(
+            {"tim-type": self.overridden_server_mode}
+        )
+        default_perms = {
+            "defaultSetting": "allow all",
+        }
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": default_perms}
+        )
+
+        return conf
+
+    @patch(
+        "synapse_invite_checker.InviteChecker._raw_federation_list_fetch",
+        new=AsyncMock(side_effect=HttpResponseException(404, "Not Found", b"")),
+    )
+    def test_login_with_no_fed_list(self) -> None:
+        """Test that login will populate the permission structure even with no fed list"""
+        # We only pick on user "c" in this test
+        config_type = self.get_success(
+            self.inv_checker.permissions_handler.get_config_type_from_mxid(self.user_c)
+        )
+        assert config_type == self.expected_perm_type, "Wrong permission type"
+
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_c, config_type.value
+            )
+        )
+
+        assert existing_data is None, "Initial permission data should not exist"
+
+        self.login("c", "password")
+
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_c, config_type.value
+            )
+        )
+        assert existing_data is not None, "Data should have been populated"
+        # self._patcher1.start()
