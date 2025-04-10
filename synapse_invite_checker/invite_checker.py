@@ -261,6 +261,9 @@ class InviteChecker:
             ).register(self.resource)
             self.api.register_web_resource(INFO_API_PREFIX, self.resource)
 
+        # This is for all servers
+        self.inactive_rooms_on_second_chance: dict[str, bool] = {}
+
         self.api._hs._reactor.callWhenRunning(self.after_startup)
 
         logger.info("Module initialized at %s", BASE_API_PREFIX)
@@ -810,11 +813,13 @@ class InviteChecker:
     @measure_func("get_timestamp_from_eligible_events_for_epa_room_purge")
     async def get_timestamp_from_eligible_events_for_epa_room_purge(
         self, room_id
-    ) -> int:
+    ) -> int | None:
         """
         Retrieve and parse the room PRO members that left into a timestamp of the
         latest event, or the timestamp of the create event if there were no PRO members
         in the room
+
+        Returns None when no events were found for a room
         """
         state_mapping: dict[tuple[str, str], EventBase] = (
             await self.api._storage_controllers.state.get_current_state(
@@ -843,10 +848,12 @@ class InviteChecker:
     @measure_func("get_timestamp_of_last_eligible_activity_in_room")
     async def get_timestamp_of_last_eligible_activity_in_room(
         self, room_id: str
-    ) -> int:
+    ) -> int | None:
         """
         Search a room for the last message(either encrypted or plaintext) event
         timestamp in that room. If no messages are found, get the room creation timestamp
+
+        Returns None when no events were found for a room
         """
         # This is apparently a RoomEventFilter. Including a type doesn't guarantee that
         # at least one of each is present in the result
@@ -879,9 +886,10 @@ class InviteChecker:
             event_filter=event_filter,
         )
         # If we succeeded with event type filtering, all of these should be only messages
-        last_timestamp = 0
-        for event_base in events:
-            last_timestamp = max(event_base.origin_server_ts, last_timestamp)
+        last_timestamp = None
+        collected_timestamps = {event_base.origin_server_ts for event_base in events}
+        if collected_timestamps:
+            last_timestamp = max(collected_timestamps)
 
         return last_timestamp
 
@@ -993,6 +1001,13 @@ class InviteChecker:
         """
         Scan all rooms for eligible conditions to shutdown and purge a room.
         """
+        # Changed for version 0.4.2
+        # To help mitigate the potential racing of a room scan during a room creation,
+        # we will keep track that we already looked at this room. The next room scan
+        # should pick up on this and then force the kick/purge if it still does not meet
+        # the criteria. If this legitimately was a seriously broken room, the inactive
+        # purge below will still completely remove it.
+
         all_room_ids = await self.get_all_room_ids()
 
         logger.debug("Detected %d total rooms", len(all_room_ids))
@@ -1019,11 +1034,25 @@ class InviteChecker:
                 # a notice showed up before the user has a chance to see it.
                 if room_id in server_notice_rooms:
                     continue
+
                 # only shut down rooms that only have EPA hosts in them
                 if await self.have_all_pro_hosts_left(room_id):
-                    last_user_left_timestamp = await self.get_timestamp_from_eligible_events_for_epa_room_purge(
-                        room_id
+                    last_user_left_timestamp: int | None = (
+                        await self.get_timestamp_from_eligible_events_for_epa_room_purge(
+                            room_id
+                        )
                     )
+
+                    if last_user_left_timestamp is None:
+                        # This is our sign of room either mid-creation/broken
+                        # Just skip this room, as there are no events to change to leave
+                        # and it will be purged automatically below
+                        logger.warning(
+                            "Not kicking users from room during ePA user room scan because it contained no events: %s",
+                            room_id,
+                        )
+
+                        continue
 
                     if (
                         last_user_left_timestamp
@@ -1037,11 +1066,26 @@ class InviteChecker:
                 last_message_ts = (
                     await self.get_timestamp_of_last_eligible_activity_in_room(room_id)
                 )
-                if (
-                    last_message_ts
-                    + self.config.inactive_room_scan_options.grace_period_ms
-                    <= self.api._hs.get_clock().time_msec()
-                ):
+                if last_message_ts is None:
+                    do_purge = self.inactive_rooms_on_second_chance.get(room_id, False)
+                    if do_purge is False:
+                        self.inactive_rooms_on_second_chance[room_id] = True
+                    else:
+                        logger.warning(
+                            "Forcing purge of room from last run that was "
+                            "skipped because it contained no events: %s",
+                            room_id,
+                        )
+                        # Good manners to clean up after yourself
+                        self.inactive_rooms_on_second_chance.pop(room_id, None)
+
+                else:
+                    do_purge = (
+                        last_message_ts
+                        + self.config.inactive_room_scan_options.grace_period_ms
+                        <= self.api._hs.get_clock().time_msec()
+                    )
+                if do_purge:
                     await self.schedule_room_for_purge(room_id)
 
     async def have_all_pro_hosts_left(self, room_id: str) -> bool:

@@ -19,6 +19,7 @@ from typing import Any
 from parameterized import parameterized
 from synapse.api.constants import Membership
 from synapse.api.errors import AuthError
+from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
 from synapse.handlers.pagination import SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME
 from synapse.server import HomeServer
 from synapse.types import TaskStatus, UserID
@@ -72,8 +73,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
                     "enabled": True,
                     "grace_period": "6h",
                 },
-                # We aren't testing this here
-                "inactive_room_scan": {"enabled": False},
+                # Enabled to test broken rooms being ignored(but later purged correctly)
+                # We don't worry about the grace_period as it will not apply
+                "inactive_room_scan": {"enabled": True},
             }
         )
         conf["server_notices"] = {"system_mxid_localpart": "server", "auto_join": True}
@@ -173,6 +175,70 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
         with self.assertRaises(AuthError):
             self.create_and_send_event(room_id, self.user_d_id)
+
+    def test_room_scan_skips_incomplete_epa_rooms(self) -> None:
+        """
+        Test that a partially formed room does not break the room scanner, but instead
+        is skipped but will still be purged(if enabled). Remember, rooms scans run every
+        hour by default in this TestCase
+        """
+        # Make the bare minimum of a room, which is basically just a row in the `rooms` table
+        room_version_id = self.hs.config.server.default_room_version.identifier
+
+        room_version = KNOWN_ROOM_VERSIONS.get(room_version_id)
+
+        room_id = self.get_success_or_raise(
+            self.hs.get_room_creation_handler()._generate_and_create_room_id(
+                self.user_d, is_public=False, room_version=room_version
+            )
+        )
+        assert room_id is not None, "Room should be partially created"
+
+        # Even with an incomplete room, blocking should still work as expected. It will
+        # be blocked as part of the insured kicking procedure. If it is not blocked, then
+        # it is not scheduled for having members kicked out.
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        # Needs to be either None or False
+        assert not is_room_blocked, "Room should not be blocked yet(try 1)"
+
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is not None, "Room should still exist(try 1)"
+
+        # The config set up says it gets 1 hour for room scan frequency
+        self.reactor.advance(60 * 60)
+
+        # Normally, the room scan process would pick up the room here. But, we are
+        # skipping the insured members kicking procedure, so it gets a second run
+        # through before it is eligible for purge
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked(try 2)"
+
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is not None, "Room should still exist(try 2)"
+
+        # Proof it was picked up on the room scan, purge coming on the next round
+        assert (
+            room_id in self.inv_checker.inactive_rooms_on_second_chance
+        ), "The room id should be present in `inactive_rooms_on_second_chance`"
+
+        # try again, same setup
+        self.reactor.advance(60 * 60)
+
+        # The TaskScheduler has a heartbeat of 1 minute, give it that much
+        self.reactor.advance(60)
+
+        # The room will not register as blocked, since that only runs when the kicking
+        # procedure is triggered
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked(try 3)"
+
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is None, "Room should be gone(try 3)"
+
+        # This should be gone now, since we are being good citizens and cleaning up
+        assert (
+            room_id not in self.inv_checker.inactive_rooms_on_second_chance
+        ), "The room id should not be present in `inactive_rooms_on_second_chance`"
 
     def test_room_scan_ignores_server_notices_rooms(self) -> None:
         """
@@ -584,6 +650,71 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # The TaskScheduler has a heartbeat of 1 minute, give it that much
         self.reactor.advance(1 * 60)
+
+        # Now the room should be gone
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is None, f"Room should be gone now: {current_rooms}"
+
+        # verify a scheduled task "completed" for this room
+        self.assert_task_status_for_room_is(
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
+        )
+
+    def test_room_scan_purges_incomplete_inactive_rooms_after_skip(self) -> None:
+        """
+        Test that a partially formed room does not break the room scanner, but instead
+        is skipped one time before being reconsidered. Remember, rooms scans run every
+        hour by default in this TestCase
+        """
+        # Make the bare minimum of a room, which is basically just a row in the `rooms` table
+        room_version_id = self.hs.config.server.default_room_version.identifier
+
+        room_version = KNOWN_ROOM_VERSIONS.get(room_version_id)
+
+        room_id = self.get_success_or_raise(
+            self.hs.get_room_creation_handler()._generate_and_create_room_id(
+                self.user_a, is_public=False, room_version=room_version
+            )
+        )
+        assert room_id is not None, "Room should be partially created"
+
+        # verify there are no shutdown tasks associated with this room
+        self.assert_task_status_for_room_is(
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], "first check"
+        )
+
+        # Here's the first hour gone, the room scan should have ran at least once
+        self.reactor.advance(60 * 60)
+
+        # Verify that it has registered in the correct place
+        assert (
+            room_id in self.inv_checker.inactive_rooms_on_second_chance
+        ), "Room ID should be present in `inactive_rooms_on_second_chance`"
+
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is not None, "Room should still exist(try 1)"
+
+        self.assert_task_status_for_room_is(
+            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], "first check"
+        )
+
+        # One more hour and the room scan should run again, which should allow the task
+        # to be scheduled for purging
+        self.reactor.advance(60 * 60)
+
+        # Room should still exist
+        current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
+        assert current_rooms is not None, "Room should still exist(try 2)"
+
+        self.assert_task_status_for_room_is(
+            room_id,
+            SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
+            [TaskStatus.SCHEDULED],
+            "second check",
+        )
+
+        # The TaskScheduler has a heartbeat of 1 minute, give it that much
+        self.reactor.advance(60)
 
         # Now the room should be gone
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
