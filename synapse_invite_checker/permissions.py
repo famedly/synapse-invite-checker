@@ -12,16 +12,22 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+import logging
 from collections.abc import Awaitable, Callable
 
 from synapse.module_api import ModuleApi
 from synapse.types import UserID
 
+from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.types import (
     DefaultPermissionConfig,
     PermissionConfig,
     PermissionConfigType,
+    TimType,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class InviteCheckerPermissionsHandler:
@@ -35,16 +41,18 @@ class InviteCheckerPermissionsHandler:
     def __init__(
         self,
         api: ModuleApi,
+        config: InviteCheckerConfig,
         is_domain_insurance_cb: Callable[[str], Awaitable[bool]],
         default_perms_from_config: DefaultPermissionConfig,
     ) -> None:
         self.api = api
+        self.config = config
         self.account_data_manager = self.api.account_data_manager
         self.is_domain_insurance = is_domain_insurance_cb
         self.default_perms = default_perms_from_config
 
     async def get_permissions(self, user_id: str) -> PermissionConfig:
-        config_type = await self.get_config_type_from_mxid(user_id)
+        config_type = self.permission_event_type()
         account_data = await self.account_data_manager.get_global(
             user_id, config_type.value
         )
@@ -64,26 +72,23 @@ class InviteCheckerPermissionsHandler:
         user_id: str,
         permissions: PermissionConfig,
     ) -> None:
-        # Will be removed after Contacts API has been deprecated
-        config_type = await self.get_config_type_from_mxid(user_id)
+        config_type = self.permission_event_type()
         await self.account_data_manager.put_global(
             user_id,
             config_type.value,
             permissions.dump(),
         )
 
-    async def get_config_type_from_mxid(
-        self, local_user_id: str
-    ) -> PermissionConfigType:
+    def permission_event_type(self) -> PermissionConfigType:
         """
-        Identify(as best can be done) what type of local User it is
+        Convert the TIM server type into the appropriate user permission event type
         """
-        local_mxid_domain = UserID.from_string(local_user_id).domain
-        # Recall that the request used here is cached from the federation list
-        if await self.is_domain_insurance(local_mxid_domain):
+        if self.config.tim_type == TimType.EPA:
             config_type = PermissionConfigType.EPA_ACCOUNT_DATA_TYPE
         else:
+            # Since we default to PRO, this seems prudent unless a better option
             config_type = PermissionConfigType.PRO_ACCOUNT_DATA_TYPE
+
         return config_type
 
     async def is_user_allowed(self, local_user_id: str, remote_mxid: str) -> bool:

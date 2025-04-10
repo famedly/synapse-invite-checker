@@ -230,6 +230,7 @@ class InviteChecker:
         # were potentially modified to account for the local server template
         self.permissions_handler = InviteCheckerPermissionsHandler(
             self.api,
+            self.config,
             self.is_domain_insurance,
             self.config.default_permissions,
         )
@@ -405,13 +406,18 @@ class InviteChecker:
         To be called when the reactor is running. Validates that the epa setting matches
         the insurance setting in the federation list.
         """
-        fed_list = await self._fetch_federation_list()
-        if self.config.tim_type == TimType.EPA and not fed_list.is_insurance(
-            self.api._hs.config.server.server_name
-        ):
+        try:
+            fed_list = await self._fetch_federation_list()
+            if self.config.tim_type == TimType.EPA and not fed_list.is_insurance(
+                self.api._hs.config.server.server_name
+            ):
+                logger.warning(
+                    "This server has enabled ePA Mode in its config, but is not found on "
+                    "the Federation List as an Insurance Domain!"
+                )
+        except Exception as e:
             logger.warning(
-                "This server has enabled ePA Mode in its config, but is not found on "
-                "the Federation List as an Insurance Domain!"
+                "The server had an issue retrieving the Federation List: %r", e
             )
 
     async def _raw_federation_list_fetch(self) -> str:
@@ -706,7 +712,6 @@ class InviteChecker:
         # ensures users can see the default permissions in their client when they sign
         # in.
         await self.permissions_handler.get_permissions(user_id)
-
         return NOT_SPAM
 
     async def user_may_invite(
