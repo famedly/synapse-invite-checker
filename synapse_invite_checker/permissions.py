@@ -15,6 +15,7 @@
 import logging
 from collections.abc import Awaitable, Callable
 
+from pydantic import ValidationError
 from synapse.module_api import ModuleApi
 from synapse.types import UserID
 
@@ -57,14 +58,26 @@ class InviteCheckerPermissionsHandler:
             user_id, config_type.value
         )
 
-        # Overwrite or set the permissions in two cases:
-        # 1. No existing permissions or if they are somehow mis-set as {}
-        # 2. The defaultSetting key is missing, indicating a broken permission structure
         if not account_data or not account_data.get("defaultSetting"):
+            # Overwrite or set the permissions in three cases(two here, third below):
+            # 1. No existing permissions or if they are somehow mis-set as {}
+            # 2. The defaultSetting key is missing, indicating a broken permission structure
             permissions = self.default_perms
             await self.update_permissions(user_id, permissions)
         else:
-            permissions = PermissionConfig.model_validate(account_data)
+            try:
+                permissions = PermissionConfig.model_validate(account_data)
+            except ValidationError as e:
+                # 3. Somehow the json was incomplete or got mangled, set the default as a
+                # 'reset action'
+                logger.warning(
+                    "Permissions for %s found to be broken, resetting as default: %r",
+                    user_id,
+                    e,
+                )
+                permissions = self.default_perms
+                await self.update_permissions(user_id, permissions)
+
         return permissions
 
     async def update_permissions(
