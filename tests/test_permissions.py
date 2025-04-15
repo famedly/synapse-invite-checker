@@ -788,3 +788,112 @@ class FederationListFailureScenarioTestCase(FederatingModuleApiTestCase):
             )
         )
         assert existing_data is not None, "Data should have been populated"
+
+
+class PermissionsAccountDataValidationEdgeTestCases(FederatingModuleApiTestCase):
+    """
+    Test various potential issues that may occur from permissions being against schema
+    """
+
+    # This test case does not use any federation features
+    # By default, we are SERVER_NAME_FROM_LIST
+    # server_name_for_this_server = "tim.test.gematik.de"
+    # This test case will model being an PRO server on the federation list
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+
+        self.user_a = self.register_user("a", "password")
+        self.user_b = self.register_user("b", "password")
+        self.user_c = self.register_user("c", "password")
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        default_perms = {
+            "defaultSetting": "allow all",
+            # may need to lose this when testing against EPA
+            "groupExceptions": [{"groupName": "isInsuredPerson"}],
+        }
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": default_perms}
+        )
+
+        return conf
+
+    def test_reading_permissions_schema_violation(self) -> None:
+        """Test that existing permissions objects that don't meet the specification get reset"""
+        # We only pick on user "a" in this test
+        config_type = self.inv_checker.permissions_handler.permission_event_type()
+
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_a, config_type.value
+            )
+        )
+
+        assert existing_data is None, "Initial permission data should not exist"
+
+        # As a simple example, what happens if we make groupExceptions not a List?
+        test_json = """
+        {
+            "defaultSetting": "block all",
+            "serverExceptions":
+                {
+                    "power.rangers": {}
+                },
+            "groupExceptions":
+                {
+                    "groupName": "isInsuredPerson"
+                },
+            "userExceptions":
+                {
+                    "@david:hassel.hoff": {}
+                }
+        }
+        """
+        test_json_converted = json.loads(test_json)
+        self.get_success_or_raise(
+            self.module_api.account_data_manager.put_global(
+                self.user_a, config_type.value, test_json_converted
+            )
+        )
+        perms = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(self.user_a)
+        )
+
+        assert (
+            perms == self.inv_checker.permissions_handler.default_perms
+        ), "permissions should be default after reset"
+
+    def test_reading_permissions_schema_empty(self) -> None:
+        """Test that permissions objects that are empty are reset"""
+        # We only pick on user "c" in this test
+        config_type = self.inv_checker.permissions_handler.permission_event_type()
+
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_c, config_type.value
+            )
+        )
+
+        assert existing_data is None, "Initial permission data should not exist"
+
+        # As a simple example, what happens if we make the entire structure empty?
+        test_json = "{}"
+        test_json_converted = json.loads(test_json)
+        self.get_success_or_raise(
+            self.module_api.account_data_manager.put_global(
+                self.user_c, config_type.value, test_json_converted
+            )
+        )
+        perms = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(self.user_c)
+        )
+        assert (
+            perms == self.inv_checker.permissions_handler.default_perms
+        ), "permissions should be default after reset"
