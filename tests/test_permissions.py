@@ -14,9 +14,11 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import json
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import yaml
-from synapse.api.errors import Codes
+from parameterized import parameterized_class
+from synapse.api.errors import Codes, HttpResponseException
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
@@ -26,6 +28,7 @@ from synapse_invite_checker.types import (
     GroupName,
     LOCAL_SERVER_TEMPLATE,
     PermissionConfig,
+    PermissionConfigType,
 )
 from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST
@@ -628,6 +631,7 @@ class LoginGeneratesDefaultPermissionsTestCase(FederatingModuleApiTestCase):
 
         self.user_a = self.register_user("a", "password")
         self.user_b = self.register_user("b", "password")
+        self.user_c = self.register_user("c", "password")
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -697,3 +701,219 @@ class LoginGeneratesDefaultPermissionsTestCase(FederatingModuleApiTestCase):
             )
         )
         assert result == Codes.FORBIDDEN, "Invite should have been FORBIDDEN"
+
+
+@parameterized_class(
+    [
+        {
+            "overridden_server_mode": "epa",
+            "expected_perm_type": PermissionConfigType.EPA_ACCOUNT_DATA_TYPE,
+        },
+        {
+            "overridden_server_mode": "pro",
+            "expected_perm_type": PermissionConfigType.PRO_ACCOUNT_DATA_TYPE,
+        },
+    ]
+)
+class FederationListFailureDefaultPermissionsTestCase(FederatingModuleApiTestCase):
+    """
+    Test logins generate initial set of permissions for contacting other users even when
+    the federation list errors for both kinds of server modes
+    """
+
+    overridden_server_mode = None
+    expected_perm_type = None
+    # This test case does not use any federation features
+    # NOTE: because this test does not actually check permissions or invites, it does
+    #  not actually set the server name as something appropriate. In theory, this is
+    #  wrong, but the only outward facing sign would be the startup warning in the logs
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+
+        self.user_c = self.register_user("c", "password")
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+        conf["modules"][0].setdefault("config", {}).update(
+            {"tim-type": self.overridden_server_mode}
+        )
+        default_perms = {
+            "defaultSetting": "allow all",
+        }
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": default_perms}
+        )
+
+        return conf
+
+    @patch(
+        "synapse_invite_checker.InviteChecker._raw_federation_list_fetch",
+        new=AsyncMock(side_effect=HttpResponseException(404, "Not Found", b"")),
+    )
+    def test_login_with_no_fed_list(self) -> None:
+        """Test that login will populate the permission structure even with no fed list"""
+        # We only pick on user "c" in this test
+        config_type = self.get_success(
+            self.inv_checker.permissions_handler.get_config_type_from_mxid(self.user_c)
+        )
+        assert config_type == self.expected_perm_type, "Wrong permission type"
+
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_c, config_type.value
+            )
+        )
+
+        assert existing_data is None, "Initial permission data should not exist"
+
+        self.login("c", "password")
+
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_c, config_type.value
+            )
+        )
+        assert existing_data is not None, "Data should have been populated"
+        # self._patcher1.start()
+
+
+class PermissionsAccountDataValidationEdgeTestCases(FederatingModuleApiTestCase):
+    """
+    Test various potential issues that may occur from permissions being against schema
+    """
+
+    # This test case does not use any federation features
+    # By default, we are SERVER_NAME_FROM_LIST
+    # server_name_for_this_server = "tim.test.gematik.de"
+    # This test case will model being an PRO server on the federation list
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+
+        self.user_a = self.register_user("a", "password")
+        self.user_b = self.register_user("b", "password")
+        self.user_c = self.register_user("c", "password")
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        default_perms = {
+            "defaultSetting": "allow all",
+            # may need to lose this when testing against EPA
+            "groupExceptions": [{"groupName": "isInsuredPerson"}],
+        }
+        conf["modules"][0].setdefault("config", {}).update(
+            {"default_permissions": default_perms}
+        )
+
+        return conf
+
+    def test_reading_permissions_schema_violation(self) -> None:
+        """T"""
+        # We only pick on user "a" in this test
+        config_type = self.get_success(
+            self.inv_checker.permissions_handler.get_config_type_from_mxid(self.user_a)
+        )
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_a, config_type.value
+            )
+        )
+
+        assert existing_data is None, "Initial permission data should not exist"
+
+        # As a simple example, what happens if we make groupExceptions not a List?
+        test_json = """
+        {
+            "defaultSetting": "block all",
+            "serverExceptions":
+                {
+                    "power.rangers": {}
+                },
+            "groupExceptions":
+                {
+                    "groupName": "isInsuredPerson"
+                },
+            "userExceptions":
+                {
+                    "@david:hassel.hoff": {}
+                }
+        }
+        """
+        test_json_converted = json.loads(test_json)
+        self.get_success_or_raise(
+            self.module_api.account_data_manager.put_global(
+                self.user_a, config_type.value, test_json_converted
+            )
+        )
+        perms = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(self.user_a)
+        )
+
+        assert (
+            perms == self.inv_checker.permissions_handler.default_perms
+        ), "permissions should be default after reset"
+
+    def test_writing_permissions_schema_violation(self) -> None:
+        """ """
+        self.skipTest("reasons")
+        # We only pick on user "b" in this test
+        config_type = self.get_success(
+            self.inv_checker.permissions_handler.get_config_type_from_mxid(self.user_b)
+        )
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_b, config_type.value
+            )
+        )
+
+        assert existing_data is None, "Initial permission data should not exist"
+        # User "b" has already registered as a user, but never signed in. What happens
+        # if an invite comes in that is expected to be denied? Since we set this up as
+        # "allow all" but denied insured persons, this should fail
+        result = self.get_success_or_raise(
+            self.inv_checker.user_may_invite(
+                f"@rando-from:{INSURANCE_DOMAIN_IN_LIST}",
+                self.user_b,
+                f"!example-room:{INSURANCE_DOMAIN_IN_LIST}",
+            )
+        )
+        assert result == Codes.FORBIDDEN, "Invite should have been FORBIDDEN"
+
+    def test_reading_permissions_schema_empty(self) -> None:
+        """T"""
+        # We only pick on user "c" in this test
+        config_type = self.get_success(
+            self.inv_checker.permissions_handler.get_config_type_from_mxid(self.user_c)
+        )
+        existing_data = self.get_success(
+            self.module_api.account_data_manager.get_global(
+                self.user_c, config_type.value
+            )
+        )
+
+        assert existing_data is None, "Initial permission data should not exist"
+
+        # As a simple example, what happens if we make the entire structure empty?
+        test_json = "{}"
+        test_json_converted = json.loads(test_json)
+        self.get_success_or_raise(
+            self.module_api.account_data_manager.put_global(
+                self.user_c, config_type.value, test_json_converted
+            )
+        )
+        perms = self.get_success_or_raise(
+            self.inv_checker.permissions_handler.get_permissions(self.user_c)
+        )
+        assert (
+            perms == self.inv_checker.permissions_handler.default_perms
+        ), "permissions should be default after reset"
