@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2] - 2025-04-29
+
+This release fixes users being unable to login when the permissions object used for 
+invites is malformed. This is accomplished by resetting the permissions data to the 
+server default.
+
+Additionally, exceptions raised both during start-up to verify that an EPA/PRO server 
+setting matches the Federation List and while performing a room scan for insured only 
+rooms have been fixed.
+
+- chore: Refactor some tests that no longer made sense and some clean up on others (Jason Little)
+- chore: Refactor testing code to consolidate (Jason Little)
+- fix: Avoid an exception during room scan when the room doesn't have events yet by giving it a second chance (Jason Little)
+- fix: Avoid breaking login when the federation list is not available (Jason Little)
+- fix: Reset permissions if they do not validate when read from the system (Jason Little)
+
 ## [0.4.1] - 2025-03-26
 
 This release now allows system administrators to set default permissions for users. The
