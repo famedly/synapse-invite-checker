@@ -37,6 +37,7 @@ class InviteCheckerConfig:
     contact: str = "info@famedly.com"
     federation_list_url: str = ""
     federation_list_client_cert: str = ""
+    federation_list_require_mtls: bool = True
     gematik_ca_baseurl: str = ""
     tim_type: TimType = TimType.PRO
     allowed_room_versions: list[str] = field(default_factory=list)

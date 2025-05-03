@@ -130,15 +130,21 @@ class MtlsPolicy:
 
         self.url = urlparse(config.federation_list_url)
 
-        # if no certificate is specified, we assume the connection uses http and no MTLS
+        # Handle different cases based on URL scheme and mTLS requirements
         client_cert = None
         if config.federation_list_client_cert:
+            # If a certificate is provided, always use it
             with open(config.federation_list_client_cert) as file:
                 content = file.read()
 
             client_cert = PrivateCertificate.loadPEM(content)
-        elif self.url.scheme != "http":
-            msg = "No mtls cert and scheme is not http"
+        elif self.url.scheme == "https" and config.federation_list_require_mtls:
+            # HTTPS with required mTLS but no certificate
+            msg = "No mtls cert and scheme is https with mTLS required"
+            raise Exception(msg)
+        elif self.url.scheme != "http" and self.url.scheme != "https":
+            # Neither HTTP nor HTTPS
+            msg = "URL scheme must be either http or https"
             raise Exception(msg)
 
         self.options = optionsForClientTLS(
@@ -281,6 +287,9 @@ class InviteChecker:
             "federation_list_client_cert", ""
         )
         _config.federation_list_url = config.get("federation_list_url", "")
+        _config.federation_list_require_mtls = config.get(
+            "federation_list_require_mtls", _config.federation_list_require_mtls
+        )
         _config.gematik_ca_baseurl = config.get("gematik_ca_baseurl", "")
 
         if not _config.federation_list_url or not _config.gematik_ca_baseurl:
@@ -289,10 +298,16 @@ class InviteChecker:
 
         if (
             _config.federation_list_url.startswith("https")
+            and _config.federation_list_require_mtls
             and not _config.federation_list_client_cert
         ):
-            msg = "Federation list config requires an mtls (PEM) cert for https connections"
+            msg = "Federation list config requires an mtls (PEM) cert for https connections when mTLS is required"
             raise Exception(msg)
+
+        # Validate federation_list_require_mtls is a boolean
+        if not isinstance(_config.federation_list_require_mtls, bool):
+            msg = "`federation_list_require_mtls` must be a boolean"
+            raise ConfigError(msg)
 
         # Check that the configuration is defined. This allows a grace period for
         # migration. For now, just issue a warning in the logs. The default of 'pro'

@@ -66,12 +66,37 @@ class ConfigParsingTestCase(TestCase):
 
     def test_missing_fed_list_client_certs_raises(self) -> None:
         """
-        Test that missing client certs for the Federation List only raises
-        if the scheme on the 'federation_list_url' is 'https'
+        Test that missing client certs for the Federation List raises an exception
+        when using HTTPS with default mTLS settings (required)
         """
         test_config = self.config.copy()
         test_config.update({"federation_list_client_cert": ""})
         self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+
+    def test_missing_fed_list_client_certs_with_mtls_disabled(self) -> None:
+        """
+        Test that missing client certs for the Federation List is accepted
+        when using HTTPS but mTLS is disabled
+        """
+        test_config = self.config.copy()
+        test_config.update(
+            {
+                "federation_list_client_cert": "",
+                "federation_list_require_mtls": False,
+            }
+        )
+        # Should not raise an exception
+        assert InviteChecker.parse_config(test_config)
+
+    def test_federation_list_require_mtls_defaults_to_true(self) -> None:
+        """
+        Test that federation_list_require_mtls defaults to True for backward compatibility
+        """
+        test_config = self.config.copy()
+        config = InviteChecker.parse_config(test_config)
+        assert (
+            config.federation_list_require_mtls
+        ), "federation_list_require_mtls should default to True"
 
     def test_missing_fed_list_client_certs_is_accepted_if_fed_scheme_is_http(
         self,
@@ -204,3 +229,34 @@ class ConfigParsingTestCase(TestCase):
         test_config = self.config.copy()
         test_config.update({"prohibit_world_readable_rooms": "hi_mom!"})
         self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+    def test_federation_list_require_mtls_raises_for_non_boolean(self) -> None:
+        """Verify that non-boolean values for federation_list_require_mtls raise ConfigError"""
+        test_config = self.config.copy()
+        # String that's not a boolean
+        test_config.update({"federation_list_require_mtls": "maybe"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        # Integer is not a boolean
+        test_config = self.config.copy()
+        test_config.update({"federation_list_require_mtls": 1})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+    def test_invalid_url_scheme_raises(self) -> None:
+        """
+        Test that using an invalid URL scheme (neither http nor https) raises an exception
+        when creating an MtlsPolicy
+        """
+        from synapse_invite_checker.invite_checker import MtlsPolicy
+        from synapse_invite_checker.config import InviteCheckerConfig
+
+        # Create a config with an invalid URL scheme
+        config = InviteCheckerConfig()
+        config.federation_list_url = "ftp://localhost:8080"
+        self.assertRaises(Exception, MtlsPolicy, config)
+
+        config.federation_list_url = "ws://localhost:8080"
+        self.assertRaises(Exception, MtlsPolicy, config)
+
+        config.federation_list_url = "file:///etc/passwd"
+        self.assertRaises(Exception, MtlsPolicy, config)
