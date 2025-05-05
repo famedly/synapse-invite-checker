@@ -17,7 +17,7 @@ import functools
 import logging
 from collections.abc import Collection
 from contextlib import suppress
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import quote, urlparse
 
 from cachetools import TTLCache, keys
@@ -276,9 +276,6 @@ class InviteChecker:
                 self.api, self.config, self._fetch_federation_list
             ).register(self.resource)
             self.api.register_web_resource(INFO_API_PREFIX, self.resource)
-
-        # This is for all servers
-        self.inactive_rooms_on_second_chance: dict[str, bool] = {}
 
         self.api._hs._reactor.callWhenRunning(self.after_startup)
 
@@ -880,16 +877,55 @@ class InviteChecker:
         self, room_id: str
     ) -> int | None:
         """
-        Search a room for the last message(either encrypted or plaintext) event
-        timestamp in that room. If no messages are found, get the room creation timestamp
+        A two-staged approach to finding the last activity in a room.
+        First, search a room for the last message(either encrypted or plaintext) or
+        creation event timestamp in that room(which ever is found to be most recent).
+        This approach works best for local only rooms or rooms that were initialized
+        locally.
+
+        Second, if none of those were found, it's likely this room is from a remote
+        server and it's events are still outliers. Try to find membership events that
+        do not have a matching state_key and sender, as these are most likely invite
+        events. The possibility of them being a kick or ban is there, but unlikely as
+        the previous stage would have caught the creation event instead
 
         Returns None when no events were found for a room
         """
-        # This is apparently a RoomEventFilter. Including a type doesn't guarantee that
-        # at least one of each is present in the result
+        # Including a type doesn't guarantee that at least one of each is present in the result
         filter_json = {
             "types": [EventTypes.Message, EventTypes.Encrypted, EventTypes.Create]
         }
+
+        events = await self._get_filtered_events_from_pagination(room_id, filter_json)
+
+        collected_timestamps = {event_base.origin_server_ts for event_base in events}
+        if collected_timestamps:
+            return max(collected_timestamps)
+
+        # So, maybe this is a remote invite situation. The pagination handler does not
+        # pick up outliers and out-of-band memberships until they have been de-outliered
+        # such as through backfill. Retrieve these manually. As an additional note: the
+        # get_current_state() used in
+        # get_timestamp_from_eligible_events_for_epa_room_purge() also does not appear
+        # to get outlier events, neither did the partial_state variant.
+
+        # This will either have the timestamp or be None if none was found
+        return await self._last_explicit_membership_ts_in_room(room_id)
+
+    async def _get_filtered_events_from_pagination(
+        self, room_id: str, filter_json: dict[str, list[str]]
+    ) -> list[EventBase]:
+        """
+        Providing a room_id and a json Filter will retrieve a list of(at most) 5
+        EventBases from the newest Events in that room.
+
+        Args:
+            room_id: The room to target
+            filter_json: The filter json as a dict to use
+
+        Returns: list of EventBases
+
+        """
         event_filter = Filter(self.api._hs, filter_json)
 
         from_token = (
@@ -897,9 +933,6 @@ class InviteChecker:
                 room_id
             )
         )
-
-        # Because apparently type checking couldn't find this?
-        events: list[EventBase]
 
         (
             events,
@@ -915,13 +948,39 @@ class InviteChecker:
             limit=5,
             event_filter=event_filter,
         )
-        # If we succeeded with event type filtering, all of these should be only messages
-        last_timestamp = None
-        collected_timestamps = {event_base.origin_server_ts for event_base in events}
-        if collected_timestamps:
-            last_timestamp = max(collected_timestamps)
 
-        return last_timestamp
+        return events
+
+    async def _last_explicit_membership_ts_in_room(self, room_id: str) -> int | None:
+        """
+        Retrieve the newest origin_server_ts for a membership event in a given room when
+        the sender key does not match the state_key. This is going to be most likely
+        an invite
+        """
+        # TODO: this function needs a better name
+        # Unfortunately, there does not appear to be a nice helper to select a row when
+        # the condition needs to have a `!=` compare clause
+        sql = """
+        SELECT MAX(origin_server_ts)
+        FROM events
+        WHERE room_id = ? AND type = 'm.room.member' AND sender != state_key
+        """
+        rows = cast(
+            list[tuple[int]],
+            await self.api._store.db_pool.execute(
+                "_last_explicit_membership_ts_in_room", sql, room_id
+            ),
+        )
+
+        for (origin_server_ts,) in rows:
+            # There should only ever be one row, because of the MAX() in the sql
+            return origin_server_ts
+
+        # It is increasingly probable that this can never happen now. Local rooms will
+        # have had a creation event to fallback on, and remote rooms will be private and
+        # therefore require an invite. Leave it in for now, just in case a broken room
+        # still can come along from a remote server. It is logged by room_scan().
+        return None
 
     async def get_delete_tasks_by_room(self, room_id: str) -> list[ScheduledTask]:
         """Get scheduled or active delete tasks by room
@@ -1093,30 +1152,22 @@ class InviteChecker:
 
         if self.config.inactive_room_scan_options.enabled:
             for room_id in all_room_ids:
-                last_message_ts = (
+                last_eligible_event_ts = (
                     await self.get_timestamp_of_last_eligible_activity_in_room(room_id)
                 )
-                if last_message_ts is None:
-                    do_purge = self.inactive_rooms_on_second_chance.get(room_id, False)
-                    if do_purge is False:
-                        self.inactive_rooms_on_second_chance[room_id] = True
-                    else:
-                        logger.warning(
-                            "Forcing purge of room from last run that was "
-                            "skipped because it contained no events: %s",
-                            room_id,
-                        )
-                        # Good manners to clean up after yourself
-                        self.inactive_rooms_on_second_chance.pop(room_id, None)
+                if last_eligible_event_ts is None:
+                    logger.warning(
+                        "A room was found that contained no events, skipping purge for: %s",
+                        room_id,
+                    )
 
                 else:
-                    do_purge = (
-                        last_message_ts
+                    if (
+                        last_eligible_event_ts
                         + self.config.inactive_room_scan_options.grace_period_ms
                         <= self.api._hs.get_clock().time_msec()
-                    )
-                if do_purge:
-                    await self.schedule_room_for_purge(room_id)
+                    ):
+                        await self.schedule_room_for_purge(room_id)
 
     async def have_all_pro_hosts_left(self, room_id: str) -> bool:
         hosts = await self.api._store.get_current_hosts_in_room(room_id)
