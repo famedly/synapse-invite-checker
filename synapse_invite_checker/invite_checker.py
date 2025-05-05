@@ -345,10 +345,10 @@ class InviteChecker:
         ]
 
         run_interval = Config.parse_duration(config.get("room_scan_run_interval", "1h"))
-        clamp_minimum_to = Config.parse_duration("1h")
+        clamp_minimum_to = Config.parse_duration("1m")
 
         # If 'room_scan_run_interval' is not set to 0 for disabling the room scan
-        # completely, make sure anything less than the minimum of 1 hour is ignored
+        # completely, make sure anything less than the minimum of 1 minute is ignored
         _config.room_scan_run_interval_ms = (
             max(run_interval, clamp_minimum_to) if run_interval > 0 else run_interval
         )
