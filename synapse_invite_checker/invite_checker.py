@@ -15,7 +15,7 @@
 import base64
 import functools
 import logging
-from collections.abc import Callable, Collection
+from collections.abc import Collection
 from contextlib import suppress
 from typing import Any, Literal
 from urllib.parse import quote, urlparse
@@ -508,27 +508,27 @@ class InviteChecker:
         # Validate incoming, potentially incomplete or corrupt data
         return FederationList.model_validate_json(jws_verify.payload)
 
-    async def _domain_list_check(self, check: Callable[[str], bool]) -> bool:
-        """Run a `check` against data found on the FederationList"""
+    async def is_domain_allowed(self, domain: str) -> bool:
+        """
+        See if a domain is found on the Federation List. If it was not, refetch the list
+        to try again.
+        """
         fed_list = await self._fetch_federation_list()
-        if check(fed_list):
+        if fed_list.allowed(domain):
             return True
 
         # Per A_25537:
         # The domain wasn't found but the list may have changed since the last look.
         # Re-fetch the list and try again. See:
         # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#A_25537
-        # TODO: want to consider a lower bound for this, as above will start to be False
-        #  a lot more often. Perhaps only re-fetch every minute or ten?
         self._fetch_federation_list.cache_clear()
         fed_list = await self._fetch_federation_list()
-        return check(fed_list)
-
-    async def is_domain_allowed(self, domain: str) -> bool:
-        return await self._domain_list_check(lambda fl: fl.allowed(domain))
+        return fed_list.allowed(domain)
 
     async def is_domain_insurance(self, domain: str) -> bool:
-        return await self._domain_list_check(lambda fl: fl.is_insurance(domain))
+        """See if a domain was considered an insurance domain per the Federation List"""
+        fed_list = await self._fetch_federation_list()
+        return fed_list.is_insurance(domain)
 
     async def on_upgrade_room(
         self, _: Requester, room_version: RoomVersion, is_requester_admin: bool = False
