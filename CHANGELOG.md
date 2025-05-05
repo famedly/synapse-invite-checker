@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2025-05-05
+
+This release includes a new option for using a HTTP federation list URL without mutual authentication.
+
+Additionally, the clamped minimum interval for the room scan is reduced to 1 minute, as 1 hour is too
+long for certain test usecases.
+
+- feat: Add option for https federation list without mTLS (Emelie Graven)
+- fix: Reduce minimum room scan clamp
+
 ## [0.4.2] - 2025-04-29
 
 This release fixes users being unable to login when the permissions object used for 
