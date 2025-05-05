@@ -152,7 +152,7 @@ class MtlsPolicy:
         )
 
     def creatorForNetloc(self, hostname, port):
-        if self.url.hostname != hostname or self.url.port != port:
+        if self.url.hostname.encode("utf-8") != hostname or self.url.port != port:
             print("self.url.hostname:", self.url.hostname)
             print("hostname:", hostname)
             print("self.url.port:", self.url.port)
