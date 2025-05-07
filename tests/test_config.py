@@ -260,3 +260,33 @@ class ConfigParsingTestCase(TestCase):
 
         config.federation_list_url = "file:///etc/passwd"
         self.assertRaises(Exception, MtlsPolicy, config)
+
+    def test_mtls_policy_creator_for_netloc_bytes_hostname(self) -> None:
+        """
+        Test that creatorForNetloc correctly handles bytes hostname by encoding url.hostname to UTF-8
+        """
+        from synapse_invite_checker.invite_checker import MtlsPolicy
+        from synapse_invite_checker.config import InviteCheckerConfig
+
+        # Create a config with valid URL
+        config = InviteCheckerConfig()
+        config.federation_list_url = "https://example.com:8443"
+        config.federation_list_client_cert = ""
+        config.federation_list_require_mtls = False
+
+        policy = MtlsPolicy(config)
+
+        # Test with matching bytes hostname (that corresponds to the encoded url.hostname) and port
+        options = policy.creatorForNetloc(b"example.com", 8443)
+        self.assertEqual(options, policy.options)
+
+        # Test with non-matching bytes hostname
+        with self.assertRaises(Exception) as context:
+            policy.creatorForNetloc(b"other.com", 8443)
+        self.assertIn("Invalid connection attempt", str(context.exception))
+
+        # Test with invalid bytes hostname
+        invalid_bytes = b"\xff\xfe\xfd\xfc"  # Not valid UTF-8
+        with self.assertRaises(Exception) as context:
+            policy.creatorForNetloc(invalid_bytes, 8443)
+        self.assertIn("Invalid connection attempt", str(context.exception))

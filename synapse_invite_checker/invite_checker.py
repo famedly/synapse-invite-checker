@@ -152,7 +152,14 @@ class MtlsPolicy:
         )
 
     def creatorForNetloc(self, hostname, port):
-        if self.url.hostname != hostname or self.url.port != port:
+        if self.url.hostname.encode("utf-8") != hostname or self.url.port != port:
+            logger.error(
+                "Destination mismatch: %r:%r != %r:%r",
+                self.url.hostname,
+                self.url.port,
+                hostname,
+                port,
+            )
             msg = "Invalid connection attempt by MTLS Policy"
             raise Exception(msg)
         return self.options
