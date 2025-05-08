@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.4] - 2025-05-08
+
+This release is largely a bugfix release. The federation list is fetched less often for
+non-insurance servers. Rooms with missing backfill, which especially affects invites,
+are not purged anymore before the inactivity period is over. The mtls option should now
+work more reliably.
+
+- chore: more explicit typing for hostname validation for mtls (Nicolas Werner)
+- fix: Conditionally utf-8 decode hostname (Emelie Graven)
+- fix: Include received invites during room scans for inactive rooms to give time for the join to complete (Jason Little)
+- fix: Only re-fetch the Federation List if the domain was not found on the list (Jason Little)
+
 ## [0.4.3] - 2025-05-05
 
 This release includes a new option for using a HTTP federation list URL without mutual authentication.
