@@ -151,7 +151,9 @@ class MtlsPolicy:
             self.url.hostname, platformTrust(), clientCertificate=client_cert
         )
 
-    def creatorForNetloc(self, hostname, port):
+    def creatorForNetloc(self, hostname: bytes, port: int):
+        assert self.url.hostname is not None
+
         if self.url.hostname.encode("utf-8") != hostname or self.url.port != port:
             logger.error(
                 "Destination mismatch: %r:%r != %r:%r",
