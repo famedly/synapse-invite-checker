@@ -49,6 +49,7 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
         self.pro_user_b = self.register_user("b", "password")
         self.pro_user_c = self.register_user("c", "password")
         self.pro_user_d = self.register_user("d", "password")
+        self.non_existent_user = f"@notarealuser:{self.server_name_for_this_server}"
         self.login("a", "password")
         self.login("b", "password")
         self.login("c", "password")
@@ -195,6 +196,37 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                     == errors.Codes.FORBIDDEN
                 ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(after permission)"
 
+    def test_invite_to_nonexistent_local_user(self) -> None:
+        """Tests that an invite to a local user that does not exist gets denied"""
+        for remote_user_id in [
+            f"@example:{DOMAIN_IN_LIST}",
+            f"@example:{DOMAIN3_IN_LIST}",
+            f"@mxid404:{DOMAIN_IN_LIST}",
+        ]:
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+
+            # Adding permissions will not help, as the user doesn't exist
+            with self.assertRaises(ValueError):
+                # Raises with this error:
+                # `ValueError: User @notarealuser:tim.test.gematik.de does not exist on this server.`
+                # Weirdly, it's not the retrieval of the account data that triggers it,
+                # but is the trying to put new account data
+                self.add_permission_to_a_user(remote_user_id, self.non_existent_user)
+
+            # May as well give it another go anyway, just to make sure getting the
+            # non-existent account data didn't cause it to suddenly work
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+
     def test_remote_invite_from_an_insurance_domain(self) -> None:
         """
         Test that an insured user can invite a publicly listed practitioner or organization
@@ -243,6 +275,7 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.epa_user_d = self.register_user("d", "password")
+        self.non_existent_user = f"@notarealuser:{self.server_name_for_this_server}"
         self.login("d", "password")
 
     def default_config(self) -> dict[str, Any]:
@@ -398,3 +431,34 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
                 self.may_invite(remote_user_id, self.epa_user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
             ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.epa_user_d}"
+
+    def test_invite_to_nonexistent_local_user(self) -> None:
+        """Tests that an invite to a local user that does not exist gets denied"""
+        for remote_user_id in [
+            f"@example:{DOMAIN_IN_LIST}",
+            f"@example:{DOMAIN3_IN_LIST}",
+            f"@mxid404:{DOMAIN_IN_LIST}",
+        ]:
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+
+            # Adding permissions will not help, as the user doesn't exist
+            with self.assertRaises(ValueError):
+                # Raises with this error:
+                # `ValueError: User @notarealuser:tim.test.gematik.de does not exist on this server.`
+                # Weirdly, it's not the retrieval of the account data that triggers it,
+                # but is the trying to put new account data
+                self.add_permission_to_a_user(remote_user_id, self.non_existent_user)
+
+            # May as well give it another go anyway, just to make sure getting the
+            # non-existent account data didn't cause it to suddenly work
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
