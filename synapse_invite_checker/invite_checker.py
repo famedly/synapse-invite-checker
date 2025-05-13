@@ -809,6 +809,12 @@ class InviteChecker:
         # Step 2, check invite settings
         # Skip remote users as we can't check their account data
         if self.api.is_mine(invitee):
+            if not await self.api.check_user_exists(invitee):
+                logger.warning(
+                    "Blocking invite to non-existent local user '%s'", invitee
+                )
+                return errors.Codes.FORBIDDEN
+
             if not await self.permissions_handler.is_user_allowed(invitee, inviter):
                 logger.debug(
                     "Not allowing invite since local user (%s) did not allow the remote user (%s) in their permissions",
