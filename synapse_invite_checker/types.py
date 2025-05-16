@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cached_property
 from typing import Annotated, Any, Final
@@ -212,3 +213,26 @@ class TimType(Enum):
 class PermissionConfigType(Enum):
     EPA_ACCOUNT_DATA_TYPE = "de.gematik.tim.account.permissionconfig.epa.v1"
     PRO_ACCOUNT_DATA_TYPE = "de.gematik.tim.account.permissionconfig.pro.v1"
+
+
+@dataclass(slots=True)
+class EpaRoomTimestampResults:
+    """
+    Collection of timestamps used to decide if a room should have members removed.
+    Used for EPA server rooms. Recall that invite/leave timestamps are *only* seeded
+    from pro users membership events
+
+    Attributes:
+        last_invite_in_room: The timestamp for the newest 'invite' membership in the
+            room. Only used if there was no detected 'leave' event.
+        last_leave_in_room: The timestamp of the newest 'leave' membership in the room.
+            The preferred timestamp to acquire.
+        room_creation_ts: If nothing else, use the room creation as a sentinel. The slim
+            possibility exists that no 'leave' event exists and any 'invite' may have
+            failed. This is allowed to give a user time to try again before they do not
+            have access to this room removed.
+    """
+
+    last_invite_in_room: int | None = None
+    last_leave_in_room: int | None = None
+    room_creation_ts: int | None = None

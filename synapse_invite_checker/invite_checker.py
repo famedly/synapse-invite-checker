@@ -85,6 +85,7 @@ from synapse_invite_checker.rest.messenger_info import (
 )
 from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import (
+    EpaRoomTimestampResults,
     FederationList,
     PermissionDefaultSetting,
     TimType,
@@ -377,8 +378,17 @@ class InviteChecker:
         epa_room_grace_period = Config.parse_duration(
             insured_room_scan_section.get("grace_period", "1w")
         )
+        # For now, Gematik spec requires invites to count as room participation, but this
+        # can lead to a room never being considered for epa user kicking. Allow an
+        # enforceable maximum on this that is optional
+        epa_room_invites_grace_period = Config.parse_duration(
+            insured_room_scan_section.get("invites_grace_period", 0)
+        )
 
         _config.insured_room_scan_options.grace_period_ms = epa_room_grace_period
+        _config.insured_room_scan_options.invites_grace_period_ms = (
+            epa_room_invites_grace_period
+        )
 
         # This option is considered for all server modes unlike 'insured_only_room_scan'
         inactive_room_scan_section = config.get("inactive_room_scan", {})
@@ -843,10 +853,10 @@ class InviteChecker:
 
         return await self.store.db_pool.runInteraction("get_rooms", f)
 
-    @measure_func("get_timestamp_from_eligible_events_for_epa_room_purge")
-    async def get_timestamp_from_eligible_events_for_epa_room_purge(
+    @measure_func("get_timestamps_from_eligible_events_for_epa_room_purge")
+    async def get_timestamps_from_eligible_events_for_epa_room_purge(
         self, room_id
-    ) -> int | None:
+    ) -> EpaRoomTimestampResults:
         """
         Retrieve and parse the room PRO members that left into a timestamp of the
         latest event, or the timestamp of the create event if there were no PRO members
@@ -863,20 +873,28 @@ class InviteChecker:
             )
         )
 
-        results = set()
+        leave_event_timestamps = set()
+        invite_event_timestamps = set()
         create_event_ts = None
-        # The first key is "type", but it got filtered to only membership above
+
         for (state_type, state_key), event in state_mapping.items():
             if state_type == EventTypes.Create:
                 create_event_ts = event.origin_server_ts
-            elif (
-                state_type == EventTypes.Member and event.membership == Membership.LEAVE
-            ):
+
+            elif state_type == EventTypes.Member:
                 users_domain = UserID.from_string(state_key).domain
                 if not await self.is_domain_insurance(users_domain):
-                    results.add(event.origin_server_ts)
+                    if event.membership == Membership.LEAVE:
+                        leave_event_timestamps.add(event.origin_server_ts)
 
-        return max(results) if results else create_event_ts
+                    elif event.membership == Membership.INVITE:
+                        invite_event_timestamps.add(event.origin_server_ts)
+
+        return EpaRoomTimestampResults(
+            max(invite_event_timestamps) if invite_event_timestamps else None,
+            max(leave_event_timestamps) if leave_event_timestamps else None,
+            create_event_ts,
+        )
 
     @measure_func("get_timestamp_of_last_eligible_activity_in_room")
     async def get_timestamp_of_last_eligible_activity_in_room(
@@ -1124,6 +1142,14 @@ class InviteChecker:
             server_notice_rooms = {room.room_id for room in server_notice_rooms_list}
 
         if self.config.insured_room_scan_options.enabled:
+            # grab a couple of references, this will be used frequently and helps make
+            # the below conditions more readable.
+            # XXX: should we do the same for 'current_time'?
+            invites_grace_period_ms = (
+                self.config.insured_room_scan_options.invites_grace_period_ms
+            )
+            grace_period_ms = self.config.insured_room_scan_options.grace_period_ms
+
             for room_id in all_room_ids:
                 # Server notice rooms are exempt, don't want to necessarily hide that
                 # a notice showed up before the user has a chance to see it.
@@ -1132,28 +1158,52 @@ class InviteChecker:
 
                 # only shut down rooms that only have EPA hosts in them
                 if await self.have_all_pro_hosts_left(room_id):
-                    last_user_left_timestamp: int | None = (
-                        await self.get_timestamp_from_eligible_events_for_epa_room_purge(
-                            room_id
-                        )
+                    epa_room_results = await self.get_timestamps_from_eligible_events_for_epa_room_purge(
+                        room_id
                     )
+                    current_time = self.api._hs.get_clock().time_msec()
 
-                    if last_user_left_timestamp is None:
-                        # This is our sign of room either mid-creation/broken
-                        # Just skip this room, as there are no events to change to leave
-                        # and it will be purged automatically below
+                    # Invites(if found) are ignored if the invites_grace_period is 0 or
+                    # if the invites_grace_period + the actual timestamp of the invite
+                    # are greater than now
+                    if epa_room_results.last_invite_in_room is not None and (
+                        invites_grace_period_ms == 0
+                        or (
+                            epa_room_results.last_invite_in_room
+                            + invites_grace_period_ms
+                            > current_time
+                        )
+                    ):
+                        pass
+
+                    # Leaves(if found) are ignored if the grace_period + timestamp are
+                    # greater than now
+                    elif (
+                        epa_room_results.last_leave_in_room is not None
+                        and epa_room_results.last_leave_in_room + grace_period_ms
+                        > current_time
+                    ):
+                        pass
+
+                    # There is not always a create event available, but if there is and
+                    # its timestamp + grace_period are greater than now, then it is ignored
+                    elif epa_room_results.room_creation_ts is not None and (
+                        epa_room_results.room_creation_ts + grace_period_ms
+                        > current_time
+                    ):
+                        pass
+
+                    # In the unlikely event that all of the above did not happen, warn.
+                    # Recall that we only get to this place if there are no Pro hosts in
+                    # the room, so either an invite or a leave has to have occurred and
+                    # in their absence we use the create event. So if there is no create
+                    # event, then it is likely this room is broken somehow.
+                    elif epa_room_results.room_creation_ts is None:
                         logger.warning(
                             "Not kicking users from room during ePA user room scan because it contained no events: %s",
                             room_id,
                         )
-
-                        continue
-
-                    if (
-                        last_user_left_timestamp
-                        + self.config.insured_room_scan_options.grace_period_ms
-                        <= self.api._hs.get_clock().time_msec()
-                    ):
+                    else:
                         await self.kick_all_local_users(room_id)
 
         if self.config.inactive_room_scan_options.enabled:
@@ -1176,6 +1226,15 @@ class InviteChecker:
                         await self.schedule_room_for_purge(room_id)
 
     async def have_all_pro_hosts_left(self, room_id: str) -> bool:
+        """
+        Retrieves all hosts that have a member in a given room, and filters them to
+        decide if any of them are non-Epa servers.
+        Args:
+            room_id:
+
+        Returns: bool representing if the hosts present are all non-Pro servers
+
+        """
         hosts = await self.api._store.get_current_hosts_in_room(room_id)
         for host in hosts:
             if not await self.is_domain_insurance(host):

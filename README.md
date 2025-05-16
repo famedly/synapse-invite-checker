@@ -55,6 +55,7 @@ modules:
         insured_only_room_scan:
           enabled: true or false  # optional switch to disable the insured-only room scan from running.  The scan is enabled by default, but only runs in EPA mode, otherwise this option is ignored and the scan is disabled.
           grace_period: see 'Duration Parsing' below, # Length of time a room with only EPA members is allowed to exist before deletion. Ignored if `enabled` is false. Defaults to "1w"
+          invites_grace_period: see 'Duration Parsing' below, # Optional, a separate grace period just for invites, after which an invite will be considered stale and ignored. Otherwise invited "Pro" users are considered joined and will prevent purging the room. Ignored if `enabled` is false. Defaults to "0", which will never consider an invite stale.
         inactive_room_scan:
           enabled: true or false # optional switch to disable the room scan for inactive rooms, defaults to true
           grace_period: see 'Duration Parsing' below # Length of time a room is allowed to have no message activity before it is eligible for deletion. Ignored if 'enabled' is false. Defaults to "26w" which is 6 months
@@ -96,7 +97,7 @@ that is converted to milliseconds. Suffixes with 's', 'm', 'h', 'd', 'w', or 'y'
 ## Testing
 
 The tests uses twisted's testing framework trial, with the development
-enviroment managed by hatch. Running the tests and generating a coverage report
+environment managed by hatch. Running the tests and generating a coverage report
 can be done like this:
 
 ```console

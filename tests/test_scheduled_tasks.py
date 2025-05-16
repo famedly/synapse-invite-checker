@@ -65,6 +65,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
                 "insured_only_room_scan": {
                     "enabled": True,
                     "grace_period": "6h",
+                    "invites_grace_period": "7h",
                 },
                 # Enabled to test broken rooms being ignored(but later purged correctly)
                 # We don't worry about the grace_period as it will not apply
@@ -93,21 +94,33 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
         self.inject_servers_signing_key(SERVER_NAME_FROM_LIST)
 
-    @parameterized.expand([("pro_join_and_leave", True), ("pro_never_join", False)])
+    @parameterized.expand(
+        [
+            ("pro_join_and_leave", True, True),
+            ("pro_never_join", False, True),
+            ("pro_never_invited_or_joined", False, False),
+        ]
+    )
     def test_room_scan_detects_epa_rooms(
-        self, pro_activity: str, pro_join: bool
+        self, pro_activity: str, pro_join: bool, pro_invited: bool
     ) -> None:
         """
-        Test that a room is deleted when a single EPA user and a single PRO user are in
-        a room, but the PRO user leaves. Also test the same scenario, but if the PRO user
-        never joined/left to test that 'maybe broken' rooms are detected
+        Test that a room is handled as appropriately with a single EPA user and a single
+        PRO user. Also test if the PRO user never joined/left(to test that 'maybe broken'
+        rooms) and rooms with no invites at all.
         """
-        # Make a room and invite the doctor
-        room_id = self.create_local_room(
-            self.user_d, [self.remote_pro_user], is_public=False
-        )
+        # Make a room...
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id is not None, "Room should be created"
 
+        # ...then (maybe) invite the doctor
+        if pro_invited:
+            self.helper.invite(
+                room_id,
+                self.user_d,
+                self.remote_pro_user,
+                tok=self.map_user_id_to_token[self.user_d],
+            )
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
@@ -126,7 +139,13 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
         assert not is_room_blocked, "Room should not be blocked yet(try 2)"
 
-        self.reactor.advance(5 * 60 * 60)
+        # The config gives 6 hours for leaves and 7 hours for joins. Depending on the test
+        # we fast-forward an hour short of which one is expected.
+        if pro_activity == "pro_never_join":
+            # The 'pro_never_join' is specifically a test for an invite without a join
+            self.reactor.advance(6 * 60 * 60)
+        else:
+            self.reactor.advance(5 * 60 * 60)
 
         # Room should still exist
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
@@ -358,6 +377,162 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
         with self.assertRaises(AuthError):
             self.create_and_send_event(room_id, self.user_d_id)
+
+    def test_room_scan_detects_invites_as_participation(self) -> None:
+        """
+        Test that a room is not detected as inactive if one of two doctors never show up
+        """
+        # Make a room and invite the doctor
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
+        assert room_id is not None
+
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        # Needs to be either None or False
+        assert not is_room_blocked, "Room should not be blocked yet(try 1)"
+
+        # Invite both pro users
+        for remote_user in [self.remote_pro_user, self.remote_pro_user_2]:
+            self.helper.invite(
+                room_id,
+                src=self.user_d,
+                targ=remote_user,
+                tok=self.map_user_id_to_token[self.user_d],
+            )
+
+        # doctor #1 joins
+        self.send_join(self.remote_pro_user, room_id)
+
+        # Send a junk hex message into the room, like a sentinel
+        self.create_and_send_event(room_id, self.user_d_id)
+
+        # doctor 1 leaves room, still have that pending invite for doctor #2
+        self.send_leave(self.remote_pro_user, room_id)
+
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 2)"
+
+        self.reactor.advance(5 * 60 * 60)
+
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 3)"
+
+        # Normally, this would trigger the auto-kicker for leaves. But there is the
+        # pending invite still waiting, which is configured to 7 hours and not 6
+        self.reactor.advance(60 * 60)
+
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 4)"
+
+        # One more hour should be the 7 hours from settings
+        self.reactor.advance(60 * 60)
+
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert is_room_blocked, "Room should be blocked now"
+
+        # Inside EventCreationHandler.handle_new_client_event(), this raises as an
+        # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
+        with self.assertRaises(AuthError):
+            self.create_and_send_event(room_id, self.user_d_id)
+
+
+class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
+    """
+    Test that insured only room scans are done, and required room kicks are done. Unlike
+    the previous test case above, this explicitly disables considering invites as part
+    of the reasons to kick all users from a room
+    """
+
+    # This test case will model being an EPA server on the federation list
+    remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
+    # Our server name
+    server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
+    # The default "fake" remote server name that has its server signing keys auto-injected
+    OTHER_SERVER_NAME = DOMAIN_IN_LIST
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"room_scan_run_interval": "1h"}
+        )
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "insured_only_room_scan": {
+                    "enabled": True,
+                    "grace_period": "6h",
+                },
+                # Enabled to test broken rooms being ignored(but later purged correctly)
+                # We don't worry about the grace_period as it will not apply
+                "inactive_room_scan": {"enabled": True},
+            }
+        )
+
+        return conf
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+
+        self.user_d = self.register_user("d", "password")
+        # Need the full UserID in a few places for sending a message into the room
+        self.user_d_id = UserID.from_string(self.user_d)
+        self.login("d", "password")
+
+    def test_room_scan_ignores_room_with_invite_grace_period_disabled(self) -> None:
+        """
+        Test that a room does not have epa members kicked if the invite remains pending
+        with the invite grace period disabled.
+        """
+        # Make a room and invite the doctor
+        room_id = self.create_local_room(
+            self.user_d, [self.remote_pro_user], is_public=False
+        )
+        assert room_id is not None, "Room should be created"
+
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        # Needs to be either None or False
+        assert not is_room_blocked, "Room should not be blocked yet(try 1)"
+
+        # Send a junk hex message into the room, like a sentinel
+        self.create_and_send_event(room_id, self.user_d_id)
+
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 2)"
+
+        # The config gives 6 hours for leaves. Invites should count as joins and not
+        # cause the users to be kicked out.
+        self.reactor.advance(5 * 60 * 60)
+
+        # Room should still exist
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked yet(try 3)"
+
+        # Give another hour
+        self.reactor.advance(60 * 60)
+
+        # Should still be here
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked now(try 4)"
+
+        # Give another hour
+        self.reactor.advance(60 * 60)
+
+        # Should still be here
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked now(try 5)"
+
+        # Give another hour
+        self.reactor.advance(60 * 60)
+
+        # Should still be here
+        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        assert not is_room_blocked, "Room should not be blocked now(try 6)"
+        # Send a junk hex message into the room. Proof the room still exists
+        self.create_and_send_event(room_id, self.user_d_id)
 
 
 class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
