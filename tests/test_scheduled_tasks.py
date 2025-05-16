@@ -65,6 +65,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
                 "insured_only_room_scan": {
                     "enabled": True,
                     "grace_period": "6h",
+                    "invites_grace_period": "6h",
                 },
                 # Enabled to test broken rooms being ignored(but later purged correctly)
                 # We don't worry about the grace_period as it will not apply
@@ -93,21 +94,33 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
         self.inject_servers_signing_key(SERVER_NAME_FROM_LIST)
 
-    @parameterized.expand([("pro_join_and_leave", True), ("pro_never_join", False)])
+    @parameterized.expand(
+        [
+            ("pro_join_and_leave", True, True),
+            ("pro_never_join", False, True),
+            ("pro_never_invited_or_joined", False, False),
+        ]
+    )
     def test_room_scan_detects_epa_rooms(
-        self, pro_activity: str, pro_join: bool
+        self, pro_activity: str, pro_join: bool, pro_invited: bool
     ) -> None:
         """
-        Test that a room is deleted when a single EPA user and a single PRO user are in
-        a room, but the PRO user leaves. Also test the same scenario, but if the PRO user
-        never joined/left to test that 'maybe broken' rooms are detected
+        Test that a room is handled as appropriately with a single EPA user and a single
+        PRO user. Also test if the PRO user never joined/left(to test that 'maybe broken'
+        rooms) and rooms with no invites at all.
         """
-        # Make a room and invite the doctor
-        room_id = self.create_local_room(
-            self.user_d, [self.remote_pro_user], is_public=False
-        )
+        # Make a room...
+        room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id is not None, "Room should be created"
 
+        # ...then (maybe) invite the doctor
+        if pro_invited:
+            self.helper.invite(
+                room_id,
+                self.user_d,
+                self.remote_pro_user,
+                tok=self.map_user_id_to_token[self.user_d],
+            )
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
