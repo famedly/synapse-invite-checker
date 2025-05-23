@@ -84,7 +84,7 @@ ignore = [
   "N802"
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = ["RUF012", "S101", "PLR2004", "N803", "SLF001", "S105"]
 
 [tool.coverage.report]

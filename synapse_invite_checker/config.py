@@ -21,6 +21,7 @@ from synapse_invite_checker.types import DefaultPermissionConfig, TimType
 @dataclass
 class InsuredOnlyRoomScanConfig:
     grace_period_ms: int = 0
+    invites_grace_period_ms: int = 0
     enabled: bool = False
 
 
