@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.5] - 2025-05-26
+
+This release properly accounts for invites in the epa room scan. This behaviour
+can be configured using the `invites_grace_period` configuration option.
+
+- fix: Account for invites sent when calculating when to kick local users from an EPA room (Jason Little)
+- fix: Insure that local user actually exists prior to retrieving their permissions (Jason Little)
+- chore: Cleanup linter config (Jason Little)
+
 ## [0.4.4] - 2025-05-08
 
 This release is largely a bugfix release. The federation list is fetched less often for
@@ -26,12 +35,12 @@ long for certain test usecases.
 
 ## [0.4.2] - 2025-04-29
 
-This release fixes users being unable to login when the permissions object used for 
-invites is malformed. This is accomplished by resetting the permissions data to the 
+This release fixes users being unable to login when the permissions object used for
+invites is malformed. This is accomplished by resetting the permissions data to the
 server default.
 
-Additionally, exceptions raised both during start-up to verify that an EPA/PRO server 
-setting matches the Federation List and while performing a room scan for insured only 
+Additionally, exceptions raised both during start-up to verify that an EPA/PRO server
+setting matches the Federation List and while performing a room scan for insured only
 rooms have been fixed.
 
 - chore: Refactor some tests that no longer made sense and some clean up on others (Jason Little)
