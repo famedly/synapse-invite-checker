@@ -73,9 +73,9 @@ class MessengerIsInsuranceResource(RestServlet):
     async def on_GET(self, request: SynapseRequest) -> tuple[int, JsonDict]:
         await self.api.get_user_by_req(request)
         server_name = parse_string(request, "serverName", required=True)
-        isInsurance = await self.is_insurance_cb(server_name)
+        is_insurance = await self.is_insurance_cb(server_name)
         return HTTPStatus.OK, {
-            "isInsurance": isInsurance,
+            "isInsurance": is_insurance,
         }
 
 

@@ -23,7 +23,6 @@ from twisted.internet.testing import MemoryReactor
 from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
-
 logger = logging.getLogger(__name__)
 
 

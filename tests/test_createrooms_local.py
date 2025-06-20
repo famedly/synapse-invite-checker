@@ -13,10 +13,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from http import HTTPStatus
-
-from parameterized import parameterized
 from typing import Any
 
+from parameterized import parameterized
 from synapse.api.constants import EventTypes, HistoryVisibility, JoinRules
 from synapse.server import HomeServer
 from synapse.util import Clock

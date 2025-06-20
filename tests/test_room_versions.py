@@ -41,7 +41,7 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
     def user_create_room(
         self,
         is_public: bool = False,
-        room_ver: str | int = None,
+        room_ver: str | int | None = None,
         expect_code: int = HTTPStatus.OK,
     ) -> str | None:
         """
@@ -94,7 +94,7 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         return channel.json_body.get("replacement_room")
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_create_room_fails(self, label: str, is_public: bool) -> None:
+    def test_create_room_fails(self, _label: str, is_public: bool) -> None:
         """
         Test that most generic ways of not doing a room version string, and a room
         version that is outside of what is wanted, fail
@@ -130,7 +130,7 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         )
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_create_room_succeeds(self, label: str, is_public: bool) -> None:
+    def test_create_room_succeeds(self, _label: str, is_public: bool) -> None:
         """
         Tests that a room version that is allowed succeeds
         """
@@ -146,7 +146,7 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         )
 
     @parameterized.expand([("public", True), ("private", False)])
-    def test_room_upgrades(self, label: str, is_public: bool) -> None:
+    def test_room_upgrades(self, _label: str, is_public: bool) -> None:
         """
         Test room upgrades fail outside of defaults
         """

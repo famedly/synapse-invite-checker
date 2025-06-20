@@ -17,7 +17,7 @@ import functools
 import logging
 from collections.abc import Collection
 from contextlib import suppress
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from urllib.parse import quote, urlparse
 
 from cachetools import TTLCache, keys
@@ -63,14 +63,13 @@ from synapse.types import (
     UserID,
     create_requester,
 )
-from synapse.storage.roommember import RoomsForUser
 from synapse.types.handlers import ShutdownRoomParams
 from synapse.types.state import StateFilter
 from synapse.util.metrics import measure_func
 from twisted.internet.defer import Deferred
 from twisted.internet.ssl import PrivateCertificate, optionsForClientTLS, platformTrust
 from twisted.web.client import HTTPConnectionPool
-from twisted.web.iweb import IPolicyForHTTPS
+from twisted.web.iweb import IAgent, IPolicyForHTTPS
 from zope.interface import implementer
 
 from synapse_invite_checker.config import DefaultPermissionConfig, InviteCheckerConfig
@@ -87,11 +86,13 @@ from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import (
     EpaRoomTimestampResults,
     FederationList,
-    PermissionDefaultSetting,
     TimType,
 )
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from synapse.storage.roommember import RoomsForUser
 
 # We need to access the private API in some places, in particular the store and the homeserver
 # ruff: noqa: SLF001
@@ -143,7 +144,7 @@ class MtlsPolicy:
             # HTTPS with required mTLS but no certificate
             msg = "No mtls cert and scheme is https with mTLS required"
             raise Exception(msg)
-        elif self.url.scheme != "http" and self.url.scheme != "https":
+        elif self.url.scheme not in ("http", "https"):
             # Neither HTTP nor HTTPS
             msg = "URL scheme must be either http or https"
             raise Exception(msg)
@@ -153,9 +154,11 @@ class MtlsPolicy:
         )
 
     def creatorForNetloc(self, hostname: bytes, port: int):
-        assert self.url.hostname is not None
-
-        if self.url.hostname.encode("utf-8") != hostname or self.url.port != port:
+        if (
+            self.url.hostname
+            and self.url.hostname.encode("utf-8") != hostname
+            or self.url.port != port
+        ):
             logger.error(
                 "Destination mismatch: %r:%r != %r:%r",
                 self.url.hostname,
@@ -183,13 +186,16 @@ class FederationAllowListClient(BaseHttpClient):
         super().__init__(hs)
 
         pool = HTTPConnectionPool(self.reactor)
-        self.agent = ProxyAgent(
+
+        mstls_policy = MtlsPolicy(config)
+        proxy_agent = ProxyAgent(
             self.reactor,
             hs.get_reactor(),
             connectTimeout=15,
-            contextFactory=MtlsPolicy(config),
+            contextFactory=cast(IPolicyForHTTPS, mstls_policy),
             pool=pool,
         )
+        self.agent = cast(IAgent, proxy_agent)
 
 
 BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
@@ -285,7 +291,12 @@ class InviteChecker:
     @staticmethod
     def parse_config(config: dict[str, Any]) -> InviteCheckerConfig:
         logger.error("PARSE CONFIG")
-        _config = InviteCheckerConfig()
+
+        _default_permissions = config.get("default_permissions", {})
+        # The default for permissions when not declared in the configuration as a
+        # template is now part of the PermissionConfig class. If you need to change a
+        # default, do so there.
+        _config = InviteCheckerConfig(DefaultPermissionConfig(**_default_permissions))
 
         _config.title = config.get("title", _config.title)
         _config.description = config.get("description", _config.description)
@@ -333,13 +344,6 @@ class InviteChecker:
             msg = "`tim-type` setting is not a recognized value. Please fix."
             raise ConfigError(msg)
 
-        _default_permissions = config.get(
-            "default_permissions",
-            {"defaultSetting": PermissionDefaultSetting.ALLOW_ALL},
-        )
-        def_perm_model = DefaultPermissionConfig(**_default_permissions)
-        _config.default_permissions = def_perm_model
-
         _allowed_room_versions = config.get("allowed_room_versions", ["9", "10"])
         if not _allowed_room_versions or not isinstance(_allowed_room_versions, list):
             msg = "Allowed room versions must be formatted as a list."
@@ -367,7 +371,7 @@ class InviteChecker:
 
         # Only default enable this room scan if in EPA mode
         enable_insured_room_scan = insured_room_scan_section.get(
-            "enabled", True if _config.tim_type == TimType.EPA else False
+            "enabled", _config.tim_type == TimType.EPA
         )
         # But also prevent it running in PRO mode completely
         enable_insured_room_scan = (
@@ -446,7 +450,7 @@ class InviteChecker:
                     "This server has enabled ePA Mode in its config, but is not found on "
                     "the Federation List as an Insurance Domain!"
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(
                 "The server had an issue retrieving the Federation List: %r", e
             )
@@ -499,7 +503,9 @@ class InviteChecker:
 
         chain = load_certificate(
             FILETYPE_ASN1,
-            await self._raw_gematik_intermediate_cert_fetch(jwskey.get_issuer().CN),
+            await self._raw_gematik_intermediate_cert_fetch(
+                jwskey.get_issuer().CN or ""
+            ),
         )
         store_ctx = X509StoreContext(store, jwskey, chain=[chain])
         store_ctx.verify_certificate()
@@ -574,21 +580,25 @@ class InviteChecker:
             room_data = await self.api._store.get_invite_for_local_user_in_room(
                 user, room_id
             )
-            assert (
-                room_data is not None
-            ), "room_data(RoomsForUser) was None after an invite"
-            likely_invite_event_id = room_data.event_id
-            invite_event = await self.api._store.get_event(likely_invite_event_id)
-            invite_room_state = invite_event.unsigned.get("invite_room_state", [])
-            for _event in invite_room_state:
-                if _event["type"] == EventTypes.JoinRules:
-                    if _event["content"]["join_rule"] == JoinRules.PUBLIC:
+            if room_data:
+                invite_event = await self.api._store.get_event(room_data.event_id)
+                for _event in invite_event.unsigned.get("invite_room_state", []):
+                    if (
+                        _event["type"] == EventTypes.JoinRules
+                        and _event["content"]["join_rule"] == JoinRules.PUBLIC
+                    ):
                         return errors.Codes.FORBIDDEN
+            else:
+                logger.warning(
+                    "room_data(RoomsForUser) was None after an invite for user (%s) in room (%s)",
+                    user,
+                    room_id,
+                )
         return NOT_SPAM
 
     async def check_event_allowed(
         self, event: EventBase, context: StateMap[EventBase]
-    ) -> tuple[bool, dict | None] | None:
+    ) -> tuple[bool, dict | None]:
         """
         Check the 'event' to see if it is allowed to exist. This takes place before
         the event is actually stored.
@@ -622,9 +632,10 @@ class InviteChecker:
                 return False, None
             creation_event = context.get((EventTypes.Create, ""))
             # `m.federate` defaults to True if unspecified
-            federated_flag = creation_event["content"].get(
-                EventContentFields.FEDERATE, True
-            )
+            if creation_event and creation_event["content"]:
+                federated_flag = creation_event["content"].get(
+                    EventContentFields.FEDERATE, True
+                )
             # Remember to account for the override disabler
             if federated_flag and self.config.override_public_room_federation:
                 return False, None
@@ -651,11 +662,18 @@ class InviteChecker:
         * room version
         * room public-ness via room creation presets
         """
-        # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
-        # Do not allow "public_chat". Default is based on setting of visibility
-        room_preset: str = request_content.get("preset")
         # visibility can be either "public" or "private". If not included, it defaults to "private"
         room_visibility: str = request_content.get("visibility", "private")
+        # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
+        # Do not allow "public_chat". Default is based on setting of visibility
+        room_preset: str = request_content.get(
+            "preset",
+            (
+                RoomCreationPreset.PUBLIC_CHAT
+                if room_visibility == "public"
+                else RoomCreationPreset.PRIVATE_CHAT
+            ),
+        )
         # Determine based on above that the room is probably public
         is_public = (
             room_preset == RoomCreationPreset.PUBLIC_CHAT or room_visibility == "public"
@@ -678,13 +696,12 @@ class InviteChecker:
                     )
 
         # Forbid EPA servers from creating any kind of public room
-        if self.config.tim_type == TimType.EPA:
-            if is_public:
-                raise SynapseError(
-                    400,
-                    "Creation of a public room is not allowed",
-                    errors.Codes.FORBIDDEN,
-                )
+        if self.config.tim_type == TimType.EPA and is_public:
+            raise SynapseError(
+                400,
+                "Creation of a public room is not allowed",
+                errors.Codes.FORBIDDEN,
+            )
 
         if is_request_admin:
             return
@@ -734,10 +751,10 @@ class InviteChecker:
     async def check_login_for_spam(
         self,
         user_id: str,
-        device_id: str | None,
-        initial_display_name: str | None,
-        request_info: Collection[tuple[str | None, str]],
-        auth_provider_id: str | None = None,
+        _device_id: str | None,
+        _initial_display_name: str | None,
+        _request_info: Collection[tuple[str | None, str]],
+        _auth_provider_id: str | None = None,
     ) -> Literal["NOT_SPAM"] | errors.Codes:
         # Default permissions are populated automatically when fetching them. This
         # ensures users can see the default permissions in their client when they sign
@@ -751,21 +768,20 @@ class InviteChecker:
         # Verify that local users can't invite into their DMs as verified by a few
         # tests in the Testsuite. In the context of calling this directly from
         # `on_create_room()` above, there may not be a room_id yet.
-        if self.api.is_mine(inviter):
-            if room_id and self.config.block_invites_into_dms:
-                direct = await self.api.account_data_manager.get_global(
-                    inviter, AccountDataTypes.DIRECT
-                )
-                if direct:
-                    for user, roomids in direct.items():
-                        if room_id in roomids and user != invitee:
-                            # Can't invite to DM!
-                            logger.debug(
-                                "Preventing invite since %s already has a DM with %s",
-                                inviter,
-                                invitee,
-                            )
-                            return errors.Codes.FORBIDDEN
+        if self.api.is_mine(inviter) and room_id and self.config.block_invites_into_dms:
+            direct = await self.api.account_data_manager.get_global(
+                inviter, AccountDataTypes.DIRECT
+            )
+            if direct:
+                for user, roomids in direct.items():
+                    if room_id in roomids and user != invitee:
+                        # Can't invite to DM!
+                        logger.debug(
+                            "Preventing invite since %s already has a DM with %s",
+                            inviter,
+                            invitee,
+                        )
+                        return errors.Codes.FORBIDDEN
 
         inviter_domain = UserID.from_string(inviter).domain
         invitee_domain = UserID.from_string(invitee).domain
@@ -807,14 +823,14 @@ class InviteChecker:
                     StateFilter.from_types([(EventTypes.JoinRules, None)]),
                 )
             )
-            if event := state_mapping.get((EventTypes.JoinRules, "")):
-                if event.content["join_rule"] == JoinRules.PUBLIC:
-                    logger.debug(
-                        "Forbidding invite to a local public room to a remote user (%s -> %s)",
-                        inviter,
-                        invitee,
-                    )
-                    return errors.Codes.FORBIDDEN
+            event = state_mapping.get((EventTypes.JoinRules, ""))
+            if event and event.content["join_rule"] == JoinRules.PUBLIC:
+                logger.debug(
+                    "Forbidding invite to a local public room to a remote user (%s -> %s)",
+                    inviter,
+                    invitee,
+                )
+                return errors.Codes.FORBIDDEN
 
         # Step 2, check invite settings
         # Skip remote users as we can't check their account data
@@ -848,8 +864,7 @@ class InviteChecker:
         def f(txn: LoggingTransaction) -> set[str]:
             sql = "SELECT room_id FROM rooms"
             txn.execute(sql)
-            result = {room_id for (room_id,) in txn.fetchall()}
-            return result
+            return {room_id for (room_id,) in txn.fetchall()}
 
         return await self.store.db_pool.runInteraction("get_rooms", f)
 
@@ -864,7 +879,7 @@ class InviteChecker:
 
         Returns None when no events were found for a room
         """
-        state_mapping: dict[tuple[str, str], EventBase] = (
+        state_mapping: StateMap[EventBase] = (
             await self.api._storage_controllers.state.get_current_state(
                 room_id,
                 StateFilter.from_types(
@@ -1083,7 +1098,7 @@ class InviteChecker:
         around in the database, try it again
         """
         if len(await self.get_delete_tasks_by_room(room_id)) > 0:
-            logger.warning("Purge already in progress or scheduled for %s" % (room_id,))
+            logger.warning("Purge already in progress or scheduled for %s", room_id)
             return
 
         shutdown_params = ShutdownRoomParams(
@@ -1166,30 +1181,30 @@ class InviteChecker:
                     # Invites(if found) are ignored if the invites_grace_period is 0 or
                     # if the invites_grace_period + the actual timestamp of the invite
                     # are greater than now
-                    if epa_room_results.last_invite_in_room is not None and (
-                        invites_grace_period_ms == 0
+                    if (
+                        epa_room_results.last_invite_in_room is not None
+                        and (
+                            invites_grace_period_ms == 0
+                            or (
+                                epa_room_results.last_invite_in_room
+                                + invites_grace_period_ms
+                                > current_time
+                            )
+                        )
+                        # Leaves(if found) are ignored if the grace_period + timestamp are
+                        # greater than now
                         or (
-                            epa_room_results.last_invite_in_room
-                            + invites_grace_period_ms
+                            epa_room_results.last_leave_in_room is not None
+                            and epa_room_results.last_leave_in_room + grace_period_ms
                             > current_time
                         )
-                    ):
-                        pass
-
-                    # Leaves(if found) are ignored if the grace_period + timestamp are
-                    # greater than now
-                    elif (
-                        epa_room_results.last_leave_in_room is not None
-                        and epa_room_results.last_leave_in_room + grace_period_ms
-                        > current_time
-                    ):
-                        pass
-
-                    # There is not always a create event available, but if there is and
-                    # its timestamp + grace_period are greater than now, then it is ignored
-                    elif epa_room_results.room_creation_ts is not None and (
-                        epa_room_results.room_creation_ts + grace_period_ms
-                        > current_time
+                        # There is not always a create event available, but if there is and
+                        # its timestamp + grace_period are greater than now, then it is ignored
+                        or epa_room_results.room_creation_ts is not None
+                        and (
+                            epa_room_results.room_creation_ts + grace_period_ms
+                            > current_time
+                        )
                     ):
                         pass
 
@@ -1217,13 +1232,12 @@ class InviteChecker:
                         room_id,
                     )
 
-                else:
-                    if (
-                        last_eligible_event_ts
-                        + self.config.inactive_room_scan_options.grace_period_ms
-                        <= self.api._hs.get_clock().time_msec()
-                    ):
-                        await self.schedule_room_for_purge(room_id)
+                elif (
+                    last_eligible_event_ts
+                    + self.config.inactive_room_scan_options.grace_period_ms
+                    <= self.api._hs.get_clock().time_msec()
+                ):
+                    await self.schedule_room_for_purge(room_id)
 
     async def have_all_pro_hosts_left(self, room_id: str) -> bool:
         """
@@ -1235,7 +1249,7 @@ class InviteChecker:
         Returns: bool representing if the hosts present are all non-Pro servers
 
         """
-        hosts = await self.api._store.get_current_hosts_in_room(room_id)
+        hosts = await self.api._store.get_current_hosts_in_room(room_id=room_id)  # type: ignore[call-arg]
         for host in hosts:
             if not await self.is_domain_insurance(host):
                 return False

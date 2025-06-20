@@ -104,6 +104,24 @@ can be done like this:
 hatch run cov
 ```
 
+Run type checks using mypy:
+
+```console
+hatch run types:check
+```
+
+Automatically format the code using black:
+
+```console
+hatch run format
+```
+
+Check for code style and quality issues using ruff:
+
+```console
+hatch run lint
+```
+
 ## License
 
 `synapse-invite-checker` is distributed under the terms of the

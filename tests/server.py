@@ -11,9 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# ruff: noqa: ARG001 ARG002
-
 import hashlib
 import ipaddress
 import json
@@ -322,7 +319,7 @@ class FakeSite:
         self.reactor = reactor
         self.experimental_cors_msc3886 = experimental_cors_msc3886
 
-    def getResourceFor(self, request: Request) -> IResource:
+    def getResourceFor(self, _request: Request) -> IResource:
         return self._resource
 
 
@@ -463,7 +460,7 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         @implementer(IResolverSimple)
         class FakeResolver:
             def getHostByName(
-                self, name: str, timeout: Sequence[int] | None = None
+                self, name: str, _timeout: Sequence[int] | None = None
             ) -> "Deferred[str]":
                 if name not in lookups:
                     return fail(DNSLookupError(f"OH NO: unknown {name}"))
@@ -536,10 +533,10 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
 
     def connectUNIX(
         self,
-        address: str,
-        factory: ClientFactory,
-        timeout: float = 30,
-        checkPID: int = 0,
+        _address: str,
+        _factory: ClientFactory,
+        _timeout: float = 30,
+        _checkPID: int = 0,
     ) -> IConnector:
         """
         Unix sockets aren't supported for unit tests yet. Make it obvious to any
@@ -551,11 +548,11 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
 
     def listenUNIX(
         self,
-        address: str,
-        factory: Factory,
-        backlog: int = 50,
-        mode: int = 0o666,
-        wantPID: int = 0,
+        _address: str,
+        _factory: Factory,
+        _backlog: int = 50,
+        _mode: int = 0o666,
+        _wantPID: int = 0,
     ) -> IListeningPort:
         """
         Unix sockets aren't supported for unit tests yet. Make it obvious to any
@@ -571,7 +568,7 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         port: int,
         factory: ClientFactory,
         timeout: float = 30,
-        bindAddress: tuple[str, int] | None = None,
+        _bindAddress: tuple[str, int] | None = None,
     ) -> IConnector:
         """Fake L{IReactorTCP.connectTCP}."""
 
@@ -1006,7 +1003,7 @@ def setup_test_homeserver(
         kwargs["clock"] = MockClock()
 
     if USE_POSTGRES_FOR_TESTS:
-        test_db = "synapse_test_%s" % uuid.uuid4().hex
+        test_db = f"synapse_test_{uuid.uuid4().hex}"
 
         database_config = {
             "name": "psycopg2",
@@ -1076,10 +1073,8 @@ def setup_test_homeserver(
         )
         db_engine.attempt_to_set_autocommit(db_conn, True)
         cur = db_conn.cursor()
-        cur.execute("DROP DATABASE IF EXISTS %s;" % (test_db,))
-        cur.execute(
-            "CREATE DATABASE %s WITH TEMPLATE %s;" % (test_db, POSTGRES_BASE_DB)
-        )
+        cur.execute(f"DROP DATABASE IF EXISTS {test_db};")
+        cur.execute(f"CREATE DATABASE {test_db} WITH TEMPLATE {POSTGRES_BASE_DB};")
         cur.close()
         db_conn.close()
 

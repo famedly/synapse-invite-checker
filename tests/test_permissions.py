@@ -24,9 +24,9 @@ from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
 
 from synapse_invite_checker.types import (
+    LOCAL_SERVER_TEMPLATE,
     DefaultPermissionConfig,
     GroupName,
-    LOCAL_SERVER_TEMPLATE,
     PermissionConfig,
     PermissionConfigType,
 )
@@ -48,14 +48,24 @@ def strip_json_of_whitespace(test_json) -> str:
     )
 
 
-def assert_test_json_matches_permissions(test_json, permissions) -> None:
+def assert_test_json_matches_permissions(
+    test_json: str, permissions: PermissionConfig
+) -> None:
     """
     Test assert that stripping all the whitespace and sorting keys of the json yields
     the same json after it has passed through the PermissionConfig
     """
+    # First, strip and order the existing test json from the test
     test_json_stripped = strip_json_of_whitespace(test_json)
+    # Then, use the PermissionConfig to dump its data and juggle it back and forth into
+    # a string that has also been sorted and stripped. They should match now. If they do
+    # not, it means something that was not supposed to be included is contaminating the
+    # json and the test should fail.
+    # We purposely do not use the `model_dump_json` helper method from Pydantic here, as
+    # that is not used in production and therefore would not be a truly sterile test(it
+    # outputs a string of json, but does not sort and strip it for us anyway).
     assert test_json_stripped == strip_json_of_whitespace(
-        permissions.model_dump_json(exclude_unset=True, exclude_defaults=True)
+        json.dumps(permissions.dump())
     )
 
 
@@ -76,12 +86,12 @@ def assert_test_yaml_matches_json_dump(
     # If the local server was included by default with the template, we must account
     # for its existence here. Watch for it to be present, and look for the actual
     # server name in the dumped json
-    for key in {
+    for key in (
         "defaultSetting",
         "userExceptions",
         "serverExceptions",
         "groupExceptions",
-    }:
+    ):
         yaml_key_found = key in converted_yaml
         dj_key_found = key in dumped_json
         assert yaml_key_found == dj_key_found

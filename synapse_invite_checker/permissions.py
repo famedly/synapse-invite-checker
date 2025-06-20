@@ -21,12 +21,10 @@ from synapse.types import UserID
 
 from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.types import (
-    DefaultPermissionConfig,
     PermissionConfig,
     PermissionConfigType,
     TimType,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +42,7 @@ class InviteCheckerPermissionsHandler:
         api: ModuleApi,
         config: InviteCheckerConfig,
         is_domain_insurance_cb: Callable[[str], Awaitable[bool]],
-        default_perms_from_config: DefaultPermissionConfig,
+        default_perms_from_config: PermissionConfig,
     ) -> None:
         self.api = api
         self.config = config
@@ -57,7 +55,6 @@ class InviteCheckerPermissionsHandler:
         account_data = await self.account_data_manager.get_global(
             user_id, config_type.value
         )
-
         if not account_data or not account_data.get("defaultSetting"):
             # Overwrite or set the permissions in three cases(two here, third below):
             # 1. No existing permissions or if they are somehow mis-set as {}

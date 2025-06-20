@@ -18,7 +18,10 @@ from unittest import TestCase
 from synapse.config import ConfigError
 
 from synapse_invite_checker import InviteChecker
-from synapse_invite_checker.types import TimType
+from synapse_invite_checker.types import (
+    DefaultPermissionConfig,
+    TimType,
+)
 
 
 class ConfigParsingTestCase(TestCase):
@@ -247,11 +250,11 @@ class ConfigParsingTestCase(TestCase):
         Test that using an invalid URL scheme (neither http nor https) raises an exception
         when creating an MtlsPolicy
         """
-        from synapse_invite_checker.invite_checker import MtlsPolicy
         from synapse_invite_checker.config import InviteCheckerConfig
+        from synapse_invite_checker.invite_checker import MtlsPolicy
 
         # Create a config with an invalid URL scheme
-        config = InviteCheckerConfig()
+        config = InviteCheckerConfig(DefaultPermissionConfig())
         config.federation_list_url = "ftp://localhost:8080"
         self.assertRaises(Exception, MtlsPolicy, config)
 
@@ -265,11 +268,11 @@ class ConfigParsingTestCase(TestCase):
         """
         Test that creatorForNetloc correctly handles bytes hostname by encoding url.hostname to UTF-8
         """
-        from synapse_invite_checker.invite_checker import MtlsPolicy
         from synapse_invite_checker.config import InviteCheckerConfig
+        from synapse_invite_checker.invite_checker import MtlsPolicy
 
         # Create a config with valid URL
-        config = InviteCheckerConfig()
+        config = InviteCheckerConfig(DefaultPermissionConfig())
         config.federation_list_url = "https://example.com:8443"
         config.federation_list_client_cert = ""
         config.federation_list_require_mtls = False

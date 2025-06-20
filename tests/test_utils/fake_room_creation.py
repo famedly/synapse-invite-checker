@@ -94,15 +94,16 @@ class FakeRoom:
             _join_rule = JoinRules.PUBLIC
             _his_vis = HistoryVisibility.SHARED
             _guest_access = GuestAccess.FORBIDDEN
-        elif (
-            room_preset == RoomCreationPreset.PRIVATE_CHAT
-            or room_preset == RoomCreationPreset.TRUSTED_PRIVATE_CHAT
+        elif room_preset in (
+            RoomCreationPreset.PRIVATE_CHAT,
+            RoomCreationPreset.TRUSTED_PRIVATE_CHAT,
         ):
             _join_rule = JoinRules.INVITE
             _his_vis = HistoryVisibility.SHARED
             _guest_access = GuestAccess.CAN_JOIN
         else:
-            raise ValueError("'room_preset' was an unknown value")
+            e = "'room_preset' was an unknown value"
+            raise ValueError(e)
 
         join_rule = join_rule_override or _join_rule
         history_visibility = history_visibility_override or _his_vis
@@ -146,13 +147,10 @@ class FakeRoom:
             auth_events=auth_events,
             prev_events=self.current_prev_events_id_list,
         )
-        room_initial_state = []
-        for event_type in [EventTypes.Create, EventTypes.JoinRules]:
-            room_initial_state.append(
-                strip_state_event(
-                    self.map_of_state_events_by_type[event_type].get_dict()
-                )
-            )
+        room_initial_state = [
+            strip_state_event(self.map_of_state_events_by_type[event_type].get_dict())
+            for event_type in [EventTypes.Create, EventTypes.JoinRules]
+        ]
         # Save this to the state of the room. Rather it is denied or not by the real
         # server, it is still part of the room to be accounted for. After it is processed
         # by the real server, it should be updated. If it is denied, the room will be
@@ -542,7 +540,7 @@ class FakeRoom:
 
 
 def default_power_level_events(creator_id: str) -> dict[str, Any]:
-    power_level_content = {
+    return {
         "users": {creator_id: 100},
         "users_default": 0,
         "events": {
@@ -564,7 +562,6 @@ def default_power_level_events(creator_id: str) -> dict[str, Any]:
         "invite": 0,
         "historical": 100,
     }
-    return power_level_content
 
 
 def strip_state_event(pdu: dict[str, Any]) -> dict[str, Any]:

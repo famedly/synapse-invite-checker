@@ -113,7 +113,7 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                     local_user,
                     PermissionConfig(
                         defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
-                        userExceptions={remote_user_id: dict()},
+                        userExceptions={remote_user_id: {}},
                     ),
                 )
                 assert (
@@ -126,7 +126,7 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                     local_user,
                     PermissionConfig(
                         defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
-                        userExceptions={remote_user_id: dict()},
+                        userExceptions={remote_user_id: {}},
                     ),
                 )
                 assert (
@@ -140,7 +140,7 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                     PermissionConfig(
                         defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
                         serverExceptions={
-                            UserID.from_string(remote_user_id).domain: dict()
+                            UserID.from_string(remote_user_id).domain: {}
                         },
                     ),
                 )
@@ -155,7 +155,7 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                     PermissionConfig(
                         defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
                         serverExceptions={
-                            UserID.from_string(remote_user_id).domain: dict()
+                            UserID.from_string(remote_user_id).domain: {}
                         },
                     ),
                 )
@@ -358,7 +358,7 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
                 local_user,
                 PermissionConfig(
                     defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
-                    userExceptions={remote_user_id: dict()},
+                    userExceptions={remote_user_id: {}},
                 ),
             )
             assert (
@@ -371,7 +371,7 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
                 local_user,
                 PermissionConfig(
                     defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
-                    userExceptions={remote_user_id: dict()},
+                    userExceptions={remote_user_id: {}},
                 ),
             )
             assert (
@@ -384,9 +384,7 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
                 local_user,
                 PermissionConfig(
                     defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
-                    serverExceptions={
-                        UserID.from_string(remote_user_id).domain: dict()
-                    },
+                    serverExceptions={UserID.from_string(remote_user_id).domain: {}},
                 ),
             )
             assert (
@@ -399,9 +397,7 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
                 local_user,
                 PermissionConfig(
                     defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
-                    serverExceptions={
-                        UserID.from_string(remote_user_id).domain: dict()
-                    },
+                    serverExceptions={UserID.from_string(remote_user_id).domain: {}},
                 ),
             )
             assert (

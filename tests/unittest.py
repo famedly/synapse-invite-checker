@@ -13,9 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# ruff: noqa: ARG001 ARG002
-
 import functools
 import gc
 import hashlib
@@ -237,7 +234,8 @@ class TestCase(unittest.TestCase):
         that the value of each matches according to assertEqual."""
         for key in attrs:
             if not hasattr(obj, key):
-                raise AssertionError("Expected obj to have a '.%s'" % key)
+                msg = f"Expected obj to have a '.{key}'"
+                raise AssertionError(msg)
             try:
                 assert attrs[key] == getattr(obj, key)
             except AssertionError as e:
@@ -276,7 +274,8 @@ def logcontext_clean(target: TV) -> TV:
     """
 
     def logcontext_error(msg: str) -> NoReturn:
-        raise AssertionError("logcontext error: %s" % (msg))
+        err = f"logcontext error: {msg}"
+        raise AssertionError(err)
 
     patcher = patch("synapse.logging.context.logcontext_error", new=logcontext_error)
     return patcher(target)  # type: ignore[call-overload]
@@ -378,7 +377,7 @@ class HomeserverTestCase(TestCase):
 
             # This has to be a function and not just a Mock, because
             # `self.helper.auth_user_id` is temporarily reassigned in some tests
-            async def get_requester(*args: Any, **kwargs: Any) -> Requester:
+            async def get_requester(*_args: Any, **_kwargs: Any) -> Requester:
                 assert self.helper.auth_user_id is not None
                 return create_requester(
                     user_id=UserID.from_string(self.helper.auth_user_id),
@@ -426,7 +425,7 @@ class HomeserverTestCase(TestCase):
             )
 
     def make_homeserver(
-        self, reactor: ThreadedMemoryReactorClock, clock: Clock
+        self, _reactor: ThreadedMemoryReactorClock, _clock: Clock
     ) -> HomeServer:
         """
         Make and return a homeserver.
