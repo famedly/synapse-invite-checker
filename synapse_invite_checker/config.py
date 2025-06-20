@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from dataclasses import dataclass, field
-
+from typing import Optional
 
 from synapse_invite_checker.types import DefaultPermissionConfig, TimType
 
@@ -52,4 +52,4 @@ class InviteCheckerConfig:
     override_public_room_federation: bool = True
     prohibit_world_readable_rooms: bool = True
     block_invites_into_dms: bool = True
-    default_permissions: DefaultPermissionConfig = None
+    default_permissions: Optional[DefaultPermissionConfig] = None
