@@ -15,7 +15,7 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cached_property
-from typing import Annotated, Any, Final
+from typing import Annotated, Any, Final, Optional
 
 from pydantic import (
     BaseModel,
@@ -49,14 +49,14 @@ class PermissionConfig(BaseModel):
     # InviteCheckerPermissionsHandler.get_permissions() for where it is set now.
     # TLDR: this will not be an important detail after migrations have run as it will
     # always be set during class instantiation
-    defaultSetting: PermissionDefaultSetting = None
+    defaultSetting: PermissionDefaultSetting = PermissionDefaultSetting.BLOCK_ALL
     # If any of these three exists, they should contain a dict with the key as the
     # exception and then an empty dict inside "for future expansion"
-    serverExceptions: Annotated[dict[str, dict], Field(default_factory=dict)] = None
+    serverExceptions: Annotated[dict[str, dict], Field(default_factory=dict)] = {}
     # If there is a key inside userExceptions, it needs to be sure to start with a '@'.
     # Should we validate this or trust the client app does the right thing?
-    userExceptions: Annotated[dict[str, dict], Field(default_factory=dict)] = None
-    groupExceptions: Annotated[list[dict[str, str]], Field(default_factory=list)] = None
+    userExceptions: Annotated[dict[str, dict], Field(default_factory=dict)] = {}
+    groupExceptions: Annotated[list[dict[str, str]], Field(default_factory=list)] = []
 
     def dump(self) -> dict[str, Any]:
         # exclude_none=True strips out the attributes that are None so they do translate
@@ -129,9 +129,9 @@ class DefaultPermissionConfig(PermissionConfig):
 
         Returns: None
         """
-        if LOCAL_SERVER_TEMPLATE in self.serverExceptions:
+        if self.serverExceptions and LOCAL_SERVER_TEMPLATE in self.serverExceptions:
             self.serverExceptions.setdefault(
-                local_server_name, self.serverExceptions.get(LOCAL_SERVER_TEMPLATE)
+                local_server_name, self.serverExceptions.get(LOCAL_SERVER_TEMPLATE, {})
             )
             del self.serverExceptions[LOCAL_SERVER_TEMPLATE]
 
@@ -146,7 +146,7 @@ class FederationDomain(BaseModel):
     timAnbieter: str | None  # noqa: N815
     isInsurance: bool  # noqa: N815
     # ik gets marked as 'strict=False' as not all domains will have that data
-    ik: Annotated[list[str], Field(default_factory=list, strict=False)] = None
+    ik: Annotated[list[str], Field(default_factory=list, strict=False)] = []
 
 
 class FederationList(BaseModel):
@@ -156,7 +156,7 @@ class FederationList(BaseModel):
 
     domainList: list[FederationDomain]  # noqa: N815
 
-    @computed_field
+    @computed_field # type: ignore[prop-decorator]
     @cached_property
     def _domains_on_list(self) -> set[str]:
         """
@@ -164,7 +164,7 @@ class FederationList(BaseModel):
         """
         return {domain_data.domain for domain_data in self.domainList}
 
-    @computed_field
+    @computed_field # type: ignore[prop-decorator]
     @cached_property
     def _insurance_domains_on_list(self) -> set[str]:
         """
@@ -176,7 +176,7 @@ class FederationList(BaseModel):
             if domain_data.isInsurance
         }
 
-    @computed_field
+    @computed_field # type: ignore[prop-decorator]
     @cached_property
     def _ik_to_domain(self) -> dict[str, str]:
         """

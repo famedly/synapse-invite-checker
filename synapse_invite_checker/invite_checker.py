@@ -17,7 +17,7 @@ import functools
 import logging
 from collections.abc import Collection
 from contextlib import suppress
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, Mapping
 from urllib.parse import quote, urlparse
 
 from cachetools import TTLCache, keys
@@ -70,7 +70,7 @@ from synapse.util.metrics import measure_func
 from twisted.internet.defer import Deferred
 from twisted.internet.ssl import PrivateCertificate, optionsForClientTLS, platformTrust
 from twisted.web.client import HTTPConnectionPool
-from twisted.web.iweb import IPolicyForHTTPS
+from twisted.web.iweb import IPolicyForHTTPS, IAgent
 from zope.interface import implementer
 
 from synapse_invite_checker.config import DefaultPermissionConfig, InviteCheckerConfig
@@ -153,9 +153,7 @@ class MtlsPolicy:
         )
 
     def creatorForNetloc(self, hostname: bytes, port: int):
-        assert self.url.hostname is not None
-
-        if self.url.hostname.encode("utf-8") != hostname or self.url.port != port:
+        if self.url.hostname and self.url.hostname.encode("utf-8") != hostname or self.url.port != port:
             logger.error(
                 "Destination mismatch: %r:%r != %r:%r",
                 self.url.hostname,
@@ -183,13 +181,16 @@ class FederationAllowListClient(BaseHttpClient):
         super().__init__(hs)
 
         pool = HTTPConnectionPool(self.reactor)
-        self.agent = ProxyAgent(
+
+        mstls_policy = MtlsPolicy(config)
+        proxy_agent = ProxyAgent(
             self.reactor,
             hs.get_reactor(),
             connectTimeout=15,
-            contextFactory=MtlsPolicy(config),
+            contextFactory=cast(IPolicyForHTTPS, mstls_policy),
             pool=pool,
         )
+        self.agent = cast(IAgent, proxy_agent)
 
 
 BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
@@ -205,9 +206,10 @@ class InviteChecker:
         self.config = config
         # Can not do this as part of parse_config() as there is no access to the server
         # name yet
-        self.config.default_permissions.maybe_update_server_exceptions(
-            self.api._hs.config.server.server_name
-        )
+        if self.config.default_permissions:
+            self.config.default_permissions.maybe_update_server_exceptions(
+                self.api._hs.config.server.server_name
+            )
 
         self.federation_list_client = FederationAllowListClient(api._hs, self.config)
 
@@ -244,12 +246,13 @@ class InviteChecker:
 
         # Make sure this doesn't get initialized until after the default permissions
         # were potentially modified to account for the local server template
-        self.permissions_handler = InviteCheckerPermissionsHandler(
-            self.api,
-            self.config,
-            self.is_domain_insurance,
-            self.config.default_permissions,
-        )
+        if self.config.default_permissions:
+            self.permissions_handler = InviteCheckerPermissionsHandler(
+                self.api,
+                self.config,
+                self.is_domain_insurance,
+                self.config.default_permissions,
+            )
 
         self.task_scheduler = api._hs.get_task_scheduler()
 
@@ -499,7 +502,7 @@ class InviteChecker:
 
         chain = load_certificate(
             FILETYPE_ASN1,
-            await self._raw_gematik_intermediate_cert_fetch(jwskey.get_issuer().CN),
+            await self._raw_gematik_intermediate_cert_fetch(jwskey.get_issuer().CN or ""),
         )
         store_ctx = X509StoreContext(store, jwskey, chain=[chain])
         store_ctx.verify_certificate()
@@ -588,7 +591,7 @@ class InviteChecker:
 
     async def check_event_allowed(
         self, event: EventBase, context: StateMap[EventBase]
-    ) -> tuple[bool, dict | None] | None:
+    ) -> tuple[bool, dict | None]:
         """
         Check the 'event' to see if it is allowed to exist. This takes place before
         the event is actually stored.
@@ -622,9 +625,10 @@ class InviteChecker:
                 return False, None
             creation_event = context.get((EventTypes.Create, ""))
             # `m.federate` defaults to True if unspecified
-            federated_flag = creation_event["content"].get(
-                EventContentFields.FEDERATE, True
-            )
+            if creation_event and creation_event["content"]:
+                federated_flag = creation_event["content"].get(
+                    EventContentFields.FEDERATE, True
+                )
             # Remember to account for the override disabler
             if federated_flag and self.config.override_public_room_federation:
                 return False, None
@@ -653,7 +657,7 @@ class InviteChecker:
         """
         # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
         # Do not allow "public_chat". Default is based on setting of visibility
-        room_preset: str = request_content.get("preset")
+        room_preset: str = request_content.get("preset", "")
         # visibility can be either "public" or "private". If not included, it defaults to "private"
         room_visibility: str = request_content.get("visibility", "private")
         # Determine based on above that the room is probably public
@@ -864,7 +868,7 @@ class InviteChecker:
 
         Returns None when no events were found for a room
         """
-        state_mapping: dict[tuple[str, str], EventBase] = (
+        state_mapping: StateMap[EventBase] = (
             await self.api._storage_controllers.state.get_current_state(
                 room_id,
                 StateFilter.from_types(
@@ -1083,7 +1087,7 @@ class InviteChecker:
         around in the database, try it again
         """
         if len(await self.get_delete_tasks_by_room(room_id)) > 0:
-            logger.warning("Purge already in progress or scheduled for %s" % (room_id,))
+            logger.warning("Purge already in progress or scheduled for %s", room_id)
             return
 
         shutdown_params = ShutdownRoomParams(
@@ -1235,7 +1239,7 @@ class InviteChecker:
         Returns: bool representing if the hosts present are all non-Pro servers
 
         """
-        hosts = await self.api._store.get_current_hosts_in_room(room_id)
+        hosts = await self.api._store.get_current_hosts_in_room(room_id=room_id)  # type: ignore[call-arg]
         for host in hosts:
             if not await self.is_domain_insurance(host):
                 return False

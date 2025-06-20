@@ -66,6 +66,14 @@ matrix.database.env-vars = [
   { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
 ]
 
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+
+[tool.hatch.envs.types.scripts]
+check = "mypy --ignore-missing-imports --install-types --non-interactive {args:synapse_invite_checker}"
+
 [tool.coverage.run]
 branch = true
 parallel = true

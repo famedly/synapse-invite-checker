@@ -21,7 +21,6 @@ from synapse.types import UserID
 
 from synapse_invite_checker.config import InviteCheckerConfig
 from synapse_invite_checker.types import (
-    DefaultPermissionConfig,
     PermissionConfig,
     PermissionConfigType,
     TimType,
@@ -44,7 +43,7 @@ class InviteCheckerPermissionsHandler:
         api: ModuleApi,
         config: InviteCheckerConfig,
         is_domain_insurance_cb: Callable[[str], Awaitable[bool]],
-        default_perms_from_config: DefaultPermissionConfig,
+        default_perms_from_config: PermissionConfig,
     ) -> None:
         self.api = api
         self.config = config
