@@ -26,6 +26,8 @@ dependencies = [
   "asyncache",
   "jwcrypto",
   "pyopenssl",
+  # For the emoji reaction restrictions
+  "emoji",
   # We need to pin this because of https://github.com/element-hq/synapse/issues/17882
   # TODO: Remove this dependency when we can
   "Twisted==24.7.0"

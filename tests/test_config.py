@@ -293,3 +293,19 @@ class ConfigParsingTestCase(TestCase):
         with self.assertRaises(Exception) as context:
             policy.creatorForNetloc(invalid_bytes, 8443)
         self.assertIn("Invalid connection attempt", str(context.exception))
+
+    def test_unexpected_non_booleans(self) -> None:
+        test_config = self.config.copy()
+        # Although a boolean is an int, an int is not a boolean
+        test_config.update({"limit_reactions": "1"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+
+        test_config = self.config.copy()
+        # Although a boolean is an int, an int is not a boolean
+        test_config.update({"limit_reactions": 1})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        test_config = self.config.copy()
+
+        # Although a boolean is an int, an int is not a boolean
+        test_config.update({"limit_reactions": "hi mom!"})
+        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)

@@ -1,4 +1,4 @@
-# Copyright (C) 2020,2023 Famedly
+# Copyright (C) 2020,2025 Famedly
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -14,6 +14,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import base64
 import functools
+
+import emoji
 import logging
 from collections.abc import Collection
 from contextlib import suppress
@@ -431,6 +433,13 @@ class InviteChecker:
             "block_invites_into_dms", _config.block_invites_into_dms
         )
         _config.block_invites_into_dms = _block_invites_into_dms
+
+        _limit_reactions = config.get("limit_reactions", _config.limit_reactions)
+        if not isinstance(_limit_reactions, bool):
+            msg = "`limit_reactions` must be a boolean"
+            raise ConfigError(msg)
+        _config.limit_reactions = _limit_reactions
+
         return _config
 
     def after_startup(self) -> None:
@@ -610,11 +619,39 @@ class InviteChecker:
         replacement to use for the new event, in case modification is needed. WARNING:
         this has hazardous potential to break federation, and it is extremely unlikely
         we will ever use it
+
+        Raises: SynapseError(400, M_BAD_JSON) if a reaction annotation has more than a
+            single grapheme cluster when this restriction is enabled in settings
         """
         # This call check has many places it can be used, short-circuit out as swiftly
         # as is feasible
-        if not event.is_state() or not self.api.is_mine(event.sender):
-            # We only touch state events, and never anything from another server
+        # Never touch anything from another server
+        if not self.api.is_mine(event.sender):
+            return True, None
+
+        if not event.is_state():
+            # Only judge m.reaction when it is not a state event
+            if self.config.limit_reactions and event.type == EventTypes.Reaction:
+                key: str = event.content["m.relates_to"]["key"]
+
+                # Using `is_emoji()` will not check for emoji variations(such as skin
+                # tone or gender identifiers), but `purely_emoji()` does. So, first
+                # check that it is an emoji(which will exclude normal numbers and
+                # letters) and then check that there is only a single emoji(while
+                # accommodating the aforementioned emoji variations). `emoji_list()`
+                # does seem to handle the variations correctly(based on some limited
+                # testing)
+                if not emoji.purely_emoji(key) or len(emoji.emoji_list(key)) > 1:
+                    # Normally with this API, it is expected to return a bool to
+                    # indicate a failure to comply, however this raises a 403 error with
+                    # the FORBIDDEN code, and gematik wants it to be a 400 with BAD_JSON.
+                    raise SynapseError(
+                        400,
+                        "Only single emoji reactions are allowed",
+                        errors.Codes.BAD_JSON,
+                    )
+
+            # Otherwise, we only check state events
             return True, None
         # Important Note: This callback also runs during room creation, and may end up
         # being appropriate for checking the same things we check in `on_create_room()`.

@@ -52,3 +52,4 @@ class InviteCheckerConfig:
     override_public_room_federation: bool = True
     prohibit_world_readable_rooms: bool = True
     block_invites_into_dms: bool = True
+    limit_reactions: bool = True
