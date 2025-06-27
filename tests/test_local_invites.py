@@ -73,7 +73,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
     )
     def test_global_permissions(
         self,
-        label: str,
+        _label: str,
         default_setting: PermissionDefaultSetting,
         is_public: bool,
         expected_result: int,
@@ -130,7 +130,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
     )
     def test_server_exceptions(
         self,
-        label: str,
+        _label: str,
         default_setting: PermissionDefaultSetting,
         is_public: bool,
         expected_result: int,
@@ -193,7 +193,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
     )
     def test_user_exceptions(
         self,
-        label: str,
+        _label: str,
         default_setting: PermissionDefaultSetting,
         is_public: bool,
         expected_result: bool,
@@ -398,7 +398,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     )
     def test_global_permissions(
         self,
-        label: str,
+        _label: str,
         default_setting: PermissionDefaultSetting,
         expected_result: int,
     ) -> None:
@@ -440,7 +440,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     )
     def test_server_exceptions(
         self,
-        label: str,
+        _label: str,
         default_setting: PermissionDefaultSetting,
         expected_result: int,
     ) -> None:
@@ -485,7 +485,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     )
     def test_user_exceptions(
         self,
-        label: str,
+        _label: str,
         default_setting: PermissionDefaultSetting,
         expected_result: int,
     ) -> None:

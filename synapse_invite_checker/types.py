@@ -15,7 +15,7 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cached_property
-from typing import Annotated, Any, Final
+from typing import Any, Final
 
 from pydantic import (
     BaseModel,
@@ -43,27 +43,27 @@ class PermissionConfig(BaseModel):
         use_enum_values=True,
     )
 
-    # I believe that it should be correct to set the default value here, but the method
-    # used to extract the data later(see dump() below, specifically 'exclude_defaults=True')
-    # will then not include it. Imported data does not have this issue. See
-    # InviteCheckerPermissionsHandler.get_permissions() for where it is set now.
-    # TLDR: this will not be an important detail after migrations have run as it will
-    # always be set during class instantiation
-    defaultSetting: PermissionDefaultSetting = None
-    # If any of these three exists, they should contain a dict with the key as the
+    # This is where we will set the default permission setting now. This only is used
+    # when the template is not produced in the configuration, per README.md
+    defaultSetting: PermissionDefaultSetting = PermissionDefaultSetting.ALLOW_ALL
+    # If either of these two exist, they should contain a dict with the key as the
     # exception and then an empty dict inside "for future expansion"
-    serverExceptions: Annotated[dict[str, dict], Field(default_factory=dict)] = None
+    serverExceptions: dict[str, dict] = Field(default_factory=dict)
     # If there is a key inside userExceptions, it needs to be sure to start with a '@'.
     # Should we validate this or trust the client app does the right thing?
-    userExceptions: Annotated[dict[str, dict], Field(default_factory=dict)] = None
-    groupExceptions: Annotated[list[dict[str, str]], Field(default_factory=list)] = None
+    userExceptions: dict[str, dict] = Field(default_factory=dict)
+    # This is slightly different to the two just above, as it uses a list to contain the
+    # dict. At time of writing there is exactly one option, and it is part of the
+    # GroupName enum class just above
+    groupExceptions: list[dict[str, str]] = Field(default_factory=list)
 
     def dump(self) -> dict[str, Any]:
-        # exclude_none=True strips out the attributes that are None so they do translate
-        # to JSON as 'null'. exclude_defaults=True strips out attributes in the same
-        # way. It does not touch empty dict sub-attributes only top level!!
-        # mode="json" turns the classes into their string names.
-        return self.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+        # exclude_unset=True strips out the attributes that were never set, and thus
+        # will not appear in the JSON. It does not touch empty dict sub-attributes only
+        # top level!!
+        # mode="json" which effectively keeps the camel casing for us(as that is a
+        # gematik requirement) and makes sure the keys remain as strings.
+        return self.model_dump(mode="json", exclude_unset=True)
 
     def is_allow_all(self):
         return self.defaultSetting != PermissionDefaultSetting.BLOCK_ALL.value
@@ -131,7 +131,7 @@ class DefaultPermissionConfig(PermissionConfig):
         """
         if LOCAL_SERVER_TEMPLATE in self.serverExceptions:
             self.serverExceptions.setdefault(
-                local_server_name, self.serverExceptions.get(LOCAL_SERVER_TEMPLATE)
+                local_server_name, self.serverExceptions.get(LOCAL_SERVER_TEMPLATE, {})
             )
             del self.serverExceptions[LOCAL_SERVER_TEMPLATE]
 
@@ -142,11 +142,11 @@ class FederationDomain(BaseModel):
     )
 
     domain: str
-    telematikID: str  # noqa: N815
-    timAnbieter: str | None  # noqa: N815
-    isInsurance: bool  # noqa: N815
+    telematikID: str
+    timAnbieter: str | None
+    isInsurance: bool
     # ik gets marked as 'strict=False' as not all domains will have that data
-    ik: Annotated[list[str], Field(default_factory=list, strict=False)] = None
+    ik: list[str] = Field(default_factory=list, strict=False)
 
 
 class FederationList(BaseModel):
@@ -154,9 +154,9 @@ class FederationList(BaseModel):
         strict=True, frozen=True, extra="ignore", allow_inf_nan=False
     )
 
-    domainList: list[FederationDomain]  # noqa: N815
+    domainList: list[FederationDomain]
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def _domains_on_list(self) -> set[str]:
         """
@@ -164,7 +164,7 @@ class FederationList(BaseModel):
         """
         return {domain_data.domain for domain_data in self.domainList}
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def _insurance_domains_on_list(self) -> set[str]:
         """
@@ -176,7 +176,7 @@ class FederationList(BaseModel):
             if domain_data.isInsurance
         }
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def _ik_to_domain(self) -> dict[str, str]:
         """

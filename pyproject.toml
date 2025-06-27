@@ -49,9 +49,12 @@ dependencies = [
   # when we just want to install the module
   "matrix-synapse @ git+https://github.com/famedly/synapse.git@master"
 ]
+
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
 format = "black ."
+lint = "ruff check . --fix"
+
 # For CI use
 [tool.hatch.envs.ci.scripts]
 cov = "pytest --cov-report=lcov:lcov.info --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
@@ -66,13 +69,22 @@ matrix.database.env-vars = [
   { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
 ]
 
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+
+[tool.hatch.envs.types.scripts]
+check = "mypy"
+
 [tool.coverage.run]
 branch = true
 parallel = true
 omit = ["tests/*"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
+line-length = 88
 
 [tool.ruff.lint]
 ignore = [
@@ -81,11 +93,12 @@ ignore = [
   "TRY002",
   "TRY003",
   "PLW0603",
-  "N802"
+  "N802",
+  "N815"
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["RUF012", "S101", "PLR2004", "N803", "SLF001", "S105"]
+"tests/*" = ["RUF012", "S101", "PLR2004", "N803", "SLF001", "S105", "UP035", "PT"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -93,3 +106,9 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.mypy]
+ignore_missing_imports = true
+install_types = true
+non_interactive = true
+files = ["synapse_invite_checker"]

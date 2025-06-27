@@ -244,13 +244,12 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
         self.fed_transport_client = Mock(spec=["send_transaction"])
         self.fed_transport_client.send_transaction = AsyncMock(return_value={})
 
-        hs = self.setup_test_homeserver(
+        return self.setup_test_homeserver(
             # Masquerade as a domain found on the federation list, then we can pass
             # tests that verify that fact
             self.server_name_for_this_server,
             federation_transport_client=self.fed_transport_client,
         )
-        return hs
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -390,7 +389,7 @@ class OutgoingRemoteJoinTestCase(FederatingModuleApiTestCase):
             self.user_d,
             PermissionConfig(
                 defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
-                userExceptions={self.remote_epa_user: dict()},
+                userExceptions={self.remote_epa_user: {}},
             ),
         )
 

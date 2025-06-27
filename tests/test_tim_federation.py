@@ -53,7 +53,8 @@ class FederationDomainSchemaTest(FederatingModuleApiTestCase):
             if domain_entry.domain == domain:
                 return domain_entry
 
-        assert False, f"Not found in federation list {domain}"
+        msg = f"Not found in federation list {domain}"
+        raise AssertionError(msg)
 
     async def test_federation_list(self) -> None:
         """Ensure we can properly fetch the federation list"""

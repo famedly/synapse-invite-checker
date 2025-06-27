@@ -131,7 +131,7 @@ class RestHelper:
         if room_version:
             content["room_version"] = room_version
         if tok:
-            path = path + "?access_token=%s" % tok
+            path = f"{path}?access_token={tok}"
 
         channel = make_request(
             self.reactor,
@@ -199,9 +199,9 @@ class RestHelper:
     ) -> None:
         temp_id = self.auth_user_id
         self.auth_user_id = user
-        path = "/knock/%s" % room
+        path = f"/knock/{room}"
         if tok:
-            path = path + "?access_token=%s" % tok
+            path = f"{path}?access_token={tok}"
 
         data = {}
         if reason:
@@ -373,11 +373,11 @@ class RestHelper:
         custom_headers: Iterable[tuple[AnyStr, AnyStr]] | None = None,
     ) -> JsonDict:
         if txn_id is None:
-            txn_id = "m%s" % (str(time.time()))
+            txn_id = f"m{time.time()!s}"
 
         path = f"/_matrix/client/r0/rooms/{room_id}/send/{type_}/{txn_id}"
         if tok:
-            path = path + "?access_token=%s" % tok
+            path = f"{path}?access_token={tok}"
 
         channel = make_request(
             self.reactor,
@@ -463,7 +463,7 @@ class RestHelper:
         """
         path = f"/_matrix/client/r0/rooms/{room_id}/state/{event_type}/{state_key}"
         if tok:
-            path = path + "?access_token=%s" % tok
+            path = f"{path}?access_token={tok}"
 
         # Set request body if provided
         content = b""
@@ -472,11 +472,9 @@ class RestHelper:
 
         channel = make_request(self.reactor, self.site, method, path, content)
 
-        assert channel.code == expect_code, "Expected: %d, got: %d, resp: %r" % (
-            expect_code,
-            channel.code,
-            channel.result["body"],
-        )
+        assert (
+            channel.code == expect_code
+        ), f"Expected: {expect_code}, got: {channel.code}, resp: {channel.result['body']}"
 
         return channel.json_body
 
