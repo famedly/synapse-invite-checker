@@ -40,16 +40,52 @@ class ReactionLimitationTestCase(FederatingModuleApiTestCase):
     def test_single_reaction(self) -> None:
         room_id = self.create_local_room(self.user_a, [], False)
         assert room_id is not None
-        message_body = self.helper.send(
-            room_id, "message", tok=self.map_user_id_to_token[self.user_a]
+        message_1_body = self.helper.send(
+            room_id, "message 1", tok=self.map_user_id_to_token[self.user_a]
         )
         self.helper.send_event(
             room_id,
             EventTypes.Reaction,
             {
                 "m.relates_to": {
-                    "event_id": message_body.get("event_id"),
+                    "event_id": message_1_body.get("event_id"),
                     "key": "H",
+                    "rel_type": RelationTypes.ANNOTATION,
+                }
+            },
+            tok=self.map_user_id_to_token[self.user_a],
+            expect_code=HTTPStatus.OK,
+        )
+        message_2_body = self.helper.send(
+            room_id, "message 2", tok=self.map_user_id_to_token[self.user_a]
+        )
+        self.helper.send_event(
+            room_id,
+            EventTypes.Reaction,
+            {
+                "m.relates_to": {
+                    "event_id": message_2_body.get("event_id"),
+                    "key": "👍",
+                    "rel_type": RelationTypes.ANNOTATION,
+                }
+            },
+            tok=self.map_user_id_to_token[self.user_a],
+            expect_code=HTTPStatus.OK,
+        )
+
+    def test_empty_reaction(self) -> None:
+        room_id = self.create_local_room(self.user_a, [], False)
+        assert room_id is not None
+        message_1_body = self.helper.send(
+            room_id, "message 1", tok=self.map_user_id_to_token[self.user_a]
+        )
+        self.helper.send_event(
+            room_id,
+            EventTypes.Reaction,
+            {
+                "m.relates_to": {
+                    "event_id": message_1_body.get("event_id"),
+                    "key": "",
                     "rel_type": RelationTypes.ANNOTATION,
                 }
             },
@@ -60,19 +96,35 @@ class ReactionLimitationTestCase(FederatingModuleApiTestCase):
     def test_multiple_reactions(self) -> None:
         room_id = self.create_local_room(self.user_a, [], False)
         assert room_id is not None
-        message_body = self.helper.send(
-            room_id, "message", tok=self.map_user_id_to_token[self.user_a]
+        message_1_body = self.helper.send(
+            room_id, "message 1", tok=self.map_user_id_to_token[self.user_a]
         )
         self.helper.send_event(
             room_id,
             EventTypes.Reaction,
             {
                 "m.relates_to": {
-                    "event_id": message_body.get("event_id"),
+                    "event_id": message_1_body.get("event_id"),
                     "key": "DH",
                     "rel_type": RelationTypes.ANNOTATION,
                 }
             },
             tok=self.map_user_id_to_token[self.user_a],
-            expect_code=HTTPStatus.FORBIDDEN,
+            expect_code=HTTPStatus.BAD_REQUEST,
+        )
+        message_2_body = self.helper.send(
+            room_id, "message 2", tok=self.map_user_id_to_token[self.user_a]
+        )
+        self.helper.send_event(
+            room_id,
+            EventTypes.Reaction,
+            {
+                "m.relates_to": {
+                    "event_id": message_2_body.get("event_id"),
+                    "key": "👍😃",
+                    "rel_type": RelationTypes.ANNOTATION,
+                }
+            },
+            tok=self.map_user_id_to_token[self.user_a],
+            expect_code=HTTPStatus.BAD_REQUEST,
         )

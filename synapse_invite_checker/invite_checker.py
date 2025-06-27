@@ -608,6 +608,9 @@ class InviteChecker:
         replacement to use for the new event, in case modification is needed. WARNING:
         this has hazardous potential to break federation, and it is extremely unlikely
         we will ever use it
+
+        Raises: SynapseError(400, M_BAD_JSON) if a reaction annotation has more than a
+            single grapheme cluster when this restriction is enabled in settings
         """
         # This call check has many places it can be used, short-circuit out as swiftly
         # as is feasible
@@ -619,7 +622,15 @@ class InviteChecker:
             # Only judge m.reaction when it is not a state event
             if event.type == EventTypes.Reaction:
                 key: str = event.content["m.relates_to"]["key"]
-                return len(graphemes(key)) < 2, None
+                if len(graphemes(key)) > 1:
+                    # Normally with this API, it is expected to return a bool to
+                    # indicate a failure to comply, however this raises a 403 error with
+                    # the FORBIDDEN code, and gematik wants it to be a 400 with BAD_JSON.
+                    raise SynapseError(
+                        400,
+                        f"Only simple reactions are allowed {key}",
+                        errors.Codes.BAD_JSON,
+                    )
 
             # Otherwise, we only touch state events
             return True, None
