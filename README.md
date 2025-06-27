@@ -62,6 +62,7 @@ modules:
         override_public_room_federation: true or false, # Forces the `m.federate` flag to be set to False when creating a public room to prevent it from federating. Default is "true", disable with "false"
         prohibit_world_readable_rooms: true or false, # Prevent setting any rooms history visibility as 'world_readable'. Defaults to "true"
         block_invites_into_dms: true or false, # Prevent invites into existing DM chats. Defaults to true
+        limit_reactions: true or false, # Prevent more than a single grapheme cluster in a reaction. Defaults to true, false to disable
 ```
 ### default_permissions
 

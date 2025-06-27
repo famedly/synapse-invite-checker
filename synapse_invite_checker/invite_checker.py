@@ -1,4 +1,4 @@
-# Copyright (C) 2020,2023 Famedly
+# Copyright (C) 2020,2025 Famedly
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import base64
 import functools
+from ugrapheme import graphemes
 import logging
 from collections.abc import Collection
 from contextlib import suppress
@@ -427,6 +428,13 @@ class InviteChecker:
             "block_invites_into_dms", _config.block_invites_into_dms
         )
         _config.block_invites_into_dms = _block_invites_into_dms
+
+        _limit_reactions = config.get("limit_reactions", _config.limit_reactions)
+        if not isinstance(_limit_reactions, bool):
+            msg = "`limit_reactions` must be a boolean"
+            raise ConfigError(msg)
+        _config.limit_reactions = _limit_reactions
+
         return _config
 
     def after_startup(self) -> None:
@@ -600,11 +608,31 @@ class InviteChecker:
         replacement to use for the new event, in case modification is needed. WARNING:
         this has hazardous potential to break federation, and it is extremely unlikely
         we will ever use it
+
+        Raises: SynapseError(400, M_BAD_JSON) if a reaction annotation has more than a
+            single grapheme cluster when this restriction is enabled in settings
         """
         # This call check has many places it can be used, short-circuit out as swiftly
         # as is feasible
-        if not event.is_state() or not self.api.is_mine(event.sender):
-            # We only touch state events, and never anything from another server
+        # Never touch anything from another server
+        if not self.api.is_mine(event.sender):
+            return True, None
+
+        if not event.is_state():
+            # Only judge m.reaction when it is not a state event
+            if event.type == EventTypes.Reaction:
+                key: str = event.content["m.relates_to"]["key"]
+                if len(graphemes(key)) > 1:
+                    # Normally with this API, it is expected to return a bool to
+                    # indicate a failure to comply, however this raises a 403 error with
+                    # the FORBIDDEN code, and gematik wants it to be a 400 with BAD_JSON.
+                    raise SynapseError(
+                        400,
+                        f"Only simple reactions are allowed {key}",
+                        errors.Codes.BAD_JSON,
+                    )
+
+            # Otherwise, we only touch state events
             return True, None
         # Important Note: This callback also runs during room creation, and may end up
         # being appropriate for checking the same things we check in `on_create_room()`.
