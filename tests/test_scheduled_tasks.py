@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from typing import Any
 
+import pytest
 from parameterized import parameterized
 from synapse.api.constants import Membership
 from synapse.api.errors import AuthError
@@ -161,7 +162,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # Send a junk hex message into the room, like a sentinel
         # Inside EventCreationHandler.handle_new_client_event(), this raises as an
         # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
-        with self.assertRaises(AuthError):
+        with pytest.raises(AuthError):
             self.create_and_send_event(room_id, self.user_d_id)
 
     def test_room_scan_skips_incomplete_epa_rooms(self) -> None:
@@ -375,7 +376,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # Inside EventCreationHandler.handle_new_client_event(), this raises as an
         # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
-        with self.assertRaises(AuthError):
+        with pytest.raises(AuthError):
             self.create_and_send_event(room_id, self.user_d_id)
 
     def test_room_scan_detects_invites_as_participation(self) -> None:
@@ -431,7 +432,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # Inside EventCreationHandler.handle_new_client_event(), this raises as an
         # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
-        with self.assertRaises(AuthError):
+        with pytest.raises(AuthError):
             self.create_and_send_event(room_id, self.user_d_id)
 
 
@@ -858,8 +859,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
             self.inv_checker.get_delete_tasks_by_room(room_id)
         )
         assert len(second_delete_tasks) == 1
-        second_delete_task_id = second_delete_tasks[0].id
-        self.assertEqual(delete_task_id, second_delete_task_id)
+        assert delete_task_id == second_delete_tasks[0].id
 
     # I'm not sure I like the hard coding of the usernames here, but can not access
     # "self" to just reference it

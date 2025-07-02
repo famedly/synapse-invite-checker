@@ -27,10 +27,8 @@ def get_invite_checker(config: dict):
     def is_mine(user_id: str):
         return user_id.endswith(":example.org")
 
-    hs = Mock(HomeServer, hostname="example.org")
-
     api = Mock(ModuleApi)
-    api._hs = hs
+    api.hs = Mock(HomeServer, hostname="example.org")
     api.server_name = "example.org"
     api.is_mine.side_effect = is_mine
 

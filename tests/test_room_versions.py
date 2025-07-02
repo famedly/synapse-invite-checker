@@ -152,17 +152,17 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         """
         # 9 -> 9 works
         room_id = self.user_create_room(is_public=is_public, room_ver="9")
-        room_id = self.upgrade_room_to_version(room_id, "9", self.access_token_a)
+        room_id = self.upgrade_room_to_version(room_id, "9", self.access_token_a)  # type: ignore[arg-type]
         assert room_id
 
         # 10 -> 10 works
         room_id = self.user_create_room(is_public=is_public, room_ver="10")
-        room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)
+        room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)  # type: ignore[arg-type]
         assert room_id
 
         # 9 -> 10 works
         room_id = self.user_create_room(is_public=is_public, room_ver="9")
-        room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)
+        room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)  # type: ignore[arg-type]
         assert room_id
 
         # 9 -> 8 doesn't work

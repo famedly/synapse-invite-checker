@@ -12,15 +12,15 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-
 import base64
 import json
 import logging
 from collections.abc import Iterable
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from synapse.api.constants import Membership, RoomCreationPreset
 from synapse.api.errors import SynapseError
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
@@ -208,7 +208,7 @@ def construct_extra_content(
 
 
 class FakeInviteResponse:
-    signatures: dict[str, dict[str, str]] = {
+    signatures: ClassVar[dict[str, dict[str, str]]] = {
         "example.com": {"test_key": "whateversomethingstupidlongsoitlooksgood"}
     }
 
@@ -242,7 +242,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         cls._patcher2.stop()
         cls._patcher3.stop()
 
-    servlets = [
+    servlets: ClassVar[list] = [
         admin.register_servlets,
         account_data.register_servlets,
         login.register_servlets,
@@ -347,11 +347,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         """
         # First create the make_join that will need to be signed by the 'remote server'
         join_result_channel = self._make_join(joining_user, room_id)
-        self.assertEqual(
-            join_result_channel.code,
-            make_join_expected_code,
-            f"make_join: {join_result_channel.json_body}",
-        )
+        assert (
+            join_result_channel.code == make_join_expected_code
+        ), f"make_join: {join_result_channel.json_body}"
 
         # The make_join can fail if a user was not invited to a room, or was otherwise
         # denied. Since there is nothing to give to the rest of the handshake below, may
@@ -373,13 +371,13 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             content=join_event_dict,
             from_server=joining_users_domain,
         )
-        self.assertEqual(
-            channel.code, send_join_expected_code, f"send_join: {channel.json_body}"
-        )
+        assert (
+            channel.code == send_join_expected_code
+        ), f"send_join: {channel.json_body}"
 
         # the room should show that the new user is a member
         r = self.get_success(self.storage_controllers.state.get_current_state(room_id))
-        self.assertEqual(r[("m.room.member", joining_user)].membership, "join")
+        assert r[("m.room.member", joining_user)].membership == "join"
 
     def _make_leave(self, user_id: str, room_id: str) -> dict[str, Any]:
         users_domain = UserID.from_string(user_id).domain
@@ -388,7 +386,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             f"/_matrix/federation/v1/make_leave/{room_id}/{user_id}",
             from_server=users_domain,
         )
-        self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
+        assert channel.code == HTTPStatus.OK, channel.json_body
         return channel.json_body
 
     def send_leave(self, leaving_user: str, room_id: str) -> None:
@@ -406,7 +404,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             event_content,
             from_server=leaving_users_domain,
         )
-        self.assertEqual(channel.code, HTTPStatus.OK, channel.json_body)
+        assert channel.code == HTTPStatus.OK, channel.json_body
 
     def create_remote_room(
         self, creator_id: str, room_version: str, is_public: bool
@@ -448,11 +446,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         Raises: AssertionError if remote room was not created/found
 
         """
-        self.assertIn(
-            room_id,
-            self.remote_rooms,
-            "Remote room should have been found(was it created?)",
-        )
+        assert (
+            room_id in self.remote_rooms
+        ), "Remote room should have been found(was it created?)"
 
         remote_room = self.remote_rooms[room_id]
 
@@ -511,7 +507,21 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                 mock_send_join,
             ),
         ):
-            try:
+            if expected_code:
+                # In theory, this can raise an AuthError as well, but that is a subclass
+                # of SynapseError so this should be good enough
+                with pytest.raises(SynapseError) as excinfo:
+                    self.get_success_or_raise(
+                        self.hs.get_room_member_handler().update_membership(
+                            requester=create_requester(joining_user),
+                            target=UserID.from_string(joining_user),
+                            room_id=room_id,
+                            action=Membership.JOIN,
+                            remote_room_hosts=[remote_room.room_id.domain],
+                        )
+                    )
+                assert excinfo.value.code == expected_code
+            else:
                 self.get_success_or_raise(
                     self.hs.get_room_member_handler().update_membership(
                         requester=create_requester(joining_user),
@@ -521,10 +531,6 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                         remote_room_hosts=[remote_room.room_id.domain],
                     )
                 )
-            except SynapseError as e:
-                # In theory, this can raise an AuthError as well, but that is a subclass
-                # of SynapseError so this should be good enough
-                assert e.code == expected_code
 
     def do_remote_invite(
         self,
@@ -534,11 +540,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         expect_code: int = HTTPStatus.OK,
     ) -> dict[str, Any] | None:
         """Make a fake inbound federation invite request from our fake room"""
-        self.assertIn(
-            room_id,
-            self.remote_rooms,
-            "Remote room should have been found(was it created?)",
-        )
+        assert (
+            room_id in self.remote_rooms
+        ), "Remote room should have been found(was it created?)"
 
         remote_room = self.remote_rooms[room_id]
         # We use the fake room to generate the invite event, which signs it with the
@@ -561,7 +565,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             from_server=remote_server_domain,
         )
         # Since above can hit the spam checker's `user_may_invite()`,
-        self.assertEqual(channel.code, expect_code, channel.json_body)
+        assert channel.code == expect_code, channel.json_body
         if channel.code == HTTPStatus.OK:
             # Update the fake room with the newly signed version
             remote_room.promote_member_invite(channel.json_body["event"])

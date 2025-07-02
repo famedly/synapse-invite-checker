@@ -22,6 +22,7 @@ import logging
 import secrets
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
+from http import HTTPStatus
 from typing import (
     Any,
     ClassVar,
@@ -669,7 +670,7 @@ class HomeserverTestCase(TestCase):
 
         # Create the user
         channel = self.make_request("GET", "/_synapse/admin/v1/register")
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
         nonce = channel.json_body["nonce"]
 
         want_mac = hmac.new(key=b"shared", digestmod=hashlib.sha1)
@@ -692,7 +693,7 @@ class HomeserverTestCase(TestCase):
             "inhibit_login": True,
         }
         channel = self.make_request("POST", "/_synapse/admin/v1/register", body)
-        assert channel.code == 200, channel.json_body
+        assert channel.code == HTTPStatus.OK, channel.json_body
 
         return channel.json_body["user_id"]
 
@@ -723,7 +724,7 @@ class HomeserverTestCase(TestCase):
             },
             access_token=appservice_token,
         )
-        assert channel.code == 200, channel.json_body
+        assert channel.code == HTTPStatus.OK, channel.json_body
         return channel.json_body["user_id"], channel.json_body["device_id"]
 
     def login(
@@ -761,7 +762,7 @@ class HomeserverTestCase(TestCase):
             body,
             custom_headers=custom_headers,
         )
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
 
         return channel.json_body["access_token"]
 

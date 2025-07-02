@@ -248,11 +248,11 @@ class FakeChannel:
     def getPeer(self) -> IAddress:
         # We give an address so that getClientAddress/getClientIP returns a non null entry,
         # causing us to record the MAU
-        return address.IPv4Address("TCP", self._ip, 3423)
+        return cast(IAddress, address.IPv4Address("TCP", self._ip, 3423))
 
     def getHost(self) -> IAddress:
         # this is called by Request.__init__ to configure Request.host.
-        return address.IPv4Address("TCP", "127.0.0.1", 8888)
+        return cast(IAddress, address.IPv4Address("TCP", "127.0.0.1", 8888))
 
     def isSecure(self) -> bool:
         return False

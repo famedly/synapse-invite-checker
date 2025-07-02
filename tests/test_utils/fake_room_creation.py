@@ -48,7 +48,7 @@ class FakeRoom:
     # This is almost the same as forward extremities
     current_prev_events_id_list: list[str]
     # does not include membership events, separate mapping
-    map_of_state_events_by_type: dict[EventTypes, EventBase]
+    map_of_state_events_by_type: dict[str, EventBase]
     # membership events
     map_of_membership_by_mxid: dict[str, EventBase]
 

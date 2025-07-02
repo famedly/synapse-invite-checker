@@ -202,7 +202,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
         # and one from user "c". Since we will have a global default permission that
         # differs, and we are testing userExceptions, the results should be opposite of
         # each other.
-        user_exceptions = {self.user_b: {}}
+        user_exceptions: dict = {self.user_b: {}}
 
         user_b_expectation = HTTPStatus.OK if expected_result else HTTPStatus.FORBIDDEN
         user_c_expectation = HTTPStatus.FORBIDDEN if expected_result else HTTPStatus.OK
@@ -261,7 +261,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
             },
             access_token=self.access_token,
         )
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
 
         # Can't invite other users
         self.helper.invite(
@@ -301,7 +301,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
             },
             access_token=self.access_token,
         )
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
 
         # Can invite other users
         self.helper.invite(
@@ -309,7 +309,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
             src=self.user_a,
             targ=self.user_c,
             tok=self.access_token,
-            expect_code=200,
+            expect_code=HTTPStatus.OK,
         )
         self.helper.invite(
             room=room_id,
@@ -492,7 +492,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
         # Our test user "d" will be invited to two different rooms, one from user "e"
         # and one from user "f". For an EPA server, this shouldn't matter as any local
         # invites are denied
-        user_exceptions = {self.user_e: {}}
+        user_exceptions: dict = {self.user_e: {}}
 
         # Set the perms. By setting them before the invite takes place, it should
         # prevent cross-contamination between other test runs
@@ -549,7 +549,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
             },
             access_token=self.access_token,
         )
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
 
         # Can't invite other users
         self.helper.invite(
@@ -582,7 +582,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
             },
             access_token=self.access_token,
         )
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
 
         # Can't invite other users
         self.helper.invite(
@@ -662,7 +662,7 @@ class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
             },
             access_token=self.access_token,
         )
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
 
         # Other users can be invited
         self.helper.invite(
@@ -670,7 +670,7 @@ class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
             src=self.user_a,
             targ=self.user_c,
             tok=self.access_token,
-            expect_code=200,
+            expect_code=HTTPStatus.OK,
         )
         self.helper.invite(
             room=room_id,

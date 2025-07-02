@@ -849,7 +849,7 @@ class RestHelper:
             "GET",
             uri,
         )
-        assert channel.code == 302
+        assert channel.code == HTTPStatus.FOUND
 
         # hit the redirect url again with the right Host header, which should now issue
         # a cookie and redirect to the SSO provider.
@@ -871,7 +871,7 @@ class RestHelper:
             ],
         )
 
-        assert channel.code == 302
+        assert channel.code == HTTPStatus.FOUND
         channel.extract_cookies(cookies)
         return get_location(channel)
 
