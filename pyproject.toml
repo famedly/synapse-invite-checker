@@ -52,10 +52,42 @@ dependencies = [
   "matrix-synapse @ git+https://github.com/famedly/synapse.git@master"
 ]
 
+[tool.hatch.envs.hatch-static-analysis]
+dependencies = [
+  "black",
+  "isort",
+  "ruff",
+  "mypy",
+  "mypy-zope",
+  "pydantic",
+  "mypy-zope",
+  "types-PyYAML",
+  "types-bleach",
+  "types-cachetools",
+  "types-requests",
+  "types-pyOpenSSL"
+]
+
+[tool.hatch.envs.hatch-static-analysis.scripts]
+format-check = [
+  "isort . --check --diff",
+  "black . --check --diff"
+]
+format-fix = [
+  "isort .",
+  "black ."
+]
+lint-check = [
+  "mypy",
+  "ruff check"
+]
+lint-fix = [
+  "mypy",
+  "ruff check --fix"
+]
+
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
-format = "black ."
-lint = "ruff check . --fix"
 
 # For CI use
 [tool.hatch.envs.ci.scripts]
@@ -71,21 +103,13 @@ matrix.database.env-vars = [
   { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
 ]
 
-[tool.hatch.envs.types]
-extra-dependencies = [
-  "mypy>=1.0.0",
-]
-
-[tool.hatch.envs.types.scripts]
-check = "mypy"
-
 [tool.coverage.run]
 branch = true
 parallel = true
 omit = ["tests/*"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py310"
 line-length = 88
 
 [tool.ruff.lint]
@@ -100,7 +124,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["RUF012", "S101", "PLR2004", "N803", "SLF001", "S105", "UP035", "PT"]
+"tests/*" = ["S101", "S105", "PLR2004", "N803", "SLF001", "UP035", "PT019"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -110,7 +134,15 @@ exclude_lines = [
 ]
 
 [tool.mypy]
+python_version = "3.10"
 ignore_missing_imports = true
 install_types = true
-non_interactive = true
-files = ["synapse_invite_checker"]
+plugins = [
+  "pydantic.mypy",
+  "mypy_zope:plugin"
+]
+files = ["synapse_invite_checker", "tests"]
+
+[tool.isort]
+profile = "black"
+src_paths = ["synapse_invite_checker", "tests"]

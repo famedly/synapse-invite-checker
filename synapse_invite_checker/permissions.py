@@ -20,11 +20,7 @@ from synapse.module_api import ModuleApi
 from synapse.types import UserID
 
 from synapse_invite_checker.config import InviteCheckerConfig
-from synapse_invite_checker.types import (
-    PermissionConfig,
-    PermissionConfigType,
-    TimType,
-)
+from synapse_invite_checker.types import PermissionConfig, PermissionConfigType, TimType
 
 logger = logging.getLogger(__name__)
 

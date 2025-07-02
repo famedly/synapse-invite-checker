@@ -17,13 +17,7 @@ from enum import Enum, auto
 from functools import cached_property
 from typing import Any, Final
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    computed_field,
-    field_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 from synapse.types import UserID
 
 

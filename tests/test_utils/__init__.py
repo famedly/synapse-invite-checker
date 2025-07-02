@@ -21,10 +21,9 @@ import sys
 import warnings
 from binascii import unhexlify
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Protocol, TypeVar
 
 import attr
-import zope.interface
 from synapse.types import JsonSerializable
 from twisted.internet.interfaces import IProtocol
 from twisted.python.failure import Failure
@@ -32,6 +31,7 @@ from twisted.web.client import ResponseDone
 from twisted.web.http import RESPONSES
 from twisted.web.http_headers import Headers
 from twisted.web.iweb import IResponse
+from zope.interface import implementer
 
 if TYPE_CHECKING:
     from sys import UnraisableHookArgs
@@ -95,8 +95,12 @@ def setup_awaitable_errors() -> Callable[[], None]:
     return cleanup
 
 
+class IResponseProto(Protocol):
+    def deliverBody(self, protocol: IProtocol) -> None: ...
+
+
 # Type ignore: it does not fully implement IResponse, but is good enough for tests
-@zope.interface.implementer(IResponse)
+@implementer(IResponse)
 @attr.s(slots=True, frozen=True, auto_attribs=True)
 class FakeResponse:  # type: ignore[misc]
     """A fake twisted.web.IResponse object
@@ -131,7 +135,7 @@ class FakeResponse:  # type: ignore[misc]
     def json(cls, *, code: int = 200, payload: JsonSerializable) -> "FakeResponse":
         headers = Headers({"Content-Type": ["application/json"]})
         body = json.dumps(payload).encode("utf-8")
-        return cls(code=code, body=body, headers=headers)
+        return cls(code=code, body=body, headers=headers)  # type: ignore[call-arg]
 
 
 # A small image used in some tests.

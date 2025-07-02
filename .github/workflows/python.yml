@@ -48,13 +48,8 @@ jobs:
             -e POSTGRES_INITDB_ARGS="--lc-collate C --lc-ctype C --encoding UTF8" \
             postgres:15
 
-      - name: Type checking
-        run: hatch run types:check
-
-      - name: Formatting
-        uses: famedly/black@stable
-        with:
-          options: "--check --verbose"
+      - name: Type checking and Formatting
+        run: hatch fmt --check
 
       - name: Prepare lint
         shell: bash

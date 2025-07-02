@@ -24,9 +24,8 @@ from synapse.server import HomeServer
 from synapse.util import Clock
 from synapse.util.stringutils import random_string
 from twisted.web.http_headers import Headers
-from twisted.web.iweb import IResponse
 
-from tests.test_utils import FakeResponse
+from tests.test_utils import FakeResponse, IResponseProto
 
 
 @attr.s(slots=True, frozen=True, auto_attribs=True)
@@ -207,7 +206,7 @@ class FakeOidcServer:
             sid = str(self.sid_counter)
             self.sid_counter += 1
 
-        grant = FakeAuthorizationGrant(
+        grant = FakeAuthorizationGrant(  # type: ignore[call-arg]
             userinfo=userinfo,
             scope=scope,
             redirect_uri=redirect_uri,
@@ -255,7 +254,7 @@ class FakeOidcServer:
             token: If True, makes the token endpoint return a 500 error.
             userinfo: If True, makes the userinfo endpoint return a 500 error.
         """
-        buggy = FakeResponse(code=500, body=b"Internal server error")
+        buggy = FakeResponse(code=500, body=b"Internal server error")  # type: ignore[call-arg]
 
         patches = {}
         if jwks:
@@ -275,7 +274,7 @@ class FakeOidcServer:
         uri: str,
         data: bytes | None = None,
         headers: Headers | None = None,
-    ) -> IResponse:
+    ) -> IResponseProto:
         """The override of the SimpleHttpClient#request() method"""
         access_token: str | None = None
 
@@ -312,28 +311,28 @@ class FakeOidcServer:
             if uri == self.userinfo_endpoint:
                 return self.get_userinfo_handler(access_token=access_token)
 
-        return FakeResponse(code=404, body=b"404 not found")
+        return FakeResponse(code=404, body=b"404 not found")  # type: ignore[call-arg]
 
     # Request handlers
-    def _get_jwks_handler(self) -> IResponse:
+    def _get_jwks_handler(self) -> IResponseProto:
         """Handles requests to the JWKS URI."""
         return FakeResponse.json(payload=self.get_jwks())
 
-    def _get_metadata_handler(self) -> IResponse:
+    def _get_metadata_handler(self) -> IResponseProto:
         """Handles requests to the OIDC well-known document."""
         return FakeResponse.json(payload=self.get_metadata())
 
-    def _get_userinfo_handler(self, access_token: str | None) -> IResponse:
+    def _get_userinfo_handler(self, access_token: str | None) -> IResponseProto:
         """Handles requests to the userinfo endpoint."""
         if access_token is None:
-            return FakeResponse(code=401)
+            return FakeResponse(code=401)  # type: ignore[call-arg]
         user_info = self.get_userinfo(access_token)
         if user_info is None:
-            return FakeResponse(code=401)
+            return FakeResponse(code=401)  # type: ignore[call-arg]
 
         return FakeResponse.json(payload=user_info)
 
-    def _post_token_handler(self, params: dict[str, list[str]]) -> IResponse:
+    def _post_token_handler(self, params: dict[str, list[str]]) -> IResponseProto:
         """Handles requests to the token endpoint."""
         code = params.get("code", [])
 

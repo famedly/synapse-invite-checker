@@ -22,15 +22,8 @@ import logging
 import secrets
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from typing import (
-    Any,
-    ClassVar,
-    Concatenate,
-    Generic,
-    NoReturn,
-    Protocol,
-    TypeVar,
-)
+from http import HTTPStatus
+from typing import Any, ClassVar, Concatenate, Generic, NoReturn, Protocol, TypeVar
 from unittest.mock import Mock, patch
 
 import canonicaljson
@@ -354,7 +347,7 @@ class HomeserverTestCase(TestCase):
             hs=self.hs,
         )
 
-        self.helper = RestHelper(
+        self.helper = RestHelper(  # type: ignore[call-arg]
             self.hs,
             checked_cast(MemoryReactorClock, self.hs.get_reactor()),
             self.site,
@@ -669,7 +662,7 @@ class HomeserverTestCase(TestCase):
 
         # Create the user
         channel = self.make_request("GET", "/_synapse/admin/v1/register")
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
         nonce = channel.json_body["nonce"]
 
         want_mac = hmac.new(key=b"shared", digestmod=hashlib.sha1)
@@ -692,7 +685,7 @@ class HomeserverTestCase(TestCase):
             "inhibit_login": True,
         }
         channel = self.make_request("POST", "/_synapse/admin/v1/register", body)
-        assert channel.code == 200, channel.json_body
+        assert channel.code == HTTPStatus.OK, channel.json_body
 
         return channel.json_body["user_id"]
 
@@ -723,7 +716,7 @@ class HomeserverTestCase(TestCase):
             },
             access_token=appservice_token,
         )
-        assert channel.code == 200, channel.json_body
+        assert channel.code == HTTPStatus.OK, channel.json_body
         return channel.json_body["user_id"], channel.json_body["device_id"]
 
     def login(
@@ -761,7 +754,7 @@ class HomeserverTestCase(TestCase):
             body,
             custom_headers=custom_headers,
         )
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
 
         return channel.json_body["access_token"]
 
@@ -835,7 +828,7 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, hs: HomeServer) -> None:
         super().prepare(reactor, clock, hs)
-        self.map_server_name_to_signing_key = {}
+        self.map_server_name_to_signing_key: dict[str, SigningKey] = {}
         self.inject_servers_signing_key(self.OTHER_SERVER_NAME)
 
     def inject_servers_signing_key(self, remote_server_name: str) -> SigningKey:
@@ -1017,7 +1010,7 @@ def skip_unless(condition: bool, reason: str) -> Callable[[TV], TV]:
 
     def decorator(f: TV) -> TV:
         if not condition:
-            f.skip = reason  # type: ignore
+            f.skip = reason  # type: ignore[attr-defined]
         return f
 
     return decorator

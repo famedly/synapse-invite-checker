@@ -16,10 +16,7 @@ import logging
 
 from synapse.server import HomeServer
 from synapse.storage._base import SQLBaseStore
-from synapse.storage.database import (
-    DatabasePool,
-    LoggingDatabaseConnection,
-)
+from synapse.storage.database import DatabasePool, LoggingDatabaseConnection
 
 logger = logging.getLogger(__name__)
 

@@ -14,14 +14,13 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import base64
 import functools
-
-import emoji
 import logging
 from collections.abc import Collection
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Literal, cast
 from urllib.parse import quote, urlparse
 
+import emoji
 from cachetools import TTLCache, keys
 from jwcrypto import jwk, jws
 from OpenSSL.crypto import (
@@ -75,9 +74,7 @@ from twisted.web.iweb import IAgent, IPolicyForHTTPS
 from zope.interface import implementer
 
 from synapse_invite_checker.config import DefaultPermissionConfig, InviteCheckerConfig
-from synapse_invite_checker.permissions import (
-    InviteCheckerPermissionsHandler,
-)
+from synapse_invite_checker.permissions import InviteCheckerPermissionsHandler
 from synapse_invite_checker.rest.messenger_info import (
     INFO_API_PREFIX,
     MessengerFindByIkResource,

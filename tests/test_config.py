@@ -12,16 +12,15 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-from typing import Any
+import re
+from typing import Any, ClassVar
 from unittest import TestCase
 
+import pytest
 from synapse.config import ConfigError
 
 from synapse_invite_checker import InviteChecker
-from synapse_invite_checker.types import (
-    DefaultPermissionConfig,
-    TimType,
-)
+from synapse_invite_checker.types import DefaultPermissionConfig, TimType
 
 
 class ConfigParsingTestCase(TestCase):
@@ -35,7 +34,7 @@ class ConfigParsingTestCase(TestCase):
     key has the same effect. May use either interchangeably
     """
 
-    config: dict[str, Any] = {
+    config: ClassVar[dict[str, Any]] = {
         "tim-type": "pro",
         "federation_list_url": "https://localhost:8080",
         "federation_list_client_cert": "tests/certs/client.pem",
@@ -56,16 +55,19 @@ class ConfigParsingTestCase(TestCase):
     def test_incorrect_tim_type_raises(self) -> None:
         test_config = self.config.copy()
         test_config.update({"tim-type": "fake"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
     def test_missing_fed_list_or_gematik_ca_url_raises(self) -> None:
         test_config = self.config.copy()
         test_config.update({"federation_list_url": ""})
-        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+        with pytest.raises(Exception, match="Incomplete federation list config"):
+            InviteChecker.parse_config(test_config)
 
         test_config = self.config.copy()
         test_config.update({"gematik_ca_baseurl": ""})
-        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+        with pytest.raises(Exception, match="Incomplete federation list config"):
+            InviteChecker.parse_config(test_config)
 
     def test_missing_fed_list_client_certs_raises(self) -> None:
         """
@@ -74,7 +76,13 @@ class ConfigParsingTestCase(TestCase):
         """
         test_config = self.config.copy()
         test_config.update({"federation_list_client_cert": ""})
-        self.assertRaises(Exception, InviteChecker.parse_config, test_config)
+        with pytest.raises(
+            Exception,
+            match=re.escape(
+                "Federation list config requires an mtls (PEM) cert for https connections when mTLS is required"
+            ),
+        ):
+            InviteChecker.parse_config(test_config)
 
     def test_missing_fed_list_client_certs_with_mtls_disabled(self) -> None:
         """
@@ -124,19 +132,23 @@ class ConfigParsingTestCase(TestCase):
 
         # Nope, not a list
         test_config.update({"allowed_room_versions": "9"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # Nope, not a list
         test_config.update({"allowed_room_versions": "{9}"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # Nope, not a recognized list
         test_config.update({"allowed_room_versions": "9, 10"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # Nope, not a list
         test_config.update({"allowed_room_versions": "9 10"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # This one is okay, these are integers and can be coerced into strings
         test_config.update({"allowed_room_versions": [9, 10]})
@@ -150,36 +162,42 @@ class ConfigParsingTestCase(TestCase):
         test_config = self.config.copy()
         test_config.update({"room_scan_run_interval": "bad value"})
         # After Synapse release 1.124.0, this became a TypeError
-        self.assertRaises(
-            (ValueError, TypeError), InviteChecker.parse_config, test_config
-        )
+        with pytest.raises((ValueError, TypeError)):
+            InviteChecker.parse_config(test_config)
 
         test_config = self.config.copy()
         # Specifically use a word that has a final letter that matches one recognized
         # by parse_duration()
         test_config.update({"room_scan_run_interval": "why"})
-        self.assertRaises(ValueError, InviteChecker.parse_config, test_config)
+        with pytest.raises(
+            ValueError, match=re.escape("invalid literal for int() with base 10: 'wh'")
+        ):
+            InviteChecker.parse_config(test_config)
 
     def test_dict_unexpectedly_is_something_else_raises(self) -> None:
         test_config = self.config.copy()
         # Shouldn't work if set to a string
         test_config.update({"insured_only_room_scan": "bad value"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # Shouldn't work if set to a list of strings
         test_config.update({"insured_only_room_scan": ["what", "is", "a", "list?"]})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         test_config = self.config.copy()
         # Shouldn't work if set to a string
         test_config.update({"inactive_room_scan": "not a dict"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # Shouldn't work if set to a list of strings
         test_config.update(
             {"inactive_room_scan": ["lists", "are", "only", "good", "on", "mondays"]}
         )
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
     def test_public_room_override_defaults_to_true(self) -> None:
         test_config = self.config.copy()
@@ -200,12 +218,14 @@ class ConfigParsingTestCase(TestCase):
         test_config = self.config.copy()
         # Although a boolean is an int, an int is not a boolean
         test_config.update({"override_public_room_federation": "0"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # No silly strings. Shame, really....
         test_config = self.config.copy()
         test_config.update({"override_public_room_federation": "nope"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
     def test_prohibit_world_readable_rooms_override_defaults_to_true(self) -> None:
         test_config = self.config.copy()
@@ -226,24 +246,28 @@ class ConfigParsingTestCase(TestCase):
         test_config = self.config.copy()
         # Although a boolean is an int, an int is not a boolean
         test_config.update({"prohibit_world_readable_rooms": "1"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # No silly strings. Shame, really....
         test_config = self.config.copy()
         test_config.update({"prohibit_world_readable_rooms": "hi_mom!"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
     def test_federation_list_require_mtls_raises_for_non_boolean(self) -> None:
         """Verify that non-boolean values for federation_list_require_mtls raise ConfigError"""
         test_config = self.config.copy()
         # String that's not a boolean
         test_config.update({"federation_list_require_mtls": "maybe"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         # Integer is not a boolean
         test_config = self.config.copy()
         test_config.update({"federation_list_require_mtls": 1})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
     def test_invalid_url_scheme_raises(self) -> None:
         """
@@ -256,13 +280,16 @@ class ConfigParsingTestCase(TestCase):
         # Create a config with an invalid URL scheme
         config = InviteCheckerConfig(DefaultPermissionConfig())
         config.federation_list_url = "ftp://localhost:8080"
-        self.assertRaises(Exception, MtlsPolicy, config)
+        with pytest.raises(Exception, match="URL scheme must be either http or https"):
+            MtlsPolicy(config)
 
         config.federation_list_url = "ws://localhost:8080"
-        self.assertRaises(Exception, MtlsPolicy, config)
+        with pytest.raises(Exception, match="URL scheme must be either http or https"):
+            MtlsPolicy(config)
 
         config.federation_list_url = "file:///etc/passwd"
-        self.assertRaises(Exception, MtlsPolicy, config)
+        with pytest.raises(Exception, match="URL scheme must be either http or https"):
+            MtlsPolicy(config)
 
     def test_mtls_policy_creator_for_netloc_bytes_hostname(self) -> None:
         """
@@ -281,31 +308,32 @@ class ConfigParsingTestCase(TestCase):
 
         # Test with matching bytes hostname (that corresponds to the encoded url.hostname) and port
         options = policy.creatorForNetloc(b"example.com", 8443)
-        self.assertEqual(options, policy.options)
+        assert options == policy.options
 
         # Test with non-matching bytes hostname
-        with self.assertRaises(Exception) as context:
+        with pytest.raises(Exception, match="Invalid connection attempt"):
             policy.creatorForNetloc(b"other.com", 8443)
-        self.assertIn("Invalid connection attempt", str(context.exception))
 
         # Test with invalid bytes hostname
         invalid_bytes = b"\xff\xfe\xfd\xfc"  # Not valid UTF-8
-        with self.assertRaises(Exception) as context:
+        with pytest.raises(Exception, match="Invalid connection attempt"):
             policy.creatorForNetloc(invalid_bytes, 8443)
-        self.assertIn("Invalid connection attempt", str(context.exception))
 
     def test_unexpected_non_booleans(self) -> None:
         test_config = self.config.copy()
         # Although a boolean is an int, an int is not a boolean
         test_config.update({"limit_reactions": "1"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
 
         test_config = self.config.copy()
         # Although a boolean is an int, an int is not a boolean
         test_config.update({"limit_reactions": 1})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
         test_config = self.config.copy()
 
         # Although a boolean is an int, an int is not a boolean
         test_config.update({"limit_reactions": "hi mom!"})
-        self.assertRaises(ConfigError, InviteChecker.parse_config, test_config)
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)

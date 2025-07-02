@@ -45,14 +45,16 @@ class MessageTimestampTestCase(FederatingModuleApiTestCase):
         def send_message_and_assert_latest_activity(room, message, tok) -> None:
             body = self.helper.send(room, message, tok=tok)
 
-            event_id = self.helper.get_event(room, body.get("event_id"), tok=tok)
-            event_ts = event_id.get("origin_server_ts")
+            event_id = body.get("event_id")
+            assert event_id is not None
+            event = self.helper.get_event(room, event_id, tok=tok)
+            event_ts = event.get("origin_server_ts")
 
             ts_found = self.get_success_or_raise(
                 self.inv_checker.get_timestamp_of_last_eligible_activity_in_room(room)
             )
 
-            self.assertEqual(event_ts, ts_found)
+            assert event_ts == ts_found
 
         room_id = self.create_local_room(self.user_a, [], is_public=False)
         assert room_id, "Room created"
