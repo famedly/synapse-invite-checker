@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6] - 2025-07-03
+
+- chore: Allow reactions only containing a single grapheme cluster (Jason Little)
+- chore: fix type errors in `/synapse_invite_checker`, add mypy to github workflows, add hatch command `lint` (Soyoung Kim)
+
 ## [0.4.5] - 2025-05-26
 
 This release properly accounts for invites in the epa room scan. This behaviour
