@@ -75,7 +75,13 @@ matrix.database.env-vars = [
 [tool.hatch.envs.types]
 extra-dependencies = [
   "mypy",
-  "mypy-zope"
+  "mypy-zope",
+  "pydantic",
+  "mypy-zope",
+  "types-PyYAML",
+  "types-bleach",
+  "types-cachetools",
+  "types-requests"
 ]
 
 [tool.hatch.envs.types.scripts]
@@ -112,7 +118,6 @@ exclude_lines = [
 ]
 
 [tool.mypy]
-install_types = true
 ignore_missing_imports = true
 namespace_packages = true
 plugins = [
