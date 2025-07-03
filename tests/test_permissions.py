@@ -156,8 +156,8 @@ class PermissionConfigTest(TestCase):
         """
         test_permission_object = PermissionConfig.model_validate_json(test_json)
 
-        self.assertIn("power.rangers", test_permission_object.serverExceptions)
-        self.assertIn("@david:hassel.hoff", test_permission_object.userExceptions)
+        assert "power.rangers" in test_permission_object.serverExceptions
+        assert "@david:hassel.hoff" in test_permission_object.userExceptions
 
         assert not test_permission_object.is_allow_all()
         assert test_permission_object.is_group_excepted(GroupName.isInsuredPerson)
@@ -183,9 +183,9 @@ class PermissionConfigTest(TestCase):
 
         test_permission_object = PermissionConfig.model_validate(test_dict)
 
-        self.assertIn("power.rangers", test_permission_object.serverExceptions)
-        self.assertIn("@david:hassel.hoff", test_permission_object.userExceptions)
-        self.assertDictEqual(test_dict, test_permission_object.dump())
+        assert "power.rangers" in test_permission_object.serverExceptions
+        assert "@david:hassel.hoff" in test_permission_object.userExceptions
+        assert test_dict == test_permission_object.dump()
 
         assert not test_permission_object.is_allow_all()
         assert test_permission_object.is_mxid_allowed_to_contact(
@@ -219,8 +219,8 @@ class PermissionConfigTest(TestCase):
                 """
         test_permission_object = PermissionConfig.model_validate_json(test_json)
 
-        self.assertIn("power.rangers", test_permission_object.serverExceptions)
-        self.assertIn("@david:hassel.hoff", test_permission_object.userExceptions)
+        assert "power.rangers" in test_permission_object.serverExceptions
+        assert "@david:hassel.hoff" in test_permission_object.userExceptions
 
         assert test_permission_object.is_allow_all()
         assert not test_permission_object.is_mxid_allowed_to_contact(
@@ -244,9 +244,9 @@ class PermissionConfigTest(TestCase):
 
         test_permission_object = PermissionConfig.model_validate(test_dict)
 
-        self.assertIn("power.rangers", test_permission_object.serverExceptions)
-        self.assertIn("@david:hassel.hoff", test_permission_object.userExceptions)
-        self.assertDictEqual(test_dict, test_permission_object.dump())
+        assert "power.rangers" in test_permission_object.serverExceptions
+        assert "@david:hassel.hoff" in test_permission_object.userExceptions
+        assert test_dict == test_permission_object.dump()
 
         assert test_permission_object.is_allow_all()
         assert not test_permission_object.is_mxid_allowed_to_contact(
@@ -468,8 +468,8 @@ class DefaultPermissionConfigTest(TestCase):
 
         test_permission_object = DefaultPermissionConfig.model_validate(converted_yaml)
 
-        self.assertIn("power.rangers", test_permission_object.serverExceptions)
-        self.assertIn("@david:hassel.hoff", test_permission_object.userExceptions)
+        assert "power.rangers" in test_permission_object.serverExceptions
+        assert "@david:hassel.hoff" in test_permission_object.userExceptions
 
         # Strictly speaking, these methods aren't used by DefaultPermissionConfig, but
         # they came along for the ride so may as well use them
@@ -503,8 +503,8 @@ class DefaultPermissionConfigTest(TestCase):
 
         test_permission_object = DefaultPermissionConfig.model_validate(converted_yaml)
 
-        self.assertIn("power.rangers", test_permission_object.serverExceptions)
-        self.assertIn("@david:hassel.hoff", test_permission_object.userExceptions)
+        assert "power.rangers" in test_permission_object.serverExceptions
+        assert "@david:hassel.hoff" in test_permission_object.userExceptions
 
         assert test_permission_object.is_allow_all()
         assert not test_permission_object.is_mxid_allowed_to_contact(

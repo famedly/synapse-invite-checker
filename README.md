@@ -96,6 +96,11 @@ that is converted to milliseconds. Suffixes with 's', 'm', 'h', 'd', 'w', or 'y'
 
 ## Testing
 
+To create virtual env and install dependency:
+```
+hatch shell
+```
+
 The tests uses twisted's testing framework trial, with the development
 environment managed by hatch. Running the tests and generating a coverage report
 can be done like this:
@@ -107,6 +112,7 @@ hatch run cov
 Run type checks using mypy:
 
 ```console
+hatch shell types
 hatch run types:check
 ```
 

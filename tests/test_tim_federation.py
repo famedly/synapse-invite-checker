@@ -12,6 +12,8 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+from unittest.mock import AsyncMock, patch
+
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
@@ -75,23 +77,30 @@ class FederationDomainSchemaTest(FederatingModuleApiTestCase):
         # 2. get the value, which should increase counter to 1
         # 3. check that calls == 1, reset mock to 0
         # 4. get the value again, which should retrieve from cache and have a count of 0
-        self.inv_checker._raw_federation_list_fetch.reset_mock()
+        # self.inv_checker._raw_federation_list_fetch = AsyncMock(
+        #     wraps=self.inv_checker._raw_federation_list_fetch
+        # )
+        with patch.object(
+            self.inv_checker,
+            "_raw_federation_list_fetch",
+            AsyncMock(wraps=self.inv_checker._raw_federation_list_fetch),
+        ) as mock_fetch:
+            mock_fetch.reset_mock()
+            mock_fetch.assert_not_called()
 
-        self.inv_checker._raw_federation_list_fetch.assert_not_called()
+            should_be_true = await self.inv_checker.is_domain_allowed(DOMAIN_IN_LIST)
+            assert should_be_true, "tested domain was not allowed but should have been"
 
-        should_be_true = await self.inv_checker.is_domain_allowed(DOMAIN_IN_LIST)
-        assert should_be_true, "tested domain was not allowed but should have been"
+            mock_fetch.assert_called_once()
+            mock_fetch.reset_mock()
 
-        self.inv_checker._raw_federation_list_fetch.assert_called_once()
-
-        self.inv_checker._raw_federation_list_fetch.reset_mock()
-
-        should_still_be_true = await self.inv_checker.is_domain_allowed(DOMAIN_IN_LIST)
-        assert (
-            should_still_be_true
-        ), "tested domain was still not allowed but should have been"
-
-        self.inv_checker._raw_federation_list_fetch.assert_not_called()
+            should_still_be_true = await self.inv_checker.is_domain_allowed(
+                DOMAIN_IN_LIST
+            )
+            assert (
+                should_still_be_true
+            ), "tested domain was still not allowed but should have been"
+            mock_fetch.assert_not_called()
 
     async def test_common_fed_domain(self):
         # First test the most common FederationDomain entry
