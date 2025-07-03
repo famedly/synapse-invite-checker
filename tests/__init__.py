@@ -20,7 +20,7 @@ from synapse.server import HomeServer
 
 from synapse_invite_checker import InviteChecker
 
-admins = {}
+admins: dict = {}
 
 
 def get_invite_checker(config: dict):

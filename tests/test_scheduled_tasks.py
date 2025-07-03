@@ -12,6 +12,8 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+# mypy: disable-error-code=call-arg
+
 from typing import Any
 
 import pytest
@@ -122,7 +124,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
                 self.remote_pro_user,
                 tok=self.map_user_id_to_token[self.user_d],
             )
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
 
@@ -137,7 +141,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         if pro_join:
             self.send_leave(self.remote_pro_user, room_id)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 2)"
 
         # The config gives 6 hours for leaves and 7 hours for joins. Depending on the test
@@ -149,14 +155,18 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
             self.reactor.advance(5 * 60 * 60)
 
         # Room should still exist
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 3)"
 
         # The TaskScheduler has a heartbeat of 1 minute, give it that much
         self.reactor.advance(60 * 60)
 
         # Now the room should be gone
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert is_room_blocked, "Room should be blocked now(try 4)"
 
         # Send a junk hex message into the room, like a sentinel
@@ -175,7 +185,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         room_version_id = self.hs.config.server.default_room_version.identifier
 
         room_version = KNOWN_ROOM_VERSIONS.get(room_version_id)
-
+        assert room_version
         room_id = self.get_success_or_raise(
             self.hs.get_room_creation_handler()._generate_and_create_room_id(
                 self.user_d, is_public=False, room_version=room_version
@@ -186,7 +196,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # Even with an incomplete room, blocking should still work as expected. It will
         # be blocked as part of the insured kicking procedure. If it is not blocked, then
         # it is not scheduled for having members kicked out.
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
 
@@ -199,7 +211,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # Normally, the room scan process would pick up the room here. But, we are
         # skipping the insured members kicking procedure, so it gets a second run
         # through before it is eligible for purge
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked(try 2)"
 
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
@@ -213,7 +227,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # The room will not register as blocked, since that only runs when the kicking
         # procedure is triggered
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked(try 3)"
 
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
@@ -233,20 +249,26 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # invited, and the message was sent
         assert room_id, "Server notices room should have been found"
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
 
         self.reactor.advance(5 * 60 * 60)
 
         # Room should still exist
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 3)"
 
         # One more hour should be the 6 hours from settings
         self.reactor.advance(60 * 60)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should still exist"
 
         # Message should succeed, showing the room has not yet been left
@@ -266,7 +288,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         )
         assert room_id is not None
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
 
@@ -343,35 +367,47 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # The other local insured leaves the room
         self.helper.leave(room_id, self.user_e, tok=self.access_token_e)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 2)"
 
         self.reactor.advance(5 * 60 * 60)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 3)"
 
         # Normally, this would trigger the auto-kicker. But the doctor hasn't left yet
         self.reactor.advance(60 * 60)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 4)"
 
         # doctor 2 leaves
         self.send_leave(self.remote_pro_user_2, room_id)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 5)"
 
         self.reactor.advance(5 * 60 * 60)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 6)"
 
         # One more hour should be the 6 hours from settings
         self.reactor.advance(60 * 60)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert is_room_blocked, "Room should be blocked now"
 
         # Inside EventCreationHandler.handle_new_client_event(), this raises as an
@@ -387,7 +423,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         room_id = self.create_local_room(self.user_d, [], is_public=False)
         assert room_id is not None
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
 
@@ -409,25 +447,33 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # doctor 1 leaves room, still have that pending invite for doctor #2
         self.send_leave(self.remote_pro_user, room_id)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 2)"
 
         self.reactor.advance(5 * 60 * 60)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 3)"
 
         # Normally, this would trigger the auto-kicker for leaves. But there is the
         # pending invite still waiting, which is configured to 7 hours and not 6
         self.reactor.advance(60 * 60)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 4)"
 
         # One more hour should be the 7 hours from settings
         self.reactor.advance(60 * 60)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert is_room_blocked, "Room should be blocked now"
 
         # Inside EventCreationHandler.handle_new_client_event(), this raises as an
@@ -494,14 +540,18 @@ class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
         )
         assert room_id is not None, "Room should be created"
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
 
         # Send a junk hex message into the room, like a sentinel
         self.create_and_send_event(room_id, self.user_d_id)
 
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 2)"
 
         # The config gives 6 hours for leaves. Invites should count as joins and not
@@ -509,28 +559,36 @@ class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
         self.reactor.advance(5 * 60 * 60)
 
         # Room should still exist
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked yet(try 3)"
 
         # Give another hour
         self.reactor.advance(60 * 60)
 
         # Should still be here
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked now(try 4)"
 
         # Give another hour
         self.reactor.advance(60 * 60)
 
         # Should still be here
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked now(try 5)"
 
         # Give another hour
         self.reactor.advance(60 * 60)
 
         # Should still be here
-        is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
+        is_room_blocked = self.get_success_or_raise(
+            self.store.is_room_blocked(room_id=room_id)
+        )
         assert not is_room_blocked, "Room should not be blocked now(try 6)"
         # Send a junk hex message into the room. Proof the room still exists
         self.create_and_send_event(room_id, self.user_d_id)
@@ -637,15 +695,16 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         scheduled_task = [
             task for task in purge_task_list if task.status == TaskStatus.SCHEDULED
         ]
-        assert len(completed_task) == (
-            1 if TaskStatus.COMPLETE in status_list else 0
-        ), f"{comment} | completed {completed_task}"
-        assert len(active_task) == (
-            1 if TaskStatus.ACTIVE in status_list else 0
-        ), f"{comment} | active {active_task}"
-        assert len(scheduled_task) == (
-            1 if TaskStatus.SCHEDULED in status_list else 0
-        ), f"{comment} | scheduled {scheduled_task}"
+        if status_list:
+            assert len(completed_task) == (
+                1 if TaskStatus.COMPLETE in status_list else 0
+            ), f"{comment} | completed {completed_task}"
+            assert len(active_task) == (
+                1 if TaskStatus.ACTIVE in status_list else 0
+            ), f"{comment} | active {active_task}"
+            assert len(scheduled_task) == (
+                1 if TaskStatus.SCHEDULED in status_list else 0
+            ), f"{comment} | scheduled {scheduled_task}"
 
     # test for private dm between two local users
     # test for private dm between a local and remote user
@@ -793,7 +852,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         room_version_id = self.hs.config.server.default_room_version.identifier
 
         room_version = KNOWN_ROOM_VERSIONS.get(room_version_id)
-
+        assert room_version
         room_id = self.get_success_or_raise(
             self.hs.get_room_creation_handler()._generate_and_create_room_id(
                 self.user_a, is_public=False, room_version=room_version

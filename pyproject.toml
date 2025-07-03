@@ -74,7 +74,8 @@ matrix.database.env-vars = [
 
 [tool.hatch.envs.types]
 extra-dependencies = [
-  "mypy>=1.0.0",
+  "mypy",
+  "mypy-zope"
 ]
 
 [tool.hatch.envs.types.scripts]
@@ -113,7 +114,11 @@ exclude_lines = [
 [tool.mypy]
 install_types = true
 ignore_missing_imports = true
-non_interactive = true
+namespace_packages = true
+plugins = [
+  "pydantic.mypy",
+  "mypy_zope:plugin"
+]
 files = ["synapse_invite_checker", "tests"]
 
 [tool.pytest.ini_options]

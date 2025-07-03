@@ -77,7 +77,10 @@ class FakeRoom:
         if room_ver is None:
             room_ver = hs_config.server.default_room_version.identifier
 
-        self.room_version = KNOWN_ROOM_VERSIONS.get(room_ver)
+        room_version = KNOWN_ROOM_VERSIONS.get(room_ver)
+        if room_version is None:
+            raise ValueError(f"Unknown room version: {room_ver}")
+        self.room_version = room_version
         # TODO: factor this out into a function that can construct it instead
         self.auth_events_list = []
         self.current_prev_events_id_list = []

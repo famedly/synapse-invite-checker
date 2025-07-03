@@ -125,7 +125,7 @@ class FakeChannel:
     _reactor: MemoryReactorClock
     result: dict = attr.Factory(dict)
     _ip: str = "127.0.0.1"
-    _producer: type[IPullProducer] | type[IPushProducer] | None = None
+    _producer: IPullProducer | IPushProducer | None = None
     resource_usage: ContextResourceUsage | None = None
     _request: Request | None = None
 
@@ -212,7 +212,7 @@ class FakeChannel:
         # TODO: This should ensure that the IProducer is an IPushProducer or
         # IPullProducer, unfortunately twisted.protocols.basic.FileSender does
         # implement those, but doesn't declare it.
-        self._producer = cast(type[IPushProducer] | type[IPullProducer], producer)
+        self._producer = cast(IPushProducer | IPullProducer, producer)
         self.producerStreaming = streaming
 
         def _produce() -> None:
@@ -396,9 +396,9 @@ def make_request(
     req = request(channel, site)
     channel.request = req
 
-    req.content = BytesIO(content)
+    req.content = BytesIO(content)  # type: ignore[assignment]
     # Twisted expects to be at the end of the content when parsing the request.
-    req.content.seek(0, SEEK_END)
+    req.content.seek(0, SEEK_END)  # type: ignore[attr-defined]
 
     # Old version of Twisted (<20.3.0) have issues with parsing x-www-form-urlencoded
     # bodies if the Content-Length header is missing
@@ -495,21 +495,21 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         return p
 
     def callFromThread(
-        self, callable_: Callable[..., Any], *args: object, **kwargs: object
+        self, callable: Callable[..., Any], *args: object, **kwargs: object
     ) -> None:
         """
         Make the callback fire in the next reactor iteration.
         """
 
         def cb():
-            return callable_(*args, **kwargs)
+            return callable(*args, **kwargs)
 
         # it's not safe to call callLater() here, so we append the callback to a
         # separate queue.
         self._thread_callbacks.append(cb)
 
     def callInThread(
-        self, callable_: Callable[..., Any], *args: object, **kwargs: object
+        self, callable: Callable[..., Any], *args: object, **kwargs: object
     ) -> None:
         raise NotImplementedError
 
@@ -835,7 +835,7 @@ class FakeTransport:
     disconnected = False
     connected = True
     buffer: bytes = b""
-    producer: type[IPushProducer] | None = None
+    producer: IPushProducer | None = None
     autoflush: bool = True
 
     def getPeer(self) -> IAddress:
@@ -900,10 +900,12 @@ class FakeTransport:
             # some implementations of IProducer (for example, FileSender)
             # don't return a deferred.
             d = maybeDeferred(self.producer.resumeProducing)
-            d.addCallback(lambda _: self._reactor.callLater(0.1, _produce))
+            d.addCallback(
+                lambda _: self._reactor.callLater(delay=0.1, callable=_produce)
+            )
 
         if not streaming:
-            self._reactor.callLater(0.0, _produce)
+            self._reactor.callLater(delay=0.0, callable=_produce)
 
     def write(self, byt: bytes) -> None:
         if self.disconnecting:
@@ -916,7 +918,7 @@ class FakeTransport:
         # TLSMemoryBIOProtocol) get very confused if a read comes back while they are
         # still doing a write. Doing a callLater here breaks the cycle.
         if self.autoflush:
-            self._reactor.callLater(0.0, self.flush)
+            self._reactor.callLater(delay=0.0, callable=self.flush)
 
     def writeSequence(self, seq: Iterable[bytes]) -> None:
         for x in seq:
@@ -976,7 +978,7 @@ class TestHomeServer(HomeServer):
 def setup_test_homeserver(
     name: str = "test",
     config: HomeServerConfig | None = None,
-    reactor: type[ISynapseReactor] | None = None,
+    reactor: ISynapseReactor | None = None,
     homeserver_to_use: type[HomeServer] = TestHomeServer,
     **kwargs: Any,
 ) -> HomeServer:
@@ -1114,7 +1116,7 @@ def setup_test_homeserver(
     # Load any configured modules into the homeserver
     module_api = hs.get_module_api()
     for module, module_config in hs.config.modules.loaded_modules:
-        hs.mockmod = module(config=module_config, api=module_api)
+        hs.mockmod = module(config=module_config, api=module_api)  # type: ignore[attr-defined]
         logger.debug("Loaded module %s %r", module, module_config)
 
     load_legacy_spam_checkers(hs)

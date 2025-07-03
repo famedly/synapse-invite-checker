@@ -836,7 +836,7 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, hs: HomeServer) -> None:
         super().prepare(reactor, clock, hs)
-        self.map_server_name_to_signing_key = {}
+        self.map_server_name_to_signing_key: dict[str, SigningKey] = {}
         self.inject_servers_signing_key(self.OTHER_SERVER_NAME)
 
     def inject_servers_signing_key(self, remote_server_name: str) -> SigningKey:
