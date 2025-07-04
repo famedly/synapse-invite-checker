@@ -52,11 +52,8 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
-format = [
-  "black .",
-  "ruff check --select I --fix ."
-]
-lint = "ruff check . --fix"
+format = "black ."
+lint = "ruff check --fix ."
 
 # For CI use
 [tool.hatch.envs.ci.scripts]
@@ -85,7 +82,7 @@ extra-dependencies = [
 ]
 
 [tool.hatch.envs.types.scripts]
-check = "mypy ."
+check = "mypy"
 
 [tool.coverage.run]
 branch = true
@@ -125,6 +122,3 @@ plugins = [
   "mypy_zope:plugin"
 ]
 files = ["synapse_invite_checker", "tests"]
-
-[tool.pytest.ini_options]
-log_level = "ERROR"
