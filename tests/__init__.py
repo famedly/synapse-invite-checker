@@ -12,26 +12,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-from unittest.mock import Mock
-
-from synapse.module_api import ModuleApi
+#
+# ruff: noqa: F401
+# Ignore imported but unused error to resolve circular imports
 from synapse.server import HomeServer
 
 from synapse_invite_checker import InviteChecker
-
-admins = {}
-
-
-def get_invite_checker(config: dict):
-    def is_mine(user_id: str):
-        return user_id.endswith(":example.org")
-
-    hs = Mock(HomeServer, hostname="example.org")
-
-    api = Mock(ModuleApi)
-    api._hs = hs
-    api.server_name = "example.org"
-    api.is_mine.side_effect = is_mine
-
-    return InviteChecker(InviteChecker.parse_config(config), api)

@@ -12,8 +12,10 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+import re
 from typing import Any
 
+import pytest
 from synapse.module_api import NOT_SPAM, errors
 from synapse.server import HomeServer
 from synapse.types import UserID
@@ -211,13 +213,17 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
             ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
 
             # Adding permissions will not help, as the user doesn't exist
-            with self.assertRaises(ValueError):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    "User @notarealuser:tim.test.gematik.de does not exist on this server."
+                ),
+            ):
                 # Raises with this error:
                 # `ValueError: User @notarealuser:tim.test.gematik.de does not exist on this server.`
                 # Weirdly, it's not the retrieval of the account data that triggers it,
                 # but is the trying to put new account data
                 self.add_permission_to_a_user(remote_user_id, self.non_existent_user)
-
             # May as well give it another go anyway, just to make sure getting the
             # non-existent account data didn't cause it to suddenly work
             assert (
@@ -443,7 +449,12 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
             ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
 
             # Adding permissions will not help, as the user doesn't exist
-            with self.assertRaises(ValueError):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    "User @notarealuser:ti-messengertest.dev.ccs.gematik.solutions does not exist on this server."
+                ),
+            ):
                 # Raises with this error:
                 # `ValueError: User @notarealuser:tim.test.gematik.de does not exist on this server.`
                 # Weirdly, it's not the retrieval of the account data that triggers it,

@@ -260,7 +260,7 @@ class MockClock:
             set_current_context(ctx)
             callback(*args, **kwargs)
 
-        t = Timer(self.now + delay, wrapped_callback, False)
+        t = Timer(self.now + delay, wrapped_callback, False)  # type: ignore[call-arg]
         self.timers.append(t)
 
         return t
@@ -272,7 +272,7 @@ class MockClock:
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
-        self.loopers.append(Looper(function, interval / 1000.0, self.now, args, kwargs))
+        self.loopers.append(Looper(function, interval / 1000.0, self.now, args, kwargs))  # type: ignore[call-arg]
 
     def cancel_call_later(self, timer: Timer, ignore_errs: bool = False) -> None:
         if timer.expired and not ignore_errs:

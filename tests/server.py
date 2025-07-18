@@ -22,12 +22,7 @@ import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, MutableMapping, Sequence
 from io import SEEK_END, BytesIO
-from typing import (
-    Any,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import Any, TypeVar, Union, cast
 from unittest.mock import Mock
 
 import attr
@@ -125,7 +120,7 @@ class FakeChannel:
     _reactor: MemoryReactorClock
     result: dict = attr.Factory(dict)
     _ip: str = "127.0.0.1"
-    _producer: type[IPullProducer] | type[IPushProducer] | None = None
+    _producer: IPullProducer | IPushProducer | None = None
     resource_usage: ContextResourceUsage | None = None
     _request: Request | None = None
 
@@ -212,7 +207,7 @@ class FakeChannel:
         # TODO: This should ensure that the IProducer is an IPushProducer or
         # IPullProducer, unfortunately twisted.protocols.basic.FileSender does
         # implement those, but doesn't declare it.
-        self._producer = cast(type[IPushProducer] | type[IPullProducer], producer)
+        self._producer = cast(IPushProducer | IPullProducer, producer)
         self.producerStreaming = streaming
 
         def _produce() -> None:
@@ -248,11 +243,11 @@ class FakeChannel:
     def getPeer(self) -> IAddress:
         # We give an address so that getClientAddress/getClientIP returns a non null entry,
         # causing us to record the MAU
-        return address.IPv4Address("TCP", self._ip, 3423)
+        return cast(IAddress, address.IPv4Address("TCP", self._ip, 3423))
 
     def getHost(self) -> IAddress:
         # this is called by Request.__init__ to configure Request.host.
-        return address.IPv4Address("TCP", "127.0.0.1", 8888)
+        return cast(IAddress, address.IPv4Address("TCP", "127.0.0.1", 8888))
 
     def isSecure(self) -> bool:
         return False
@@ -391,14 +386,14 @@ def make_request(
     if isinstance(content, str):
         content = content.encode("utf8")
 
-    channel = FakeChannel(site, reactor, ip=client_ip)
+    channel = FakeChannel(site, reactor, ip=client_ip)  # type: ignore[call-arg]
 
     req = request(channel, site)
     channel.request = req
 
-    req.content = BytesIO(content)
+    req.content = BytesIO(content)  # type: ignore[assignment]
     # Twisted expects to be at the end of the content when parsing the request.
-    req.content.seek(0, SEEK_END)
+    req.content.seek(0, SEEK_END)  # type: ignore[attr-defined]
 
     # Old version of Twisted (<20.3.0) have issues with parsing x-www-form-urlencoded
     # bodies if the Content-Length header is missing
@@ -495,21 +490,29 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
         return p
 
     def callFromThread(
-        self, callable_: Callable[..., Any], *args: object, **kwargs: object
+        self,
+        # noqa: A002, `callable` is inherited from IReactorFromThreads.callFromThread
+        callable: Callable[..., Any],
+        *args: object,
+        **kwargs: object,
     ) -> None:
         """
         Make the callback fire in the next reactor iteration.
         """
 
         def cb():
-            return callable_(*args, **kwargs)
+            return callable(*args, **kwargs)
 
         # it's not safe to call callLater() here, so we append the callback to a
         # separate queue.
         self._thread_callbacks.append(cb)
 
     def callInThread(
-        self, callable_: Callable[..., Any], *args: object, **kwargs: object
+        self,
+        # noqa: A002, `callable` is inherited from IReactorFromThreads.callInThread
+        callable: Callable[..., Any],
+        *args: object,
+        **kwargs: object,
     ) -> None:
         raise NotImplementedError
 
@@ -835,7 +838,7 @@ class FakeTransport:
     disconnected = False
     connected = True
     buffer: bytes = b""
-    producer: type[IPushProducer] | None = None
+    producer: IPushProducer | None = None
     autoflush: bool = True
 
     def getPeer(self) -> IAddress:
@@ -963,8 +966,8 @@ def connect_client(
     factory = reactor.tcpClients.pop(client_id)[2]
     client = factory.buildProtocol(None)
     server = AccumulatingProtocol()
-    server.makeConnection(FakeTransport(client, reactor))
-    client.makeConnection(FakeTransport(server, reactor))
+    server.makeConnection(FakeTransport(client, reactor))  # type: ignore[call-arg]
+    client.makeConnection(FakeTransport(server, reactor))  # type: ignore[call-arg]
 
     return client, server
 
@@ -976,7 +979,7 @@ class TestHomeServer(HomeServer):
 def setup_test_homeserver(
     name: str = "test",
     config: HomeServerConfig | None = None,
-    reactor: type[ISynapseReactor] | None = None,
+    reactor: ISynapseReactor | None = None,
     homeserver_to_use: type[HomeServer] = TestHomeServer,
     **kwargs: Any,
 ) -> HomeServer:
@@ -1114,7 +1117,7 @@ def setup_test_homeserver(
     # Load any configured modules into the homeserver
     module_api = hs.get_module_api()
     for module, module_config in hs.config.modules.loaded_modules:
-        hs.mockmod = module(config=module_config, api=module_api)
+        hs.mockmod = module(config=module_config, api=module_api)  # type: ignore[attr-defined]
         logger.debug("Loaded module %s %r", module, module_config)
 
     load_legacy_spam_checkers(hs)

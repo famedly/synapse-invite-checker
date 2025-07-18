@@ -12,8 +12,10 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+# mypy: disable-error-code=call-arg
 from typing import Any
 
+import pytest
 from parameterized import parameterized
 from synapse.api.constants import Membership
 from synapse.api.errors import AuthError
@@ -161,7 +163,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # Send a junk hex message into the room, like a sentinel
         # Inside EventCreationHandler.handle_new_client_event(), this raises as an
         # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
-        with self.assertRaises(AuthError):
+        with pytest.raises(AuthError):
             self.create_and_send_event(room_id, self.user_d_id)
 
     def test_room_scan_skips_incomplete_epa_rooms(self) -> None:
@@ -174,7 +176,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         room_version_id = self.hs.config.server.default_room_version.identifier
 
         room_version = KNOWN_ROOM_VERSIONS.get(room_version_id)
-
+        assert room_version
         room_id = self.get_success_or_raise(
             self.hs.get_room_creation_handler()._generate_and_create_room_id(
                 self.user_d, is_public=False, room_version=room_version
@@ -375,7 +377,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # Inside EventCreationHandler.handle_new_client_event(), this raises as an
         # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
-        with self.assertRaises(AuthError):
+        with pytest.raises(AuthError):
             self.create_and_send_event(room_id, self.user_d_id)
 
     def test_room_scan_detects_invites_as_participation(self) -> None:
@@ -431,7 +433,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
 
         # Inside EventCreationHandler.handle_new_client_event(), this raises as an
         # AuthError(which is a subclass of SynapseError). It appears to be annotated with a 403 as well
-        with self.assertRaises(AuthError):
+        with pytest.raises(AuthError):
             self.create_and_send_event(room_id, self.user_d_id)
 
 
@@ -606,8 +608,8 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self,
         room_id: str,
         task_name: str,
-        status_list: list[TaskStatus] | None = None,
-        comment: str = "",
+        status_list: list[TaskStatus],
+        comment: str,
     ) -> None:
         """
         Assert that for a given room id, the Statuses listed have a single entry
@@ -792,7 +794,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         room_version_id = self.hs.config.server.default_room_version.identifier
 
         room_version = KNOWN_ROOM_VERSIONS.get(room_version_id)
-
+        assert room_version
         room_id = self.get_success_or_raise(
             self.hs.get_room_creation_handler()._generate_and_create_room_id(
                 self.user_a, is_public=False, room_version=room_version
@@ -858,8 +860,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
             self.inv_checker.get_delete_tasks_by_room(room_id)
         )
         assert len(second_delete_tasks) == 1
-        second_delete_task_id = second_delete_tasks[0].id
-        self.assertEqual(delete_task_id, second_delete_task_id)
+        assert delete_task_id == second_delete_tasks[0].id
 
     # I'm not sure I like the hard coding of the usernames here, but can not access
     # "self" to just reference it

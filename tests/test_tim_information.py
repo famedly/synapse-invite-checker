@@ -12,6 +12,8 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+from http import HTTPStatus
+
 from synapse.server import HomeServer
 from synapse.util import Clock
 from twisted.internet.testing import MemoryReactor
@@ -33,7 +35,9 @@ class MessengerInfoTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 401, "Request should fail with no access token"
+        assert (
+            channel.code == HTTPStatus.UNAUTHORIZED
+        ), "Request should fail with no access token"
 
     def test_default_operator_contact_info_resource(self) -> None:
         """Tests that the messenger operator contact info resource is accessible"""
@@ -45,7 +49,7 @@ class MessengerInfoTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
         assert channel.json_body["title"] == "Invite Checker module by Famedly"
         assert channel.json_body["description"] == "Invite Checker module by Famedly"
         assert channel.json_body["contact"] == "info@famedly.com"
@@ -79,7 +83,7 @@ class MessengerInfoTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
         assert channel.json_body["title"] == "abc"
         assert channel.json_body["description"] == "def"
         assert channel.json_body["contact"] == "ghi"
@@ -100,7 +104,9 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 401, "Request should fail with no access token"
+        assert (
+            channel.code == HTTPStatus.UNAUTHORIZED
+        ), "Request should fail with no access token"
 
         channel = self.make_request(
             method="GET",
@@ -109,7 +115,9 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 400, "Request should have a parameter missing"
+        assert (
+            channel.code == HTTPStatus.BAD_REQUEST
+        ), "Request should have a parameter missing"
 
         channel = self.make_request(
             method="GET",
@@ -118,7 +126,7 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
         assert channel.json_body[
             "isInsurance"
         ], "isInsurance is FALSE when it should be TRUE"
@@ -130,7 +138,7 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 200, channel.result
+        assert channel.code == HTTPStatus.OK, channel.result
         assert not channel.json_body[
             "isInsurance"
         ], "isInsurance is TRUE when it should be FALSE"
@@ -163,7 +171,7 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 404, "Endpoint shouldn't exist"
+        assert channel.code == HTTPStatus.NOT_FOUND, "Endpoint shouldn't exist"
 
         channel = self.make_request(
             method="GET",
@@ -171,7 +179,7 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 404, "Endpoint shouldn't exist"
+        assert channel.code == HTTPStatus.NOT_FOUND, "Endpoint shouldn't exist"
 
 
 class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
@@ -187,7 +195,9 @@ class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 401, channel.result
+        assert (
+            channel.code == HTTPStatus.UNAUTHORIZED
+        ), "Request should fail with no access token"
 
     def test_not_found(self) -> None:
         channel = self.make_request(
@@ -197,7 +207,7 @@ class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 404, channel.result
+        assert channel.code == HTTPStatus.NOT_FOUND, channel.result
 
     def test_no_parameter(self) -> None:
         channel = self.make_request(
@@ -207,7 +217,7 @@ class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 400, channel.result
+        assert channel.code == HTTPStatus.BAD_REQUEST, channel.result
 
     @synapse_test.override_config(
         {
@@ -237,4 +247,4 @@ class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert channel.code == 404, channel.result
+        assert channel.code == HTTPStatus.NOT_FOUND, channel.result

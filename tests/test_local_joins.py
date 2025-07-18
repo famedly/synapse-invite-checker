@@ -134,7 +134,7 @@ class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
         # Actually you can invite to a room with no ID, but will still fail for us
         # because invites between two EPA members is forbidden
         self.helper.invite(
-            room_id,
+            room_id,  # type: ignore[arg-type]
             self.user_a,
             self.user_b,
             expect_code=HTTPStatus.FORBIDDEN,

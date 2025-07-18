@@ -41,7 +41,7 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
     def user_create_room(
         self,
         is_public: bool = False,
-        room_ver: str | int | None = None,
+        room_ver: str | None = None,
         expect_code: int = HTTPStatus.OK,
     ) -> str | None:
         """
@@ -107,7 +107,7 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
 
         self.user_create_room(
             is_public=is_public,
-            room_ver=8,
+            room_ver=8,  # type: ignore[arg-type]
             expect_code=HTTPStatus.BAD_REQUEST,
         )
 
@@ -119,7 +119,7 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
 
         self.user_create_room(
             is_public=is_public,
-            room_ver=11,
+            room_ver=11,  # type: ignore[arg-type]
             expect_code=HTTPStatus.BAD_REQUEST,
         )
 
@@ -152,16 +152,19 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         """
         # 9 -> 9 works
         room_id = self.user_create_room(is_public=is_public, room_ver="9")
+        assert room_id
         room_id = self.upgrade_room_to_version(room_id, "9", self.access_token_a)
         assert room_id
 
         # 10 -> 10 works
         room_id = self.user_create_room(is_public=is_public, room_ver="10")
+        assert room_id
         room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)
         assert room_id
 
         # 9 -> 10 works
         room_id = self.user_create_room(is_public=is_public, room_ver="9")
+        assert room_id
         room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)
         assert room_id
 

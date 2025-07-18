@@ -21,12 +21,7 @@ import time
 import urllib.parse
 from collections.abc import Iterable, Mapping, MutableMapping
 from http import HTTPStatus
-from typing import (
-    Any,
-    AnyStr,
-    Literal,
-    overload,
-)
+from typing import Any, AnyStr, Literal, overload
 from urllib.parse import urlencode
 
 import attr
@@ -849,7 +844,7 @@ class RestHelper:
             "GET",
             uri,
         )
-        assert channel.code == 302
+        assert channel.code == HTTPStatus.FOUND
 
         # hit the redirect url again with the right Host header, which should now issue
         # a cookie and redirect to the SSO provider.
@@ -871,7 +866,7 @@ class RestHelper:
             ],
         )
 
-        assert channel.code == 302
+        assert channel.code == HTTPStatus.FOUND
         channel.extract_cookies(cookies)
         return get_location(channel)
 

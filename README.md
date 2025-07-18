@@ -13,6 +13,7 @@ Synapse Invite Checker is a synapse module to restrict invites on a homeserver a
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Testing](#testing)
+- [Code Quality](#code-quality)
 - [License](#license)
 
 ## Installation
@@ -97,6 +98,11 @@ that is converted to milliseconds. Suffixes with 's', 'm', 'h', 'd', 'w', or 'y'
 
 ## Testing
 
+To create virtual env and install dependency:
+```console
+hatch shell
+```
+
 The tests uses twisted's testing framework trial, with the development
 environment managed by hatch. Running the tests and generating a coverage report
 can be done like this:
@@ -105,23 +111,47 @@ can be done like this:
 hatch run cov
 ```
 
-Run type checks using mypy:
+## Code Quality
 
-```console
-hatch run types:check
-```
+Use `hatch fmt` to automatically format code, enforce style rules, and check types using:
 
-Automatically format the code using black:
+- `black` and `isort` for formatting
+- `ruff` for linting
+- `mypy` for static type checking
 
-```console
-hatch run format
-```
+### Check Code Without Modifying It
 
-Check for code style and quality issues using ruff:
+To check code quality without modifying files:
 
-```console
-hatch run lint
-```
+- Check formatting with `isort` and `black`:
+  ```console
+  hatch fmt --check -f
+  ```
+- Check types and linting with `mypy` and `ruff`:
+  ```console
+  hatch fmt --check -l
+  ```
+- Check all of above, formatting, linting, and typing:
+  ```console
+  hatch fmt --check
+  ```
+
+### Auto-formatting Code
+
+To automatically fix issues in the code:
+
+- Format only using `black` and `isort`:
+  ```console
+  hatch fmt -f
+  ```
+- Type checks(`mypy`) and lint, fixing autofixable `ruff` issues:
+  ```console
+  hatch fmt -l
+  ```
+- Run all tools, format, lint, type-check:
+  ```console
+  hatch fmt
+  ```
 
 ## License
 
