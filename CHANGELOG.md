@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.7] - 2025-07-28
+
+- chore: enable mypy on tests and configure fmt commands (#90) (Soyoung Kim)
+- fix: Correct keys in findByIk error response (Jason Little)
+
 ## [0.4.6] - 2025-07-03
 
 - chore: Allow reactions only containing a single grapheme cluster (Jason Little)
