@@ -101,8 +101,8 @@ class MessengerFindByIkResource(RestServlet):
         server_name = fed_list.get_domain_from_ik(ik_num)
         if server_name is None:
             return HTTPStatus.NOT_FOUND, {
-                "errorCode": errors.Codes.NOT_FOUND,
-                "errorMessage": "ikNumber was not found",
+                "errcode": errors.Codes.NOT_FOUND,
+                "error": "ikNumber was not found",
             }
         return HTTPStatus.OK, {
             "serverName": server_name,
