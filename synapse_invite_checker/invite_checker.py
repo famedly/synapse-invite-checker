@@ -54,7 +54,7 @@ from synapse.http.proxyagent import ProxyAgent
 from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
-from synapse.storage.database import LoggingTransaction, make_conn
+from synapse.storage.database import LoggingTransaction
 from synapse.types import (
     Requester,
     RoomID,
@@ -81,7 +81,6 @@ from synapse_invite_checker.rest.messenger_info import (
     MessengerInfoResource,
     MessengerIsInsuranceResource,
 )
-from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import (
     EpaRoomTimestampResults,
     FederationList,
@@ -232,20 +231,6 @@ class InviteChecker:
         self.api.register_spam_checker_callbacks(
             check_login_for_spam=self.check_login_for_spam
         )
-
-        dbconfig = None
-        for dbconf in api._store.config.database.databases:
-            if dbconf.name == "master":
-                dbconfig = dbconf
-
-        if not dbconfig:
-            msg = "missing database config"
-            raise Exception(msg)
-
-        with make_conn(
-            dbconfig, api._store.database_engine, "invite_checker_startup"
-        ) as db_conn:
-            self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
         # Make sure this doesn't get initialized until after the default permissions
         # were potentially modified to account for the local server template
@@ -900,7 +885,7 @@ class InviteChecker:
             txn.execute(sql)
             return {room_id for (room_id,) in txn.fetchall()}
 
-        return await self.store.db_pool.runInteraction("get_rooms", f)
+        return await self.api._store.db_pool.runInteraction("get_rooms", f)
 
     @measure_func("get_timestamps_from_eligible_events_for_epa_room_purge")
     async def get_timestamps_from_eligible_events_for_epa_room_purge(

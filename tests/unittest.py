@@ -393,6 +393,8 @@ class HomeserverTestCase(TestCase):
     def tearDown(self) -> None:
         # Reset to not use frozen dicts.
         events.USE_FROZEN_DICTS = False
+        # Make sure to close the database connection, or we get ResourceWarnings
+        self.hs.get_datastores().main.db_pool._db_pool.close()
 
     def wait_on_thread(self, deferred: Deferred, timeout: int = 10) -> None:
         """
