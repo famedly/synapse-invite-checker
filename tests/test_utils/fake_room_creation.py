@@ -43,6 +43,7 @@ class FakeRoom:
     room_version: RoomVersion
     room_id: RoomID
     creator_id: str
+    server_name: str
     depth_counter: int
     auth_events_list: list[EventBase]
     # This is almost the same as forward extremities
@@ -67,12 +68,12 @@ class FakeRoom:
     ) -> None:
         self.creator_id = creator
         self.clock = clock
-        self.server_name_this_room_is_on = other_server_name
+        self.server_name = other_server_name
         self.signing_key = other_server_signing_key
         self.depth_counter = 0
         # generate a room id
         random_string = stringutils.random_string(18)
-        self.room_id = RoomID(random_string, other_server_name)
+        self.room_id = RoomID.from_string(f"!{random_string}:{other_server_name}")
 
         if room_ver is None:
             room_ver = hs_config.server.default_room_version.identifier
@@ -218,7 +219,7 @@ class FakeRoom:
             auth_events=auth_events,
             prev_events=self.current_prev_events_id_list,
         )
-        return self.room_id.domain, event, self.room_version
+        return self.server_name, event, self.room_version
 
     def create_send_join_response(
         self,
@@ -228,7 +229,7 @@ class FakeRoom:
         add_hashes_and_signatures(
             self.room_version,
             pdu,
-            self.server_name_this_room_is_on,
+            self.server_name,
             self.signing_key,
         )
 
@@ -256,7 +257,7 @@ class FakeRoom:
 
         return SendJoinResult(
             event,
-            self.room_id.domain,
+            self.server_name,
             state=state,
             auth_chain=auth_chain,
             partial_state=False,
@@ -269,7 +270,6 @@ class FakeRoom:
         the first 'prev_event'
         """
         pdu = {
-            "room_id": self.room_id.to_string(),
             "depth": self.depth_counter,
             "type": "m.room.create",
             "state_key": "",
@@ -283,10 +283,18 @@ class FakeRoom:
             "prev_events": [],
             "origin_server_ts": self.clock.time_msec(),
         }
+        if not self.room_version.msc4291_room_ids_as_hashes:
+            # Room version 12 stopped including the room_id into the event structure of
+            # the creation event, as it would be rather a cyclical problem
+            pdu.update(
+                {
+                    "room_id": self.room_id.to_string(),
+                }
+            )
         add_hashes_and_signatures(
             self.room_version,
             pdu,
-            self.server_name_this_room_is_on,
+            self.server_name,
             self.signing_key,
         )
 
@@ -408,7 +416,7 @@ class FakeRoom:
         add_hashes_and_signatures(
             self.room_version,
             pdu,
-            self.server_name_this_room_is_on,
+            self.server_name,
             self.signing_key,
         )
         return make_event_from_dict(
@@ -437,7 +445,7 @@ class FakeRoom:
         add_hashes_and_signatures(
             self.room_version,
             pdu,
-            self.server_name_this_room_is_on,
+            self.server_name,
             self.signing_key,
         )
 
@@ -469,7 +477,7 @@ class FakeRoom:
         add_hashes_and_signatures(
             self.room_version,
             pdu,
-            self.server_name_this_room_is_on,
+            self.server_name,
             self.signing_key,
         )
 
@@ -501,7 +509,7 @@ class FakeRoom:
         add_hashes_and_signatures(
             self.room_version,
             pdu,
-            self.server_name_this_room_is_on,
+            self.server_name,
             self.signing_key,
         )
 
@@ -533,7 +541,7 @@ class FakeRoom:
         add_hashes_and_signatures(
             self.room_version,
             pdu,
-            self.server_name_this_room_is_on,
+            self.server_name,
             self.signing_key,
         )
 

@@ -17,7 +17,6 @@ import json
 import logging
 import os
 import os.path
-import sqlite3
 import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, MutableMapping, Sequence
@@ -42,7 +41,6 @@ from synapse.server import HomeServer
 from synapse.storage import DataStore
 from synapse.storage.database import LoggingDatabaseConnection, make_pool
 from synapse.storage.engines import BaseDatabaseEngine, create_engine
-from synapse.storage.prepare_database import prepare_database
 from synapse.types import ISynapseReactor, JsonDict
 from synapse.util import Clock
 from twisted.enterprise import adbapi
@@ -1039,22 +1037,6 @@ def setup_test_homeserver(
             "name": "sqlite3",
             "args": {"database": test_db_location, "cp_min": 1, "cp_max": 1},
         }
-
-        # Check if we have set up a DB that we can use as a template.
-        global PREPPED_SQLITE_DB_CONN
-        if PREPPED_SQLITE_DB_CONN is None:
-            temp_engine = create_engine(database_config)
-            PREPPED_SQLITE_DB_CONN = LoggingDatabaseConnection(
-                sqlite3.connect(":memory:"), temp_engine, "PREPPED_CONN"
-            )
-
-            database = DatabaseConnectionConfig("master", database_config)
-            config.database.databases = [database]
-            prepare_database(
-                PREPPED_SQLITE_DB_CONN, create_engine(database_config), config
-            )
-
-        database_config["_TEST_PREPPED_CONN"] = PREPPED_SQLITE_DB_CONN
 
     if "db_txn_limit" in kwargs:
         database_config["txn_limit"] = kwargs["db_txn_limit"]

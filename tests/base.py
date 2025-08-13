@@ -521,7 +521,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                             target=UserID.from_string(joining_user),
                             room_id=room_id,
                             action=Membership.JOIN,
-                            remote_room_hosts=[remote_room.room_id.domain],
+                            remote_room_hosts=[remote_room.server_name],
                         )
                     )
                 assert excinfo.value.code == expected_code
@@ -532,7 +532,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                         target=UserID.from_string(joining_user),
                         room_id=room_id,
                         action=Membership.JOIN,
-                        remote_room_hosts=[remote_room.room_id.domain],
+                        remote_room_hosts=[remote_room.server_name],
                     )
                 )
 

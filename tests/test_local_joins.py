@@ -71,6 +71,17 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
 
         self.helper.join(room_id, self.user_b, tok=self.access_token_b)
 
+    def test_rejoining_public_no_invites(self) -> None:
+        """Test re-joining a local public room with no invites is allowed"""
+        room_id = self.create_local_room(self.user_a, [], is_public=True)
+        assert room_id is not None, "Room should have been created"
+
+        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
+        self.helper.send(room_id, "Be right back!", tok=self.access_token_b)
+        self.helper.leave(room_id, self.user_b, tok=self.access_token_b)
+        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
+        self.helper.send(room_id, "Sorry about that!", tok=self.access_token_b)
+
     def test_joining_private_no_invites(self) -> None:
         """Test joining a local private room with no invites is denied"""
         room_id = self.create_local_room(self.user_a, [], is_public=False)
@@ -90,6 +101,23 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
 
         self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)
         self.helper.join(room_id, self.user_b, tok=self.access_token_b)
+
+    def test_rejoining_private_with_invites(self) -> None:
+        """Test re-joining a local private room with initial invites forbidden"""
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        assert room_id is not None, "Room should have been created"
+
+        self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)
+        self.helper.join(room_id, self.user_b, tok=self.access_token_b)
+        self.helper.send(room_id, "Be right back!", tok=self.access_token_b)
+        self.helper.leave(room_id, self.user_b, tok=self.access_token_b)
+        # Can not rejoin without an invite
+        self.helper.join(
+            room_id,
+            self.user_b,
+            tok=self.access_token_b,
+            expect_code=HTTPStatus.FORBIDDEN,
+        )
 
 
 class LocalEpaJoinTestCase(FederatingModuleApiTestCase):

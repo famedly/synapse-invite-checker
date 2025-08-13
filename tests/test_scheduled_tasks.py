@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 from parameterized import parameterized
-from synapse.api.constants import Membership
+from synapse.api.constants import EventTypes, JoinRules, Membership
 from synapse.api.errors import AuthError
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
 from synapse.handlers.pagination import SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME
@@ -267,6 +267,9 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         )
         assert room_id is not None
 
+        # Will need this later to include the correct stripped state with an invite
+        room_version = self.get_success(self.store.get_room_version(room_id))
+
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
         # Needs to be either None or False
         assert not is_room_blocked, "Room should not be blocked yet(try 1)"
@@ -296,12 +299,35 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
                 self.remote_pro_user,
                 Membership.INVITE,
                 target=self.user_e,
+                unsigned={
+                    "invite_room_state": [
+                        {
+                            "type": EventTypes.Create,
+                            "sender": self.user_d_id.to_string(),
+                            # starting in room version 11, the 'sender' field is used
+                            # instead. For the moment, we are limited to versions "9"
+                            # and "10"
+                            "content": {
+                                "creator": self.user_d_id.to_string(),
+                                "room_version": room_version.identifier,
+                            },
+                            "state_key": "",
+                        },
+                        {
+                            "type": EventTypes.JoinRules,
+                            "sender": self.user_d_id.to_string(),
+                            "content": {"join_rule": JoinRules.PRIVATE},
+                            "state_key": "",
+                        },
+                    ]
+                },
             )
         )
 
         self.helper.join(room_id, self.user_e, tok=self.access_token_e)
 
-        # doctor invites another doctor
+        # doctor invites another doctor. To properly test joining, the invite from the
+        # doctor needs to include the 'stripped_state' like bits in the invite itself
         self.get_success_or_raise(
             event_injection.inject_member_event(
                 self.hs,

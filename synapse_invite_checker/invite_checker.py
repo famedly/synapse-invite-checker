@@ -54,10 +54,9 @@ from synapse.http.proxyagent import ProxyAgent
 from synapse.http.server import JsonResource
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
-from synapse.storage.database import LoggingTransaction, make_conn
+from synapse.storage.database import LoggingTransaction
 from synapse.types import (
     Requester,
-    RoomID,
     ScheduledTask,
     StateMap,
     TaskStatus,
@@ -81,7 +80,6 @@ from synapse_invite_checker.rest.messenger_info import (
     MessengerInfoResource,
     MessengerIsInsuranceResource,
 )
-from synapse_invite_checker.store import InviteCheckerStore
 from synapse_invite_checker.types import (
     EpaRoomTimestampResults,
     FederationList,
@@ -205,8 +203,11 @@ class InviteChecker:
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
-        # Need this for the @measure_func decorator to work
+        # This needs to be on the Class itself so that metrics functions that measure
+        # requests and database calls will function. Specifically for @measure_func
+        self.server_name = api.server_name
         self.clock = api._hs.get_clock()
+
         self.config = config
         # Can not do this as part of parse_config() as there is no access to the server
         # name yet
@@ -232,20 +233,6 @@ class InviteChecker:
         self.api.register_spam_checker_callbacks(
             check_login_for_spam=self.check_login_for_spam
         )
-
-        dbconfig = None
-        for dbconf in api._store.config.database.databases:
-            if dbconf.name == "master":
-                dbconfig = dbconf
-
-        if not dbconfig:
-            msg = "missing database config"
-            raise Exception(msg)
-
-        with make_conn(
-            dbconfig, api._store.database_engine, "invite_checker_startup"
-        ) as db_conn:
-            self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
         # Make sure this doesn't get initialized until after the default permissions
         # were potentially modified to account for the local server template
@@ -565,19 +552,70 @@ class InviteChecker:
     async def user_may_join_room(
         self, user: str, room_id: str, is_invited: bool
     ) -> Literal["NOT_SPAM"] | errors.Codes:
-        user_domain = UserID.from_string(user).domain
-        room_domain = RoomID.from_string(room_id).domain
-        # This only runs for local users, so only try and block remote rooms
-        if user_domain != room_domain:
-            # Block non-invited people from joining this room.
-            if not is_invited:
+        """
+        This is used to check that a local user can join a room. Invites to remote
+        public rooms MUST be denied. Invites to local rooms are allowed(unless it is an
+        EPA server, in which case it should not get here)
+        Args:
+            user:
+            room_id:
+            is_invited:
+
+        Returns:
+
+        """
+        if not is_invited:
+            # Do we have the creation event of the room state?
+            state_mapping: StateMap[EventBase] = (
+                await self.api._storage_controllers.state.get_current_state(
+                    room_id,
+                    StateFilter.from_types(
+                        [(EventTypes.Create, None), (EventTypes.JoinRules, None)]
+                    ),
+                )
+            )
+
+            creation_event = state_mapping.get((EventTypes.Create, ""))
+            if not creation_event:
+                # This happens because we do not have the state of the room. If this was
+                # an invite(which includes 'invite_room_state') we would not be here. It
+                # is highly likely that this means the room is remote. Since remote
+                # rooms with no invite are not allowed, deny the request. Local rooms
+                # that do not have state should be in the act of purging, in which case
+                # we do not want to allow that join anyway.
                 logger.debug(
-                    "Forbidding user (%s) from joining local room (%s)",
+                    "Denying join of '%s' to room '%s' because local server has no state(which represents a remote room)",
                     user,
                     room_id,
                 )
                 return errors.Codes.FORBIDDEN
 
+            # There was no invite, but we already have the state of the room. Deny
+            # public rooms if the room's creator's domain isn't the same as the local
+            # server
+            room_creator = UserID.from_string(creation_event.sender)
+            if room_creator.domain != self.server_name:
+                join_rules = state_mapping.get((EventTypes.JoinRules, ""))
+                # all rooms should have join_rules, make sure
+                if join_rules is None:
+                    logger.warning(
+                        "Room state of '%s' does not contain 'join_rules", room_id
+                    )
+                    return errors.Codes.FORBIDDEN
+
+                if join_rules.content["join_rule"] == JoinRules.PUBLIC:
+                    # There are no public remote rooms.
+                    logger.debug(
+                        "Forbidding join of '%s' to remote PUBLIC room '%s'",
+                        user,
+                        room_id,
+                    )
+                    return errors.Codes.FORBIDDEN
+
+            # Room was created by a local user
+            return NOT_SPAM
+
+        else:
             # Try and see if the invite event had any initial room state data. For now,
             # this requires a database call, but if https://github.com/element-hq/synapse/issues/18230
             # becomes a thing, we won't need it anymore. It is possible that room_data
@@ -586,21 +624,42 @@ class InviteChecker:
             room_data = await self.api._store.get_invite_for_local_user_in_room(
                 user, room_id
             )
-            if room_data:
-                invite_event = await self.api._store.get_event(room_data.event_id)
-                for _event in invite_event.unsigned.get("invite_room_state", []):
-                    if (
-                        _event["type"] == EventTypes.JoinRules
-                        and _event["content"]["join_rule"] == JoinRules.PUBLIC
-                    ):
-                        return errors.Codes.FORBIDDEN
-            else:
+            if room_data is None:
+                # If for some reason this data is missing, deny and bail. Someone is doing
+                # something fishy
                 logger.warning(
-                    "room_data(RoomsForUser) was None after an invite for user (%s) in room (%s)",
+                    "Forbidding join of '%s' to room '%s' because invite data could not be found",
                     user,
                     room_id,
                 )
-        return NOT_SPAM
+                return errors.Codes.FORBIDDEN
+
+            invite_event = await self.api._store.get_event(room_data.event_id)
+
+            create_event_senders_domain = None
+            is_public = True
+
+            # Sort out the conditions
+            for _event in invite_event.unsigned.get("invite_room_state", []):
+                if (
+                    _event["type"] == EventTypes.JoinRules
+                    and _event["content"]["join_rule"] != JoinRules.PUBLIC
+                ):
+                    is_public = False
+                if _event["type"] == EventTypes.Create:
+                    create_event_senders_domain = UserID.from_string(
+                        _event["sender"]
+                    ).domain
+
+            if is_public and create_event_senders_domain != self.server_name:
+                logger.debug(
+                    "Forbidding joining '%s' to invited room '%s' because room is PUBLIC",
+                    user,
+                    room_id,
+                )
+                return errors.Codes.FORBIDDEN
+
+            return NOT_SPAM
 
     async def check_event_allowed(
         self, event: EventBase, context: StateMap[EventBase]
@@ -671,6 +730,7 @@ class InviteChecker:
                     EventContentFields.FEDERATE, True
                 )
             # Remember to account for the override disabler
+            # TODO: fix this possible reference before assignment
             if federated_flag and self.config.override_public_room_federation:
                 return False, None
 
@@ -900,7 +960,7 @@ class InviteChecker:
             txn.execute(sql)
             return {room_id for (room_id,) in txn.fetchall()}
 
-        return await self.store.db_pool.runInteraction("get_rooms", f)
+        return await self.api._store.db_pool.runInteraction("get_rooms", f)
 
     @measure_func("get_timestamps_from_eligible_events_for_epa_room_purge")
     async def get_timestamps_from_eligible_events_for_epa_room_purge(
