@@ -186,8 +186,8 @@ class FederationAllowListClient(BaseHttpClient):
 
         mstls_policy = MtlsPolicy(config)
         proxy_agent = ProxyAgent(
-            self.reactor,
-            hs.get_reactor(),
+            reactor=self.reactor,
+            proxy_reactor=hs.get_reactor(),
             connectTimeout=15,
             contextFactory=cast(IPolicyForHTTPS, mstls_policy),
             pool=pool,
