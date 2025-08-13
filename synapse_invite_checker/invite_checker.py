@@ -131,8 +131,8 @@ class FederationAllowListClient(BaseHttpClient):
 
         pool = HTTPConnectionPool(self.reactor)
         self.agent = ProxyAgent(
-            self.reactor,
-            hs.get_reactor(),
+            reactor=self.reactor,
+            proxy_reactor=hs.get_reactor(),
             connectTimeout=15,
             contextFactory=MtlsPolicy(config),
             pool=pool,
@@ -163,7 +163,10 @@ class InviteChecker:
             raise Exception(msg)
 
         with make_conn(
-            dbconfig, api._store.database_engine, "invite_checker_startup"
+            db_config=dbconfig,
+            engine=api._store.database_engine,
+            default_txn_name="invite_checker_startup",
+            server_name=api.server_name,
         ) as db_conn:
             self.store = InviteCheckerStore(api._store.db_pool, db_conn, api._hs)
 
