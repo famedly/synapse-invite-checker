@@ -44,21 +44,21 @@ jobs:
         with:
           src: head
           options: "--check --verbose"
-      
+
       - name: Prepare lint
         shell: bash
         run: echo PYTHON_TARGET="py${{ matrix.python-version }}" | sed -r "s/\.//" >> $GITHUB_ENV
 
       - name: Lint
-        uses: chartboost/ruff-action@2bc585f1253832f5a5220d7fbf86976822116147
+        uses: chartboost/ruff-action@491342200cdd1cf4d5132a30ddc546b3b5bc531b
         with:
-          args: --target-version ${{ env.PYTHON_TARGET }}
+          args: check --target-version ${{ env.PYTHON_TARGET }}
           src: head
 
       - name: Tests and coverage
         working-directory: head
         run: hatch run head-cov
-      
+
       - name: Load base coverage results from cache
         if: github.event_name == 'pull_request'
         id: cache-coverage
@@ -73,7 +73,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.ref }}
           repository: ${{ github.event.pull_request.base.full_name }}
-          path: base   
+          path: base
 
       - name: Generate base coverage
         if: github.event_name == 'pull_request' && steps.cache-coverage.outputs.cache-hit != 'true'
@@ -81,7 +81,7 @@ jobs:
         # Needed for initial run
         continue-on-error: true
         run: hatch run base-cov
-    
+
       - name: Meow Coverage
         id: coverage-report
         continue-on-error: true
@@ -95,4 +95,3 @@ jobs:
           repo-name: ${{ github.repository }}
           commit-id: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.after }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-  
