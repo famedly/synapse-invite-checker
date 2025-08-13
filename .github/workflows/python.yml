@@ -52,7 +52,7 @@ jobs:
       - name: Lint
         uses: chartboost/ruff-action@491342200cdd1cf4d5132a30ddc546b3b5bc531b
         with:
-          args: --target-version ${{ env.PYTHON_TARGET }}
+          args: --diff --no-fix-only --target-version ${{ env.PYTHON_TARGET }}
           src: head
 
       - name: Tests and coverage
