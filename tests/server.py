@@ -388,7 +388,7 @@ def make_request(
 
     channel = FakeChannel(site, reactor, ip=client_ip)
 
-    req = request(channel, site)
+    req = request(channel, site, our_server_name="test_server")
     channel.request = req
 
     req.content = BytesIO(content)
@@ -974,7 +974,10 @@ def setup_test_homeserver(
     if PREPPED_SQLITE_DB_CONN is None:
         temp_engine = create_engine(database_config)
         PREPPED_SQLITE_DB_CONN = LoggingDatabaseConnection(
-            sqlite3.connect(":memory:"), temp_engine, "PREPPED_CONN"
+            conn=sqlite3.connect(":memory:"),
+            engine=temp_engine,
+            default_txn_name="PREPPED_CONN",
+            server_name=name,
         )
 
         database = DatabaseConnectionConfig("master", database_config)
