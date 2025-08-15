@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.9] - 2025-08-18
+
+- fix: Adjust to Synapse utilities that use Metrics and now require a 'server_name' (Jason Little)
+
 ## [0.4.8] - 2025-08-18
 
 - chore: remove pinned version of Twisted (Jason Little)
