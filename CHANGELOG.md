@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.8] - 2025-08-18
+
+- chore: remove pinned version of Twisted (Jason Little)
+- chore: Fix RoomID usage to not optimize local versus remote comparison from the 'domain' property (Jason Little)
+- chore: Remove Workflows team from CODEOWNERS (Vlad Zagvozdkin)
+
 ## [0.4.7] - 2025-07-28
 
 - chore: enable mypy on tests and configure fmt commands (#90) (Soyoung Kim)
