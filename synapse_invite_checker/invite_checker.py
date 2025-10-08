@@ -270,7 +270,7 @@ class InviteChecker:
             ).register(self.resource)
             self.api.register_web_resource(INFO_API_PREFIX, self.resource)
 
-        self.api._hs._reactor.callWhenRunning(self.after_startup)
+        self.api._clock.call_when_running(self.after_startup)
 
         logger.info("Module initialized at %s", BASE_API_PREFIX)
 
