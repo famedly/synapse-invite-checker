@@ -15,7 +15,7 @@
 import logging
 
 from synapse.server import HomeServer
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
 from tests.base import FederatingModuleApiTestCase

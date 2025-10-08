@@ -23,7 +23,7 @@ from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
 from synapse.handlers.pagination import SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME
 from synapse.server import HomeServer
 from synapse.types import TaskStatus, UserID
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
 from tests.base import FederatingModuleApiTestCase

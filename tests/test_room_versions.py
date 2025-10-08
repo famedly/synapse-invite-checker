@@ -16,7 +16,7 @@ from http import HTTPStatus
 
 from parameterized import parameterized
 from synapse.server import HomeServer
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
 from tests.base import FederatingModuleApiTestCase, construct_extra_content

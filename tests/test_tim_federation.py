@@ -15,7 +15,7 @@
 from unittest.mock import AsyncMock, patch
 
 from synapse.server import HomeServer
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
 from synapse_invite_checker.types import FederationDomain

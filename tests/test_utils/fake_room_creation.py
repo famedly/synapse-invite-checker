@@ -29,7 +29,8 @@ from synapse.crypto.event_signing import add_hashes_and_signatures
 from synapse.events import EventBase, make_event_from_dict
 from synapse.federation.federation_client import SendJoinResult
 from synapse.types import RoomID
-from synapse.util import Clock, stringutils
+from synapse.util import stringutils
+from synapse.util.clock import Clock
 
 
 class FakeRoom:

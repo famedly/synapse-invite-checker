@@ -20,7 +20,7 @@ import yaml
 from parameterized import parameterized_class
 from synapse.api.errors import Codes, HttpResponseException
 from synapse.server import HomeServer
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
 from synapse_invite_checker.types import (

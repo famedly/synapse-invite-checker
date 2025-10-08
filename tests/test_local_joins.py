@@ -17,7 +17,7 @@ from http import HTTPStatus
 from typing import Any
 
 from synapse.server import HomeServer
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
 from tests.base import FederatingModuleApiTestCase

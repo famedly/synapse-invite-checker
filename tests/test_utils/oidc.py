@@ -21,7 +21,7 @@ from urllib.parse import parse_qs
 
 import attr
 from synapse.server import HomeServer
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from synapse.util.stringutils import random_string
 from twisted.web.http_headers import Headers
 

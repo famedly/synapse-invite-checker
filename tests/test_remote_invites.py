@@ -19,7 +19,7 @@ import pytest
 from synapse.module_api import NOT_SPAM, errors
 from synapse.server import HomeServer
 from synapse.types import UserID
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet import defer
 from twisted.internet.testing import MemoryReactor
 

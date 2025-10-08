@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, Mock
 
 from parameterized import parameterized
 from synapse.server import HomeServer
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
