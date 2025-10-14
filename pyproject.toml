@@ -29,7 +29,7 @@ dependencies = [
   # For the emoji reaction restrictions
   "emoji",
 ]
-version = "0.4.9"
+version = "0.4.10"
 
 [project.urls]
 Documentation = "https://github.com/famedly/synapse-invite-checker#synapse-invite-checker"

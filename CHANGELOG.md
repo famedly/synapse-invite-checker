@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.10] - 2025-10-14
+
+- chore: fix clock util import path
+- chore: use call_when_running instead of callWhenRunning
+
 ## [0.4.9] - 2025-08-18
 
 - fix: Adjust to Synapse utilities that use Metrics and now require a 'server_name' (Jason Little)
