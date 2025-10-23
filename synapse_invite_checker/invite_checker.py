@@ -52,6 +52,7 @@ from synapse.handlers.pagination import SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME
 from synapse.http.client import BaseHttpClient
 from synapse.http.proxyagent import ProxyAgent
 from synapse.http.server import JsonResource
+from synapse.logging.context import make_deferred_yieldable
 from synapse.module_api import NOT_SPAM, ModuleApi, errors
 from synapse.server import HomeServer
 from synapse.storage.database import LoggingTransaction
@@ -427,7 +428,10 @@ class InviteChecker:
         return _config
 
     def after_startup(self) -> None:
-        _ = Deferred.fromCoroutine(self._after_startup())
+        d = Deferred.fromCoroutine(self._after_startup())
+        # Whenever a raw Deferred is created and ran, it needs to be wrapped into a log
+        # context. 'make_deferred_yieldable()' does that for us
+        make_deferred_yieldable(d)
 
     async def _after_startup(self) -> None:
         """
