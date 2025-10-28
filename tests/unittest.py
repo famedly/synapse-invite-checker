@@ -420,7 +420,7 @@ class HomeserverTestCase(TestCase):
             )
 
     def make_homeserver(
-        self, _reactor: ThreadedMemoryReactorClock, _clock: Clock
+        self, reactor: ThreadedMemoryReactorClock, clock: Clock
     ) -> HomeServer:
         """
         Make and return a homeserver.
@@ -434,11 +434,11 @@ class HomeserverTestCase(TestCase):
 
         Function to be overridden in subclasses.
         """
-        return self.setup_test_homeserver()
+        return self.setup_test_homeserver(reactor=reactor, clock=clock)
 
     def create_test_resource(self) -> Resource:
         """
-        Create a the root resource for the test server.
+        Create the root resource for the test server.
 
         The default calls `self.create_resource_dict` and builds the resultant dict
         into a tree.
@@ -585,7 +585,7 @@ class HomeserverTestCase(TestCase):
         kwargs["name"] = config_obj.server.server_name
 
         async def run_bg_updates() -> None:
-            with LoggingContext("run_bg_updates"):
+            with LoggingContext(name="run_bg_updates", server_name=kwargs["name"]):
                 self.get_success(stor.db_pool.updates.run_background_updates(False))
 
         hs = setup_test_homeserver(**kwargs)

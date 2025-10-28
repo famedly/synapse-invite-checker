@@ -81,7 +81,6 @@ from tests.utils import (
     POSTGRES_USER,
     SQLITE_PERSIST_DB,
     USE_POSTGRES_FOR_TESTS,
-    MockClock,
     default_config,
 )
 
@@ -791,9 +790,9 @@ def _make_test_homeserver_synchronous(server: HomeServer) -> None:
 
 
 def get_clock() -> tuple[ThreadedMemoryReactorClock, Clock]:
-    clock = ThreadedMemoryReactorClock()
-    hs_clock = Clock(clock)
-    return clock, hs_clock
+    reactor = ThreadedMemoryReactorClock()
+    hs_clock = Clock(reactor, server_name="test_server")
+    return reactor, hs_clock
 
 
 @implementer(ITransport)
@@ -994,9 +993,7 @@ def setup_test_homeserver(
     HomeserverTestCase.
     """
     if reactor is None:
-        from twisted.internet import reactor as _reactor
-
-        reactor = cast(ISynapseReactor, _reactor)
+        reactor = ThreadedMemoryReactorClock()
 
     if config is None:
         config = default_config(name, parse=True)
@@ -1004,7 +1001,7 @@ def setup_test_homeserver(
     config.caches.resize_all_caches()
 
     if "clock" not in kwargs:
-        kwargs["clock"] = MockClock()
+        kwargs["clock"] = Clock(reactor, server_name=name)
 
     if USE_POSTGRES_FOR_TESTS:
         test_db = f"synapse_test_{uuid.uuid4().hex}"
@@ -1069,7 +1066,6 @@ def setup_test_homeserver(
     hs = homeserver_to_use(
         name,
         config=config,
-        version_string="Synapse/tests",
         reactor=reactor,
     )
 
