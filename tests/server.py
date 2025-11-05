@@ -51,7 +51,7 @@ from synapse.storage.database import LoggingDatabaseConnection
 from synapse.storage.engines import create_engine
 from synapse.storage.prepare_database import prepare_database
 from synapse.types import ISynapseReactor, JsonDict
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet import address, tcp, threads, udp
 from twisted.internet._resolver import SimpleResolverComplexifier
 from twisted.internet.defer import Deferred, fail, maybeDeferred, succeed

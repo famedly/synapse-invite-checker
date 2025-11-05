@@ -59,7 +59,7 @@ from synapse.rest import RegisterServletsFunc
 from synapse.server import HomeServer
 from synapse.storage.keys import FetchKeyResult
 from synapse.types import JsonDict, Requester, UserID, create_requester
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from synapse.util.httpresourcetree import create_resource_tree
 from twisted.internet.defer import Deferred, ensureDeferred
 from twisted.internet.testing import MemoryReactor, MemoryReactorClock

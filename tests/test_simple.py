@@ -29,7 +29,7 @@ from synapse.rest.client import (
     room,
 )
 from synapse.server import HomeServer
-from synapse.util import Clock
+from synapse.util.clock import Clock
 from twisted.internet import defer
 from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
