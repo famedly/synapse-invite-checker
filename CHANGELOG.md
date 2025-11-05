@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2025-11-05
+
+- chore: Update publish to PyPI Github Action (Jason Little)
+
 ## [0.2.1] - 2025-11-05
 
 - chore: update CI workflow to allow for manual triggering and to stop being selective about pull requests (Jason Little)
