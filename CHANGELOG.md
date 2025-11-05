@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.11] - 2025-11-07
+
+- chore: Remove now deprecated version of Python and add the two versions that were missing (Jason Little)
+- chore: Update testing infrastructure to handle Synapse 1.140 and up (Jason Little)
+- fix: Logging contexts slipping during startup federation list retrieval (Jason Little)
+
 ## [0.4.10] - 2025-10-14
 
 - chore: fix clock util import path
