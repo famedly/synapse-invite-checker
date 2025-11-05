@@ -40,7 +40,7 @@ dependencies = [
   "pytest",
   "pytest-cov",
   "mock",
-  "matrix-synapse" # we don't depend on synapse directly to prevent pip from pulling the wrong synapse, when we just want to install the module
+  "matrix-synapse @ git+https://github.com/famedly/synapse.git@master"
 ]
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
