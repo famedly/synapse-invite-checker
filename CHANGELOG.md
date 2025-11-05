@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2025-11-05
+
+- chore: update CI workflow to allow for manual triggering and to stop being selective about pull requests (Jason Little)
+- chore: Update matrix-synapse dependency to point at the correct repository (Jason Little)
+- chore: update ruff github workflow action to current (Jason Little)
+- fix: Adjust some class/function arguments for compatibility with imported objects. For Synapse v1.140.0 (Jason Little)
+- fix: Adjust to Synapse utilities that use Metrics and now require a 'server_name' and kwargs. For Synapse v1.136-v1.138 (Jason Little)
+- fix codeowners (Jason Little)
+- fix: Move where Clock is imported from. For Synapse 1.139.0 (Jason Little)
+- update .gitignore for .idea based IDE's (Jason Little)
+
 ## [0.2.0] - 2024-05-22
 
 - Use SimpleHttpClient with proxy enabled to fetch CA roots
