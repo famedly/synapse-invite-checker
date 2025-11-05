@@ -736,7 +736,7 @@ def _make_test_homeserver_synchronous(server: HomeServer) -> None:
 
 def get_clock() -> tuple[ThreadedMemoryReactorClock, Clock]:
     clock = ThreadedMemoryReactorClock()
-    hs_clock = Clock(clock)
+    hs_clock = Clock(clock, "test_server")
     return clock, hs_clock
 
 
@@ -997,7 +997,6 @@ def setup_test_homeserver(
     hs = homeserver_to_use(
         name,
         config=config,
-        version_string="Synapse/tests",
         reactor=reactor,
     )
 
