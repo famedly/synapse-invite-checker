@@ -53,3 +53,4 @@ class InviteCheckerConfig:
     prohibit_world_readable_rooms: bool = True
     block_invites_into_dms: bool = True
     limit_reactions: bool = True
+    fed_list_testing_only: dict = field(default_factory=dict)

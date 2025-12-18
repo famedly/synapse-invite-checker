@@ -111,6 +111,11 @@ can be done like this:
 hatch run cov
 ```
 
+The tests provide a sample of a testing version of an old federation list. In order to
+test for issues with formatting in the federation list, one may be declared while
+testing using `federation_list_testing_only` and removing `federation_list_url`. This 
+completely replaces the federation list and MUST NOT be used in production.
+
 ## Code Quality
 
 Use `hatch fmt` to automatically format code, enforce style rules, and check types using:

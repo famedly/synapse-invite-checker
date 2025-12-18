@@ -337,3 +337,23 @@ class ConfigParsingTestCase(TestCase):
         test_config.update({"limit_reactions": "hi mom!"})
         with pytest.raises(ConfigError):
             InviteChecker.parse_config(test_config)
+
+    def test_federation_list_is_overridable(self) -> None:
+        test_config = self.config.copy()
+        test_config.update(
+            {
+                "federation_list_url": "",
+                "federation_list_testing_only": {
+                    "version": 0,
+                    "domainList": [
+                        {
+                            "domain": "hs1",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": False,
+                        },
+                    ],
+                },
+            }
+        )
+        assert InviteChecker.parse_config(test_config).fed_list_testing_only != {}

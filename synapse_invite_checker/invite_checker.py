@@ -216,7 +216,11 @@ class InviteChecker:
             self.api._hs.config.server.server_name
         )
 
-        self.federation_list_client = FederationAllowListClient(api._hs, self.config)
+        self.federation_list_client = None
+        if self.config.federation_list_url:
+            self.federation_list_client = FederationAllowListClient(
+                api._hs, self.config
+            )
 
         self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
         self.api.register_spam_checker_callbacks(
@@ -297,22 +301,27 @@ class InviteChecker:
         )
         _config.gematik_ca_baseurl = config.get("gematik_ca_baseurl", "")
 
-        if not _config.federation_list_url or not _config.gematik_ca_baseurl:
-            msg = "Incomplete federation list config"
-            raise Exception(msg)
+        _config.fed_list_testing_only = config.get("federation_list_testing_only", {})
 
-        if (
-            _config.federation_list_url.startswith("https")
-            and _config.federation_list_require_mtls
-            and not _config.federation_list_client_cert
-        ):
-            msg = "Federation list config requires an mtls (PEM) cert for https connections when mTLS is required"
-            raise Exception(msg)
+        if not _config.fed_list_testing_only:
+            # For testing, if we have declared the fed list we wish to use in the config
+            # then we can ignore all these as they won't be used.
+            if not _config.federation_list_url or not _config.gematik_ca_baseurl:
+                msg = "Incomplete federation list config"
+                raise Exception(msg)
 
-        # Validate federation_list_require_mtls is a boolean
-        if not isinstance(_config.federation_list_require_mtls, bool):
-            msg = "`federation_list_require_mtls` must be a boolean"
-            raise ConfigError(msg)
+            if (
+                _config.federation_list_url.startswith("https")
+                and _config.federation_list_require_mtls
+                and not _config.federation_list_client_cert
+            ):
+                msg = "Federation list config requires an mtls (PEM) cert for https connections when mTLS is required"
+                raise Exception(msg)
+
+            # Validate federation_list_require_mtls is a boolean
+            if not isinstance(_config.federation_list_require_mtls, bool):
+                msg = "`federation_list_require_mtls` must be a boolean"
+                raise ConfigError(msg)
 
         # Check that the configuration is defined. This allows a grace period for
         # migration. For now, just issue a warning in the logs. The default of 'pro'
@@ -453,6 +462,9 @@ class InviteChecker:
             )
 
     async def _raw_federation_list_fetch(self) -> str:
+        assert (
+            self.federation_list_client is not None
+        ), "Federation list client was None, did you override the list?"
         resp = await self.federation_list_client.get_raw(
             self.config.federation_list_url
         )
@@ -483,6 +495,9 @@ class InviteChecker:
             a FederationList object
 
         """
+        if self.config.fed_list_testing_only:
+            return FederationList.model_validate(self.config.fed_list_testing_only)
+
         raw_list = await self._raw_federation_list_fetch()
         jws_verify = jws.JWS()
         jws_verify.deserialize(raw_list, alg="BP256R1")

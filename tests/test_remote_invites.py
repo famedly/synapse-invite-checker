@@ -37,7 +37,21 @@ from tests.test_utils import (
 )
 
 
-class RemoteProModeInviteTest(FederatingModuleApiTestCase):
+class UserMayInviteHomeserverBase(FederatingModuleApiTestCase):
+    def may_invite(self, inviter: str, invitee: str, roomid: str):
+        req = defer.ensureDeferred(
+            self.hs.get_module_api()._callbacks.spam_checker.user_may_invite(
+                inviter, invitee, roomid
+            )
+        )
+        self.wait_on_thread(req)
+        ret = self.get_success(req)
+        if ret == NOT_SPAM:
+            return NOT_SPAM
+        return ret[0]  # return first code instead of all of them to make assert easier
+
+
+class RemoteProModeInviteTest(UserMayInviteHomeserverBase):
     """
     These PRO server tests are for invites that happen after the room creation process
     has completed
@@ -56,18 +70,6 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
         self.login("b", "password")
         self.login("c", "password")
         self.login("d", "password")
-
-    def may_invite(self, inviter: str, invitee: str, roomid: str):
-        req = defer.ensureDeferred(
-            self.hs.get_module_api()._callbacks.spam_checker.user_may_invite(
-                inviter, invitee, roomid
-            )
-        )
-        self.wait_on_thread(req)
-        ret = self.get_success(req)
-        if ret == NOT_SPAM:
-            return NOT_SPAM
-        return ret[0]  # return first code instead of all of them to make assert easier
 
     def test_invite_from_remote_user(self) -> None:
         """
@@ -264,7 +266,7 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
             ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.pro_user_d} without contact details"
 
 
-class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
+class RemoteEpaModeInviteTest(UserMayInviteHomeserverBase):
     """
     These Epa server tests are for invites that happen after the room creation process
     has completed
@@ -293,18 +295,6 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
 
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "epa"})
         return conf
-
-    def may_invite(self, inviter: str, invitee: str, room_id: str):
-        req = defer.ensureDeferred(
-            self.hs.get_module_api()._callbacks.spam_checker.user_may_invite(
-                inviter, invitee, room_id
-            )
-        )
-        self.wait_on_thread(req)
-        ret = self.get_success(req)
-        if ret == NOT_SPAM:
-            return NOT_SPAM
-        return ret[0]  # return first code instead of all of them to make assert easier
 
     def test_invite_from_remote_not_on_fed_list(self) -> None:
         """Tests that an invite from a remote server not in the federation list gets denied"""
@@ -453,6 +443,940 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
                 ValueError,
                 match=re.escape(
                     "User @notarealuser:ti-messengertest.dev.ccs.gematik.solutions does not exist on this server."
+                ),
+            ):
+                # Raises with this error:
+                # `ValueError: User @notarealuser:tim.test.gematik.de does not exist on this server.`
+                # Weirdly, it's not the retrieval of the account data that triggers it,
+                # but is the trying to put new account data
+                self.add_permission_to_a_user(remote_user_id, self.non_existent_user)
+
+            # May as well give it another go anyway, just to make sure getting the
+            # non-existent account data didn't cause it to suddenly work
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+
+
+class RemoteProLocalProModeFakeFedListInviteTest(UserMayInviteHomeserverBase):
+    """
+    These PRO server tests are for invites that happen after the room creation process
+    has completed
+    """
+
+    server_name_for_this_server = "hs1"
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.pro_user_a = self.register_user("local_pro_a", "password")
+        self.pro_user_b = self.register_user("local_pro_b", "password")
+        self.pro_user_c = self.register_user("local_pro_c", "password")
+        self.pro_user_d = self.register_user("local_pro_d", "password")
+        self.login("local_pro_a", "password")
+        self.login("local_pro_b", "password")
+        self.login("local_pro_c", "password")
+        self.login("local_pro_d", "password")
+        # a fake local user
+        self.non_existent_user = f"@notarealuser:{self.server_name_for_this_server}"
+        # a few remote users
+        self.remote_pro_a = "@remote_pro_a:hs2"
+        self.remote_pro_b = "@remote_pro_b:hs3"
+        self.remote_pro_c = "@remote_pro_c:hs3"
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "tim-type": "pro",
+                "federation_list_url": "",
+                "federation_list_testing_only": {
+                    "version": 0,
+                    "domainList": [
+                        # Pro server, the local one
+                        {
+                            "domain": "hs1",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": False,
+                        },
+                        # Pro server, 1 of 2 remotes
+                        {
+                            "domain": "hs2",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": False,
+                        },
+                        # Pro server, the other remote
+                        {
+                            "domain": "hs3",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": False,
+                        },
+                    ],
+                },
+                # "default_permissions": {"defaultSetting": "block all"},
+            }
+        )
+
+        return conf
+
+    def test_invite_from_remote_user(self) -> None:
+        """
+        Tests that an invite from a remote user.
+        """
+        for remote_user_id in [
+            self.remote_pro_a,
+            self.remote_pro_b,
+            self.remote_pro_c,
+        ]:
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                # We do not test the default, as it can be contaminated by other tests
+
+                # Explicit allow all
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(defaultSetting=PermissionDefaultSetting.ALLOW_ALL),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit all)"
+
+                # Explicit block all
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(defaultSetting=PermissionDefaultSetting.BLOCK_ALL),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit all)"
+
+                # Explicit allow single
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                        userExceptions={remote_user_id: {}},
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit single)"
+
+                # Explicit block single
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
+                        userExceptions={remote_user_id: {}},
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit single)"
+
+                # Explicit allow server
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                        serverExceptions={
+                            UserID.from_string(remote_user_id).domain: {}
+                        },
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit server)"
+
+                # Explicit block server
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
+                        serverExceptions={
+                            UserID.from_string(remote_user_id).domain: {}
+                        },
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit server)"
+
+    def test_invite_from_remote_outside_of_fed_list(self) -> None:
+        """Tests that an invite from a remote server not in the federation list gets denied"""
+        for remote_user_id in [
+            "@example:not-on-fed-list.com",
+            "@example2:not-on-fed-list.com",
+            "@madeupuser:thecornerstore.de",
+            "@unknown:not.in.fed",
+        ]:
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(before permission)"
+
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                # Add permissions, but it shouldn't matter
+                self.add_permission_to_a_user(remote_user_id, local_user)
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(after permission)"
+
+    def test_invite_to_nonexistent_local_user(self) -> None:
+        """Tests that an invite to a local user that does not exist gets denied"""
+        for remote_user_id in [
+            self.remote_pro_a,
+            self.remote_pro_b,
+            self.remote_pro_c,
+        ]:
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+
+            # Adding permissions will not help, as the user doesn't exist
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"User {self.non_existent_user} does not exist on this server."
+                ),
+            ):
+                # Raises with this error:
+                # `ValueError: User @notarealuser:tim.test.gematik.de does not exist on this server.`
+                # Weirdly, it's not the retrieval of the account data that triggers it,
+                # but is the trying to put new account data
+                self.add_permission_to_a_user(remote_user_id, self.non_existent_user)
+            # May as well give it another go anyway, just to make sure getting the
+            # non-existent account data didn't cause it to suddenly work
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+
+
+class RemoteEpaLocalProModeFakeFedListInviteTest(UserMayInviteHomeserverBase):
+    """
+    These Epa server tests are for invites that happen after the room creation process
+    has completed
+
+    Note that if the local server is in 'epa' mode, it means the server 'isInsurance'.
+    Therefore, it is the responsibility of the remote server to deny *our* invites.
+    Likewise, it is our responsibility to deny *theirs* if they are also 'isInsurance'.
+
+    The second behavior is what we test here
+    """
+
+    # TODO: fix docstrings
+    server_name_for_this_server = "hs1"
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.pro_user_a = self.register_user("local_pro_a", "password")
+        self.pro_user_b = self.register_user("local_pro_b", "password")
+        self.pro_user_c = self.register_user("local_pro_c", "password")
+        self.pro_user_d = self.register_user("local_pro_d", "password")
+        self.login("local_pro_a", "password")
+        self.login("local_pro_b", "password")
+        self.login("local_pro_c", "password")
+        self.login("local_pro_d", "password")
+        # a fake local user
+        self.non_existent_user = f"@notarealuser:{self.server_name_for_this_server}"
+        # a few remote users
+        self.remote_epa_a = "@remote_epa_a:hs2"
+        self.remote_epa_b = "@remote_epa_b:hs3"
+        self.remote_epa_c = "@remote_epa_c:hs3"
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "tim-type": "pro",
+                "federation_list_url": "",
+                "federation_list_testing_only": {
+                    "version": 0,
+                    "domainList": [
+                        # Pro server, the local
+                        {
+                            "domain": "hs1",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": False,
+                        },
+                        # EPA server 1 of 2
+                        {
+                            "domain": "hs2",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": True,
+                        },
+                        # EPA server 2 of 2
+                        {
+                            "domain": "hs3",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": True,
+                        },
+                    ],
+                },
+                # "default_permissions": {"defaultSetting": "block all"},
+            }
+        )
+
+        return conf
+
+    def test_invite_from_remote_not_on_fed_list(self) -> None:
+        """Tests that an invite from a remote server not in the federation list gets denied"""
+        # in retrospect, this same thing is tested in the previous major TestCase
+        self.skipTest("Repeated above")
+        for remote_user_id in (
+            "@example:not-on-fed-list.com",
+            "@example2:not-on-fed-list.com",
+            "@madeupuser:thecornerstore.de",
+            "@unknown:not.in.fed",
+        ):
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(before permission)"
+
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                # Add permissions, but it shouldn't matter
+                self.add_permission_to_a_user(remote_user_id, local_user)
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(after permission)"
+
+    def test_invite_from_remote_users(self) -> None:
+        """
+        Tests that an invite from a remote server gets accepted when in the federation
+        list.
+        """
+        for remote_user_id in [
+            self.remote_epa_a,
+            self.remote_epa_b,
+            self.remote_epa_c,
+        ]:
+            for local_user in [
+                self.pro_user_a,
+                self.pro_user_b,
+                self.pro_user_c,
+                self.pro_user_d,
+            ]:
+                # We do not test the default, as it can be contaminated by other tests
+
+                # Explicit allow all
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(defaultSetting=PermissionDefaultSetting.ALLOW_ALL),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit all)"
+
+                # Explicit block all
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(defaultSetting=PermissionDefaultSetting.BLOCK_ALL),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit all)"
+
+                # Explicit allow single
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                        userExceptions={remote_user_id: {}},
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit single)"
+
+                # Explicit block single
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
+                        userExceptions={remote_user_id: {}},
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit single)"
+
+                # Explicit allow server
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                        serverExceptions={
+                            UserID.from_string(remote_user_id).domain: {}
+                        },
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit server)"
+
+                # Explicit block server
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
+                        serverExceptions={
+                            UserID.from_string(remote_user_id).domain: {}
+                        },
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit server)"
+
+    def test_invite_to_nonexistent_local_user(self) -> None:
+        """Tests that an invite to a local user that does not exist gets denied"""
+        for remote_user_id in [
+            self.remote_epa_a,
+            self.remote_epa_b,
+            self.remote_epa_c,
+        ]:
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+
+            # Adding permissions will not help, as the user doesn't exist
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"User {self.non_existent_user} does not exist on this server."
+                ),
+            ):
+                # Raises with this error:
+                # `ValueError: User @notarealuser:tim.test.gematik.de does not exist on this server.`
+                # Weirdly, it's not the retrieval of the account data that triggers it,
+                # but is the trying to put new account data
+                self.add_permission_to_a_user(remote_user_id, self.non_existent_user)
+
+            # May as well give it another go anyway, just to make sure getting the
+            # non-existent account data didn't cause it to suddenly work
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+
+
+class RemoteProLocalEpaModeFakeFedListInviteTest(UserMayInviteHomeserverBase):
+    """
+    These PRO server tests are for invites that happen after the room creation process
+    has completed
+    """
+
+    server_name_for_this_server = "hs1"
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.epa_user_a = self.register_user("local_epa_a", "password")
+        self.epa_user_b = self.register_user("local_epa_b", "password")
+        self.epa_user_c = self.register_user("local_epa_c", "password")
+        self.epa_user_d = self.register_user("local_epa_d", "password")
+        self.login("local_epa_a", "password")
+        self.login("local_epa_b", "password")
+        self.login("local_epa_c", "password")
+        self.login("local_epa_d", "password")
+        # a fake local user
+        self.non_existent_user = f"@notarealuser:{self.server_name_for_this_server}"
+        # a few remote users
+        self.remote_pro_a = "@remote_pro_a:hs2"
+        self.remote_pro_b = "@remote_pro_b:hs3"
+        self.remote_pro_c = "@remote_pro_c:hs3"
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "tim-type": "epa",
+                "federation_list_url": "",
+                "federation_list_testing_only": {
+                    "version": 0,
+                    "domainList": [
+                        # EPA server, the local one
+                        {
+                            "domain": "hs1",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": True,
+                        },
+                        # Pro server, 1 of 2
+                        {
+                            "domain": "hs2",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": False,
+                        },
+                        # Pro server, 2 of 2
+                        {
+                            "domain": "hs3",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": False,
+                        },
+                    ],
+                },
+                # "default_permissions": {"defaultSetting": "block all"},
+            }
+        )
+
+        return conf
+
+    def test_invite_from_remote_user(self) -> None:
+        """
+        Tests that an invite from a remote user.
+        """
+        for remote_user_id in [
+            self.remote_pro_a,
+            self.remote_pro_b,
+            self.remote_pro_c,
+        ]:
+            for local_user in [
+                self.epa_user_a,
+                self.epa_user_b,
+                self.epa_user_c,
+                self.epa_user_d,
+            ]:
+                # We do not test the default, as it can be contaminated by other tests
+
+                # Explicit allow all
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(defaultSetting=PermissionDefaultSetting.ALLOW_ALL),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit all)"
+
+                # Explicit block all
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(defaultSetting=PermissionDefaultSetting.BLOCK_ALL),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit all)"
+
+                # Explicit allow single
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                        userExceptions={remote_user_id: {}},
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit single)"
+
+                # Explicit block single
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
+                        userExceptions={remote_user_id: {}},
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit single)"
+
+                # Explicit allow server
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                        serverExceptions={
+                            UserID.from_string(remote_user_id).domain: {}
+                        },
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == NOT_SPAM
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit server)"
+
+                # Explicit block server
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
+                        serverExceptions={
+                            UserID.from_string(remote_user_id).domain: {}
+                        },
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit server)"
+
+    def test_invite_from_remote_outside_of_fed_list(self) -> None:
+        """Tests that an invite from a remote server not in the federation list gets denied"""
+        for remote_user_id in [
+            "@example:not-on-fed-list.com",
+            "@example2:not-on-fed-list.com",
+            "@madeupuser:thecornerstore.de",
+            "@unknown:not.in.fed",
+        ]:
+            for local_user in [
+                self.epa_user_a,
+                self.epa_user_b,
+                self.epa_user_c,
+                self.epa_user_d,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(before permission)"
+
+            for local_user in [
+                self.epa_user_a,
+                self.epa_user_b,
+                self.epa_user_c,
+                self.epa_user_d,
+            ]:
+                # Add permissions, but it shouldn't matter
+                self.add_permission_to_a_user(remote_user_id, local_user)
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(after permission)"
+
+    def test_invite_to_nonexistent_local_user(self) -> None:
+        """Tests that an invite to a local user that does not exist gets denied"""
+        for remote_user_id in [
+            self.remote_pro_a,
+            self.remote_pro_b,
+            self.remote_pro_c,
+        ]:
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+
+            # Adding permissions will not help, as the user doesn't exist
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"User {self.non_existent_user} does not exist on this server."
+                ),
+            ):
+                # Raises with this error:
+                # `ValueError: User @notarealuser:tim.test.gematik.de does not exist on this server.`
+                # Weirdly, it's not the retrieval of the account data that triggers it,
+                # but is the trying to put new account data
+                self.add_permission_to_a_user(remote_user_id, self.non_existent_user)
+            # May as well give it another go anyway, just to make sure getting the
+            # non-existent account data didn't cause it to suddenly work
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+
+
+class RemoteEpaLocalEpaModeFakeFedListInviteTest(UserMayInviteHomeserverBase):
+    """
+    These Epa server tests are for invites that happen after the room creation process
+    has completed
+
+    Note that if the local server is in 'epa' mode, it means the server 'isInsurance'.
+    Therefore, it is the responsibility of the remote server to deny *our* invites.
+    Likewise, it is our responsibility to deny *theirs* if they are also 'isInsurance'.
+
+    The second behavior is what we test here
+    """
+
+    server_name_for_this_server = "hs1"
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.epa_user_a = self.register_user("local_epa_a", "password")
+        self.epa_user_b = self.register_user("local_epa_b", "password")
+        self.epa_user_c = self.register_user("local_epa_c", "password")
+        self.epa_user_d = self.register_user("local_epa_d", "password")
+        self.login("local_epa_a", "password")
+        self.login("local_epa_b", "password")
+        self.login("local_epa_c", "password")
+        self.login("local_epa_d", "password")
+        # a fake local user
+        self.non_existent_user = f"@notarealuser:{self.server_name_for_this_server}"
+        # a few remote users
+        self.remote_epa_a = "@remote_epa_a:hs2"
+        self.remote_epa_b = "@remote_epa_b:hs3"
+        self.remote_epa_c = "@remote_epa_c:hs3"
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "tim-type": "epa",
+                "federation_list_url": "",
+                "federation_list_testing_only": {
+                    "version": 0,
+                    "domainList": [
+                        # EPA server, the local
+                        {
+                            "domain": "hs1",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": True,
+                        },
+                        # EPA server 1 of 2
+                        {
+                            "domain": "hs2",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": True,
+                        },
+                        # EPA server 2 of 2
+                        {
+                            "domain": "hs3",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": True,
+                        },
+                    ],
+                },
+                # "default_permissions": {"defaultSetting": "block all"},
+            }
+        )
+
+        return conf
+
+    def test_invite_from_remote_not_on_fed_list(self) -> None:
+        """Tests that an invite from a remote server not in the federation list gets denied"""
+        # in retrospect, this same thing is tested in the previous major TestCase
+        self.skipTest("Repeated above")
+        for remote_user_id in (
+            "@example:not-on-fed-list.com",
+            "@example2:not-on-fed-list.com",
+            "@madeupuser:thecornerstore.de",
+            "@unknown:not.in.fed",
+        ):
+            for local_user in [
+                self.epa_user_a,
+                self.epa_user_b,
+                self.epa_user_c,
+            ]:
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(before permission)"
+
+            for local_user in [
+                self.epa_user_a,
+                self.epa_user_b,
+                self.epa_user_c,
+            ]:
+                # Add permissions, but it shouldn't matter
+                self.add_permission_to_a_user(remote_user_id, local_user)
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(after permission)"
+
+    def test_invite_from_remote_users(self) -> None:
+        """
+        Tests that an invite from a remote server gets accepted when in the federation
+        list.
+        """
+        for remote_user_id in [
+            self.remote_epa_a,
+            self.remote_epa_b,
+            self.remote_epa_c,
+        ]:
+            for local_user in [
+                self.epa_user_a,
+                self.epa_user_b,
+                self.epa_user_c,
+            ]:
+                # We do not test the default, as it can be contaminated by other tests
+
+                # Explicit allow all
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(defaultSetting=PermissionDefaultSetting.ALLOW_ALL),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit all)"
+
+                # Explicit block all
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(defaultSetting=PermissionDefaultSetting.BLOCK_ALL),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit all)"
+
+                # Explicit allow single
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                        userExceptions={remote_user_id: {}},
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit single)"
+
+                # Explicit block single
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
+                        userExceptions={remote_user_id: {}},
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit single)"
+
+                # Explicit allow server
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.BLOCK_ALL,
+                        serverExceptions={
+                            UserID.from_string(remote_user_id).domain: {}
+                        },
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit server)"
+
+                # Explicit block server
+                self.set_permissions_for_user(
+                    local_user,
+                    PermissionConfig(
+                        defaultSetting=PermissionDefaultSetting.ALLOW_ALL,
+                        serverExceptions={
+                            UserID.from_string(remote_user_id).domain: {}
+                        },
+                    ),
+                )
+                assert (
+                    self.may_invite(remote_user_id, local_user, "!madeup:example.com")
+                    == errors.Codes.FORBIDDEN
+                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit server)"
+
+    def test_invite_to_nonexistent_local_user(self) -> None:
+        """Tests that an invite to a local user that does not exist gets denied"""
+        for remote_user_id in [
+            self.remote_epa_a,
+            self.remote_epa_b,
+            self.remote_epa_c,
+        ]:
+            assert (
+                self.may_invite(
+                    remote_user_id, self.non_existent_user, "!madeup:example.com"
+                )
+                == errors.Codes.FORBIDDEN
+            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+
+            # Adding permissions will not help, as the user doesn't exist
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"User {self.non_existent_user} does not exist on this server."
                 ),
             ):
                 # Raises with this error:

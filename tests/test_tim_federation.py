@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from synapse.server import HomeServer
@@ -149,3 +150,83 @@ class FederationDomainSchemaTest(FederatingModuleApiTestCase):
         assert test_entry.telematikID == "1-SMC-B-Testkarte-883110000096089"
         assert test_entry.timAnbieter is None
         assert test_entry.isInsurance is False
+
+
+class OverridableFederationDomainSchemaTest(FederatingModuleApiTestCase):
+    """
+    Test that overriding the federation list provides usable data.
+
+    As of the time of this writing, these are fields that are required:
+        domain: str
+        telematikID: str
+        timAnbieter: str
+        isInsurance: bool
+
+    """
+
+    def prepare(
+        self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer
+    ) -> None:
+        super().prepare(reactor, clock, homeserver)
+
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        assert "modules" in conf, "modules missing from config dict during construction"
+
+        # There should only be a single item in the 'modules' list, since this tests that module
+        assert len(conf["modules"]) == 1, "more than one module found in config"
+
+        conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
+        conf["modules"][0].setdefault("config", {}).update(
+            {"federation_list_url": "", "federation_list_client_cert": ""}
+        )
+
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "federation_list_testing_only": {
+                    "version": 0,
+                    "domainList": [
+                        {
+                            "domain": "pro-server.org",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": False,
+                        },
+                        {
+                            "domain": "epa-server.org",
+                            "telematikID": "fake_tid",
+                            "timAnbieter": "placeholder",
+                            "isInsurance": True,
+                        },
+                    ],
+                }
+            }
+        )
+
+        return conf
+
+    async def extract_entry_from_domainList(self, domain: str) -> FederationDomain:
+        """
+        Search for a specific domain in the federation list to extract it's associated
+        data. Normally this additional information is not used
+        """
+        fed_list = await self.inv_checker._fetch_federation_list()
+        assert len(fed_list.domainList) > 0
+
+        for domain_entry in fed_list.domainList:
+            if domain_entry.domain == domain:
+                return domain_entry
+
+        assert False, f"Not found in federation list {domain}"
+
+    async def test_federation_list(self) -> None:
+        """Ensure we can properly fetch the federation list"""
+
+        fed_list = await self.inv_checker._fetch_federation_list()
+        assert fed_list.allowed("pro-server.org")
+
+    async def test_is_insurance(self) -> None:
+        """Ensure we can properly determine if a domain is insurance"""
+
+        fed_list = await self.inv_checker._fetch_federation_list()
+        assert fed_list.is_insurance("epa-server.org")
