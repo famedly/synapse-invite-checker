@@ -137,7 +137,9 @@ class FederationDomain(BaseModel):
 
     domain: str
     telematikID: str
-    timAnbieter: str | None
+    # timAnbieter is now not required as part of the gematik spec. The invite checker
+    # does not use this data itself.
+    timAnbieter: str | None = None
     isInsurance: bool
     # ik gets marked as 'strict=False' as not all domains will have that data
     ik: list[str] = Field(default_factory=list, strict=False)
