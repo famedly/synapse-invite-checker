@@ -51,7 +51,7 @@ class FederationDomain(BaseModel):
 
     domain: str
     telematikID: str  # noqa: N815
-    timAnbieter: str | None  # noqa: N815
+    timAnbieter: str | None = None  # noqa: N815
     isInsurance: bool  # noqa: N815
 
 
