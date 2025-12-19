@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2025-12-19
+
+- fix: The 'timAnbieter' field is now not required on the federation list (Jason Little)
+
 ## [0.2.2] - 2025-11-05
 
 - chore: Update publish to PyPI Github Action (Jason Little)

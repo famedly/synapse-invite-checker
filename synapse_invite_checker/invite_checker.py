@@ -140,7 +140,7 @@ class FederationAllowListClient(BaseHttpClient):
 
 
 class InviteChecker:
-    __version__ = "0.2.2"
+    __version__ = "0.2.3"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
