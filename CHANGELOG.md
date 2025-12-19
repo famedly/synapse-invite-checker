@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.12] - 2025-12-19
+
+- fix: The 'timAnbieter' field is now not required on the federation list (Jason Little)
+
 ## [0.4.11] - 2025-11-07
 
 - chore: Remove now deprecated version of Python and add the two versions that were missing (Jason Little)
