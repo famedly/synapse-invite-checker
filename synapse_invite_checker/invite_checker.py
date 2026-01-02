@@ -801,6 +801,27 @@ class InviteChecker:
                 errors.Codes.FORBIDDEN,
             )
 
+        # A_25481: Set default history visibility to "invited" if not explicitly set
+        # Users can still override this by providing their own history_visibility in initial_state
+        initial_state: list[dict[str, Any]] = request_content.get("initial_state", [])
+
+        # Check if history_visibility is already set in initial_state
+        has_history_visibility = any(
+            event.get("type") == EventTypes.RoomHistoryVisibility
+            for event in initial_state
+        )
+
+        # If not set, add default history_visibility as "invited"
+        if not has_history_visibility:
+            initial_state.append(
+                {
+                    "type": EventTypes.RoomHistoryVisibility,
+                    "state_key": "",
+                    "content": {"history_visibility": HistoryVisibility.INVITED},
+                }
+            )
+            request_content["initial_state"] = initial_state
+
         if is_request_admin:
             return
 
