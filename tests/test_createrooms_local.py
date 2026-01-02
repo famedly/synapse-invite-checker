@@ -173,6 +173,89 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             expect_code=HTTPStatus.FORBIDDEN,
         )
 
+    def test_create_room_default_history_visibility_invited(self) -> None:
+        """
+        Test that rooms are created with history visibility "invited" by default (A_25481),
+        but users can override this setting during room creation
+        """
+        # Test 1: Private room created without explicit history_visibility should default to "invited"
+        room_id_private = self.create_local_room(self.pro_user_a, [], is_public=False)
+        assert room_id_private, "Private room should be created"
+
+        # Get the history visibility state event
+        state_events = self.helper.get_state(
+            room_id_private,
+            EventTypes.RoomHistoryVisibility,
+            tok=self.access_token_a,
+        )
+        assert (
+            state_events["history_visibility"] == HistoryVisibility.INVITED
+        ), "Default history visibility should be 'invited'"
+
+        # Test 2: Public room created without explicit history_visibility should default to "invited"
+        room_id_public = self.create_local_room(self.pro_user_a, [], is_public=True)
+        assert room_id_public, "Public room should be created"
+
+        # Get the history visibility state event
+        state_events = self.helper.get_state(
+            room_id_public,
+            EventTypes.RoomHistoryVisibility,
+            tok=self.access_token_a,
+        )
+        assert (
+            state_events["history_visibility"] == HistoryVisibility.INVITED
+        ), "Default history visibility should be 'invited'"
+
+        # Test 3: User can override history visibility during private room creation
+        custom_history_visibility = {
+            "type": EventTypes.RoomHistoryVisibility,
+            "state_key": "",
+            "content": {"history_visibility": HistoryVisibility.SHARED},
+        }
+        override_content = {"initial_state": [custom_history_visibility]}
+
+        room_id_private_custom = self.create_local_room(
+            self.pro_user_a, [], is_public=False, override_content=override_content
+        )
+        assert (
+            room_id_private_custom
+        ), "Private room with custom history visibility should be created"
+
+        # Get the history visibility state event for the custom room
+        state_events_custom = self.helper.get_state(
+            room_id_private_custom,
+            EventTypes.RoomHistoryVisibility,
+            tok=self.access_token_a,
+        )
+        assert (
+            state_events_custom["history_visibility"] == HistoryVisibility.SHARED
+        ), "Custom history visibility should be respected"
+
+        # Test 4: User can override history visibility during public room creation
+        custom_history_visibility = {
+            "type": EventTypes.RoomHistoryVisibility,
+            "state_key": "",
+            "content": {"history_visibility": HistoryVisibility.SHARED},
+        }
+        override_content = {"initial_state": [custom_history_visibility]}
+
+        room_id_public_custom = self.create_local_room(
+            self.pro_user_a, [], is_public=True, override_content=override_content
+        )
+        assert (
+            room_id_public_custom
+        ), "Public room with custom history visibility should be created"
+
+        # Get the history visibility state event for the custom room
+        state_events_custom = self.helper.get_state(
+            room_id_public_custom,
+            EventTypes.RoomHistoryVisibility,
+            tok=self.access_token_a,
+        )
+        assert (
+            state_events_custom["history_visibility"] == HistoryVisibility.SHARED
+        ), "Custom history visibility should be respected"
+
 
 class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
@@ -323,3 +406,45 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         # Retrieving the room_id is a sign that the room was created, the user was
         # invited, and the message was sent
         assert room_id, "Server notices room should have been found"
+
+    def test_create_room_default_history_visibility_invited(self) -> None:
+        """
+        Test that rooms are created with history visibility "invited" by default (A_25481),
+        but users can override this setting during room creation
+        """
+        # Test 1: Room created without explicit history_visibility should default to "invited"
+        room_id = self.create_local_room(self.epa_user_d, [], is_public=False)
+        assert room_id, "Room should be created"
+
+        # Get the history visibility state event
+        state_events = self.helper.get_state(
+            room_id,
+            EventTypes.RoomHistoryVisibility,
+            tok=self.access_token,
+        )
+        assert (
+            state_events["history_visibility"] == HistoryVisibility.INVITED
+        ), "Default history visibility should be 'invited'"
+
+        # Test 2: User can override history visibility during room creation
+        custom_history_visibility = {
+            "type": EventTypes.RoomHistoryVisibility,
+            "state_key": "",
+            "content": {"history_visibility": HistoryVisibility.SHARED},
+        }
+        override_content = {"initial_state": [custom_history_visibility]}
+
+        room_id_custom = self.create_local_room(
+            self.epa_user_d, [], is_public=False, override_content=override_content
+        )
+        assert room_id_custom, "Room with custom history visibility should be created"
+
+        # Get the history visibility state event for the custom room
+        state_events_custom = self.helper.get_state(
+            room_id_custom,
+            EventTypes.RoomHistoryVisibility,
+            tok=self.access_token,
+        )
+        assert (
+            state_events_custom["history_visibility"] == HistoryVisibility.SHARED
+        ), "Custom history visibility should be respected"
