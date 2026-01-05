@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.13] - 2026-01-05
+
+- feat: set default history visibility to `invited` (FrenchGithubUser)
+
 ## [0.4.12] - 2025-12-19
 
 - fix: The 'timAnbieter' field is now not required on the federation list (Jason Little)

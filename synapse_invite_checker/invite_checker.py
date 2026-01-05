@@ -200,7 +200,7 @@ BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
 
 
 class InviteChecker:
-    __version__ = "0.4.12"
+    __version__ = "0.4.13"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api
