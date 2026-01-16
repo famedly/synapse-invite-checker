@@ -6,6 +6,7 @@ on:
     tags: ["*"]
   pull_request:
     branches: ["*"]
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
