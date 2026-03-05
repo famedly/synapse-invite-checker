@@ -20,7 +20,7 @@ import pytest
 from synapse.config import ConfigError
 
 from synapse_invite_checker import InviteChecker
-from synapse_invite_checker.types import DefaultPermissionConfig, TimType
+from synapse_invite_checker.types import DefaultPermissionConfig, TimType, TimVersion
 
 
 class ConfigParsingTestCase(TestCase):
@@ -55,6 +55,44 @@ class ConfigParsingTestCase(TestCase):
     def test_incorrect_tim_type_raises(self) -> None:
         test_config = self.config.copy()
         test_config.update({"tim-type": "fake"})
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
+
+    def test_tim_version_defaults_to_1_1(self) -> None:
+        test_config = self.config.copy()
+        config = InviteChecker.parse_config(test_config)
+        assert config.tim_version == TimVersion.V1_1
+
+    def test_tim_version_can_be_set_to_1_1(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"tim_version": "1.1"})
+        config = InviteChecker.parse_config(test_config)
+        assert config.tim_version == TimVersion.V1_1
+
+    def test_tim_version_can_be_set_to_1_2(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"tim_version": "1.2"})
+        config = InviteChecker.parse_config(test_config)
+        assert config.tim_version == TimVersion.V1_2
+
+    def test_incorrect_tim_version_raises(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"tim_version": "0.9"})
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
+
+        test_config = self.config.copy()
+        test_config.update({"tim_version": "1.cba"})
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
+
+        test_config = self.config.copy()
+        test_config.update({"tim_version": "abc"})
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
+
+        test_config = self.config.copy()
+        test_config.update({"tim_version": 1.1})
         with pytest.raises(ConfigError):
             InviteChecker.parse_config(test_config)
 

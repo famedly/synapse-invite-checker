@@ -85,6 +85,7 @@ from synapse_invite_checker.types import (
     EpaRoomTimestampResults,
     FederationList,
     TimType,
+    TimVersion,
 )
 
 logger = logging.getLogger(__name__)
@@ -330,6 +331,16 @@ class InviteChecker:
         else:
             msg = "`tim-type` setting is not a recognized value. Please fix."
             raise ConfigError(msg)
+
+        _tim_version = config.get("tim_version", "1.1")
+        if not isinstance(_tim_version, str):
+            raise ConfigError("`tim_version` must be a string.")
+        normalized_tim_version = _tim_version.strip()
+        try:
+            _config.tim_version = TimVersion(normalized_tim_version)
+        except ValueError:
+            allowed_versions = ", ".join(repr(v.value) for v in TimVersion)
+            raise ConfigError(f"`tim_version` must be one of: {allowed_versions}.")
 
         _allowed_room_versions = config.get("allowed_room_versions", ["9", "10"])
         if not _allowed_room_versions or not isinstance(_allowed_room_versions, list):

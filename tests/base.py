@@ -43,7 +43,7 @@ from twisted.internet.testing import MemoryReactor
 from typing_extensions import override
 
 import tests.unittest as synapsetest
-from synapse_invite_checker.types import PermissionConfig
+from synapse_invite_checker.types import PermissionConfig, TimVersion
 from tests.server import CustomHeaderType, FakeChannel
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST, SERVER_NAME_FROM_LIST
 from tests.test_utils.fake_room_creation import FakeRoom
@@ -217,6 +217,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     server_name_for_this_server = SERVER_NAME_FROM_LIST
     OTHER_SERVER_NAME = INSURANCE_DOMAIN_IN_LIST
     ROOM_VERSION = "10"
+    TIM_VERSION = TimVersion.V1_1.value
 
     @classmethod
     def setUpClass(cls):
@@ -303,6 +304,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                     "module": "synapse_invite_checker.InviteChecker",
                     "config": {
                         "tim-type": "pro",
+                        "tim_version": self.TIM_VERSION,
                         "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
                         "federation_localization_url": "http://dummy.test/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",

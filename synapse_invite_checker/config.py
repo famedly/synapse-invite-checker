@@ -14,7 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from dataclasses import dataclass, field
 
-from synapse_invite_checker.types import DefaultPermissionConfig, TimType
+from synapse_invite_checker.types import DefaultPermissionConfig, TimType, TimVersion
 
 
 @dataclass
@@ -41,6 +41,7 @@ class InviteCheckerConfig:
     federation_list_require_mtls: bool = True
     gematik_ca_baseurl: str = ""
     tim_type: TimType = TimType.PRO
+    tim_version: TimVersion = TimVersion.V1_1
     allowed_room_versions: list[str] = field(default_factory=list)
     room_scan_run_interval_ms: int = 0
     insured_room_scan_options: InsuredOnlyRoomScanConfig = field(

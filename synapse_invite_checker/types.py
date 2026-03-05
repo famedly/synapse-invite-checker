@@ -206,6 +206,11 @@ class TimType(Enum):
     EPA = auto()
 
 
+class TimVersion(Enum):
+    V1_1 = "1.1"
+    V1_2 = "1.2"
+
+
 class PermissionConfigType(Enum):
     EPA_ACCOUNT_DATA_TYPE = "de.gematik.tim.account.permissionconfig.epa.v1"
     PRO_ACCOUNT_DATA_TYPE = "de.gematik.tim.account.permissionconfig.pro.v1"
