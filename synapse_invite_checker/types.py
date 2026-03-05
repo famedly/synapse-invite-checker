@@ -14,7 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import cached_property
+from functools import cached_property, total_ordering
 from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
@@ -206,9 +206,16 @@ class TimType(Enum):
     EPA = auto()
 
 
+@total_ordering
 class TimVersion(Enum):
     V1_1 = "1.1"
     V1_2 = "1.2"
+
+    def _version_tuple(self) -> tuple[int, ...]:
+        return tuple(int(x) for x in self.value.split("."))
+
+    def __lt__(self, other: "TimVersion") -> bool:
+        return self._version_tuple() < other._version_tuple()
 
 
 class PermissionConfigType(Enum):

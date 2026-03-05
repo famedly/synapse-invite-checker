@@ -722,6 +722,26 @@ class InviteChecker:
                         errors.Codes.BAD_JSON,
                     )
 
+            # In TIM version 1.2+, reject redactions of events older than 24 hours
+            # (server admins are exempt)
+            if (
+                self.config.tim_version >= TimVersion.V1_2
+                and event.type == EventTypes.Redaction
+                and event.redacts is not None
+            ):
+                redacted_event = await self.api._store.get_event(
+                    event.redacts, allow_none=False
+                )
+                age_ms = event.origin_server_ts - redacted_event.origin_server_ts
+                if age_ms > 24 * 60 * 60 * 1000:
+                    is_admin = await self.api.is_user_admin(event.sender)
+                    if not is_admin:
+                        raise SynapseError(
+                            403,
+                            "Redactions are not allowed for events older than 24 hours",
+                            errors.Codes.FORBIDDEN,
+                        )
+
             # Otherwise, we only check state events
             return True, None
         # Important Note: This callback also runs during room creation, and may end up
