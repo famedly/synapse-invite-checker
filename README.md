@@ -39,6 +39,8 @@ modules:
         federation_list_require_mtls: true or false, # Whether to require mTLS for HTTPS federation list URLs. Defaults to true for backwards compatibility
         gematik_ca_baseurl: "https://download-ref.tsl.ti-dienste.de/", # the baseurl to the ca to use for the federation list, required
         tim-type: "epa" or "pro", # Patient/Insurance or Professional mode, defaults to "pro" mode. Optional currently, but will be required in a later release
+        tim_version: "1.1" or "1.2", # The TIM specification version to enforce. Defaults to "1.1"
+        redaction_max_age: see 'Duration Parsing' below, # Maximum age of an event that can still be redacted by non-admin users. Only enforced when tim_version is "1.2" or above. Defaults to "24h"
         default_permissions: # see 'default_permissions' below. The server defaults for new users or existing users with no permissions already set. Other than the noted default for 'defaultSetting', no other defaults are established
           defaultSetting: "allow all" or "block all" # Default "allow all"
           serverExceptions:

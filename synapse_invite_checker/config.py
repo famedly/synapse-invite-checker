@@ -54,3 +54,4 @@ class InviteCheckerConfig:
     prohibit_world_readable_rooms: bool = True
     block_invites_into_dms: bool = True
     limit_reactions: bool = True
+    redaction_max_age_ms: int = 24 * 60 * 60 * 1000

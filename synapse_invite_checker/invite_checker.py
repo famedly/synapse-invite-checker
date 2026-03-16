@@ -436,6 +436,11 @@ class InviteChecker:
             raise ConfigError(msg)
         _config.limit_reactions = _limit_reactions
 
+        _redaction_max_age = Config.parse_duration(
+            config.get("redaction_max_age", "24h")
+        )
+        _config.redaction_max_age_ms = _redaction_max_age
+
         return _config
 
     def after_startup(self) -> None:
@@ -733,12 +738,12 @@ class InviteChecker:
                     event.redacts, allow_none=False
                 )
                 age_ms = event.origin_server_ts - redacted_event.origin_server_ts
-                if age_ms > 24 * 60 * 60 * 1000:
+                if age_ms > self.config.redaction_max_age_ms:
                     is_admin = await self.api.is_user_admin(event.sender)
                     if not is_admin:
                         raise SynapseError(
                             403,
-                            "Redactions are not allowed for events older than 24 hours",
+                            f"Redactions are not allowed for events older than {self.config.redaction_max_age_ms // (60 * 60 * 1000)} hours",
                             errors.Codes.FORBIDDEN,
                         )
 
