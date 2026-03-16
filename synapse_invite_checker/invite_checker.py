@@ -727,8 +727,8 @@ class InviteChecker:
                         errors.Codes.BAD_JSON,
                     )
 
-            # In TIM version 1.2+, reject redactions of events older than 24 hours
-            # (server admins are exempt)
+            # In TIM version 1.2+, reject redactions of events older than the configured
+            # maximum age (server admins are exempt)
             if (
                 self.config.tim_version >= TimVersion.V1_2
                 and event.type == EventTypes.Redaction
@@ -741,9 +741,19 @@ class InviteChecker:
                 if age_ms > self.config.redaction_max_age_ms:
                     is_admin = await self.api.is_user_admin(event.sender)
                     if not is_admin:
+                        ms = self.config.redaction_max_age_ms
+                        # returns a string of the format hh mm ss
+                        formatted_age = " ".join(
+                            f"{v}{u}"
+                            for v, u in zip(
+                                [ms // 3600000, (ms // 60000) % 60, (ms // 1000) % 60],
+                                ["h", "min", "s"],
+                            )
+                            if v > 0
+                        )
                         raise SynapseError(
                             403,
-                            f"Redactions are not allowed for events older than {self.config.redaction_max_age_ms // (60 * 60 * 1000)} hours",
+                            f"Redactions are not allowed for events older than {formatted_age}",
                             errors.Codes.FORBIDDEN,
                         )
 

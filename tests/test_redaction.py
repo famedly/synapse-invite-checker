@@ -27,7 +27,26 @@ logger = logging.getLogger(__name__)
 TWENTY_FOUR_HOURS_IN_SECONDS = 24 * 60 * 60
 
 
-class RedactionTimeLimit_TestCase(FederatingModuleApiTestCase):
+def _redact_event_helper(
+    make_request,
+    room_id: str,
+    event_id: str,
+    tok: str,
+    expect_code: int = HTTPStatus.OK,
+) -> dict:
+    channel = make_request(
+        "PUT",
+        f"/_matrix/client/r0/rooms/{room_id}/redact/{event_id}/1",
+        content={"reason": "test redaction"},
+        access_token=tok,
+    )
+    assert (
+        channel.code == expect_code
+    ), f"Expected {expect_code}, got {channel.code}: {channel.json_body}"
+    return channel.json_body
+
+
+class RedactionTimeLimitTestCase(FederatingModuleApiTestCase):
     """
     Test that redactions of events older than 24 hours are rejected in TIM version 1.2.
     """
@@ -44,16 +63,13 @@ class RedactionTimeLimit_TestCase(FederatingModuleApiTestCase):
     def _redact_event(
         self, room_id: str, event_id: str, tok: str, expect_code: int = HTTPStatus.OK
     ) -> dict:
-        channel = self.make_request(
-            "PUT",
-            f"/_matrix/client/r0/rooms/{room_id}/redact/{event_id}/1",
-            content={"reason": "test redaction"},
-            access_token=tok,
+        return _redact_event_helper(
+            self.make_request,
+            room_id,
+            event_id,
+            tok,
+            expect_code=expect_code,
         )
-        assert (
-            channel.code == expect_code
-        ), f"Expected {expect_code}, got {channel.code}: {channel.json_body}"
-        return channel.json_body
 
     def test_redaction_within_24h_allowed(self) -> None:
         room_id = self.create_local_room(self.user_a, [], False)
@@ -113,7 +129,7 @@ class RedactionTimeLimit_TestCase(FederatingModuleApiTestCase):
         )
 
 
-class RedactionTimeLimit_V1_1_TestCase(FederatingModuleApiTestCase):
+class RedactionTimeLimitV1_1TestCase(FederatingModuleApiTestCase):
     """
     Test that redactions are NOT restricted by time in TIM version 1.1.
     """
@@ -128,16 +144,13 @@ class RedactionTimeLimit_V1_1_TestCase(FederatingModuleApiTestCase):
     def _redact_event(
         self, room_id: str, event_id: str, tok: str, expect_code: int = HTTPStatus.OK
     ) -> dict:
-        channel = self.make_request(
-            "PUT",
-            f"/_matrix/client/r0/rooms/{room_id}/redact/{event_id}/1",
-            content={"reason": "test redaction"},
-            access_token=tok,
+        return _redact_event_helper(
+            self.make_request,
+            room_id,
+            event_id,
+            tok,
+            expect_code=expect_code,
         )
-        assert (
-            channel.code == expect_code
-        ), f"Expected {expect_code}, got {channel.code}: {channel.json_body}"
-        return channel.json_body
 
     def test_redaction_after_24h_allowed_in_v1_1(self) -> None:
         room_id = self.create_local_room(self.user_a, [], False)
