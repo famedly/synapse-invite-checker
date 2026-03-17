@@ -868,6 +868,16 @@ class InviteChecker:
             )
             request_content["initial_state"] = initial_state
 
+        # A_28596: The TI-M specialist service MUST prevent the use of the room type
+        # `de.gematik.tim.roomtype.default.v2` on room creation (TIM 1.2)
+        room_type: str | None = request_content.get("type")
+        if room_type == "de.gematik.tim.roomtype.default.v2":
+            raise SynapseError(
+                400,
+                "Room type 'de.gematik.tim.roomtype.default.v2' is not allowed",
+                errors.Codes.FORBIDDEN,
+            )
+
         if is_request_admin:
             return
 

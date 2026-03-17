@@ -256,6 +256,20 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             state_events_custom["history_visibility"] == HistoryVisibility.SHARED
         ), "Custom history visibility should be respected"
 
+    def test_create_room_with_v2_room_type_rejected(self) -> None:
+        """
+        Test that rooms with type 'de.gematik.tim.roomtype.default.v2' are rejected
+        """
+        room_id = self.create_local_room(
+            self.pro_user_a,
+            [self.pro_user_b],
+            is_public=False,
+            override_content={"type": "de.gematik.tim.roomtype.default.v2"},
+        )
+        assert (
+            room_id is None
+        ), "Room with de.gematik.tim.roomtype.default.v2 type should not be created"
+
 
 class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
@@ -448,3 +462,17 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         assert (
             state_events_custom["history_visibility"] == HistoryVisibility.SHARED
         ), "Custom history visibility should be respected"
+
+    def test_create_room_with_v2_room_type_rejected(self) -> None:
+        """
+        Test that rooms with type 'de.gematik.tim.roomtype.default.v2' are rejected
+        """
+        room_id = self.create_local_room(
+            self.epa_user_d,
+            [self.epa_user_e],
+            is_public=False,
+            override_content={"type": "de.gematik.tim.roomtype.default.v2"},
+        )
+        assert (
+            room_id is None
+        ), "Room with de.gematik.tim.roomtype.default.v2 type should not be created"
