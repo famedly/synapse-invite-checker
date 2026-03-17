@@ -224,7 +224,7 @@ class InviteChecker:
             user_may_join_room=self.user_may_join_room
         )
         self.api.register_third_party_rules_callbacks(
-            on_create_room=self.on_create_room
+            on_create_room=self.on_create_room_wrapped
         )
         self.api.register_third_party_rules_callbacks(
             on_upgrade_room=self.on_upgrade_room
@@ -794,6 +794,26 @@ class InviteChecker:
 
         return True, None
 
+    async def on_create_room_wrapped(
+        self,
+        requester: Requester,
+        request_content: dict[str, Any],
+        is_request_admin: bool,
+    ) -> None:
+        """
+        Wrapper around on_create_room to make unexpected exceptions visible in the logs
+        """
+        try:
+            await self.on_create_room(requester, request_content, is_request_admin)
+        except Exception as e:
+            # Log all exceptions we didn't explicitly raise, since this is most likely a bug and hard to find otherwise.
+            if not isinstance(e, SynapseError):
+                logger.exception("Unexpected exception during on_create_room callback")
+                e = SynapseError(
+                    403, "Room creation forbidden with these parameters"
+                )
+
+            raise e
     async def on_create_room(
         self,
         requester: Requester,
