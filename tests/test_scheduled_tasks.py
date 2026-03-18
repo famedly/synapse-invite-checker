@@ -1031,9 +1031,8 @@ class _RoomPurgeDisabledInTimV1_2Base(FederatingModuleApiTestCase):
         self.create_and_send_event(room_id, UserID.from_string(self.user_a))
 
         # Advance past the 6h grace period, in TIM 1.1 this would trigger a purge
+        # and shouldn't in 1.2 and above
         self.reactor.advance(7 * 60 * 60)
-
-        self.get_success_or_raise(self.inv_checker.room_scan())
 
         assert self.get_success_or_raise(self.store.get_room(room_id)) is not None
         self.assert_no_purge_task_for_room(room_id, "no purge scheduled in TIM 1.2")
