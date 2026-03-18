@@ -1301,6 +1301,14 @@ class InviteChecker:
         """
         Scan all rooms for eligible conditions to shutdown and purge a room.
         """
+        # A_28338: Room purging is not allowed in TIM 1.2, as rooms/events may not be
+        # deleted without explicit consent.
+        if self.config.tim_version >= TimVersion.V1_2:
+            logger.debug(
+                "Room purging is disabled in TIM 1.2 and above, skipping room scan"
+            )
+            return
+
         # Changed for version 0.4.2
         # To help mitigate the potential racing of a room scan during a room creation,
         # we will keep track that we already looked at this room. The next room scan

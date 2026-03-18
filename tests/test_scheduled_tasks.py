@@ -26,6 +26,7 @@ from synapse.types import TaskStatus, UserID
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
+from synapse_invite_checker.types import TimVersion
 from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import (
     DOMAIN_IN_LIST,
@@ -997,3 +998,68 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         self.assert_task_status_for_room_is(
             room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
         )
+
+
+class _RoomPurgeDisabledInTimV1_2Base(FederatingModuleApiTestCase):
+    """
+    Base class for testing that room purging is disabled in TIM 1.2 (A_28338).
+    Subclasses configure the server type via default_config()
+    """
+
+    TIM_VERSION = TimVersion.V1_2.value
+
+    def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
+        super().prepare(reactor, clock, homeserver)
+        self.task_scheduler = self.hs.get_task_scheduler()
+        self.user_a = self.register_user("a", "password")
+        self.access_token_a = self.login("a", "password")
+
+    def assert_no_purge_task_for_room(self, room_id: str, comment: str) -> None:
+        purge_task_list = self.get_success_or_raise(
+            self.task_scheduler.get_tasks(
+                actions=[SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME], resource_id=room_id
+            )
+        )
+        assert (
+            len(purge_task_list) == 0
+        ), f"{comment}: expected no purge tasks, got {purge_task_list}"
+
+    def test_room_is_not_purged_in_tim_1_2(self) -> None:
+        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        assert room_id is not None
+
+        self.create_and_send_event(room_id, UserID.from_string(self.user_a))
+
+        # Advance past the 6h grace period, in TIM 1.1 this would trigger a purge
+        self.reactor.advance(7 * 60 * 60)
+
+        self.get_success_or_raise(self.inv_checker.room_scan())
+
+        assert self.get_success_or_raise(self.store.get_room(room_id)) is not None
+        self.assert_no_purge_task_for_room(room_id, "no purge scheduled in TIM 1.2")
+
+
+class RoomPurgeDisabledInTimV1_2ProTestCase(_RoomPurgeDisabledInTimV1_2Base):
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "tim-type": "pro",
+                "room_scan_run_interval": "1h",
+                "inactive_room_scan": {"enabled": True, "grace_period": "6h"},
+            }
+        )
+        return conf
+
+
+class RoomPurgeDisabledInTimV1_2EpaTestCase(_RoomPurgeDisabledInTimV1_2Base):
+    def default_config(self) -> dict[str, Any]:
+        conf = super().default_config()
+        conf["modules"][0].setdefault("config", {}).update(
+            {
+                "tim-type": "epa",
+                "room_scan_run_interval": "1h",
+                "inactive_room_scan": {"enabled": True, "grace_period": "6h"},
+            }
+        )
+        return conf
