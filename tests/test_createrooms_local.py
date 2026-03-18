@@ -151,7 +151,7 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             EventTypes.JoinRules,
             {"join_rule": JoinRules.PUBLIC},
             tok=self.access_token_a,
-            expect_code=HTTPStatus.OK if is_public else HTTPStatus.FORBIDDEN,
+            expect_code=HTTPStatus.OK if is_public else HTTPStatus.BAD_REQUEST,
         )
 
     @parameterized.expand([("private", False), ("public", True)])
@@ -164,13 +164,13 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         room_id = self.create_local_room(self.pro_user_a, [], is_public=is_public)
         assert room_id, f"{label} room should be created"
-        # This should be FORBIDDEN for any room
+        # This should be BAD_REQUEST for any room
         self.helper.send_state(
             room_id,
             EventTypes.RoomHistoryVisibility,
             {"history_visibility": HistoryVisibility.WORLD_READABLE},
             tok=self.access_token_a,
-            expect_code=HTTPStatus.FORBIDDEN,
+            expect_code=HTTPStatus.BAD_REQUEST,
         )
 
     def test_create_room_default_history_visibility_invited(self) -> None:
@@ -335,22 +335,32 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             room_id is None
         ), f"{label} room should not be created with invites to: {invitee_list}"
 
-    def test_create_room_with_modified_join_rules(self) -> None:
+    @parameterized.expand(
+        [
+            (JoinRules.PUBLIC,),
+            (JoinRules.KNOCK,),
+            (JoinRules.RESTRICTED,),
+            (JoinRules.KNOCK_RESTRICTED,),
+        ]
+    )
+    def test_create_room_with_modified_join_rules(self, join_rule: str) -> None:
         """
-        Test that a misbehaving insurance client can not accidentally make their room public
+        Test that a misbehaving insurance client can not set forbidden join rules
+        during room creation
         """
-        join_rule = {
-            "type": "m.room.join_rules",
+        join_rule_event = {
+            "type": EventTypes.JoinRules,
             "state_key": "",
-            "content": {"join_rule": "public"},
+            "content": {"join_rule": join_rule},
         }
-        initial_state = {"initial_state": [join_rule]}
+        initial_state = {"initial_state": [join_rule_event]}
 
         room_id = self.create_local_room(
             self.epa_user_d, [], is_public=False, override_content=initial_state
         )
-        # Without the blocking put in place, this fails for private rooms
-        assert room_id is None, "Private room should NOT have been created"
+        assert (
+            room_id is None
+        ), f"Room with join_rule '{join_rule}' should NOT have been created"
 
     def test_create_room_with_modified_history_visibility(self) -> None:
         """
@@ -369,36 +379,46 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         # Without the blocking put in place, this fails for private rooms
         assert room_id is None, "Private room should NOT have been created"
 
-    def test_create_room_then_modify_join_rules(self) -> None:
+    @parameterized.expand(
+        [
+            ("public", JoinRules.PUBLIC),
+            ("knock", JoinRules.KNOCK),
+            ("restricted", JoinRules.RESTRICTED),
+            ("knock_restricted", JoinRules.KNOCK_RESTRICTED),
+        ]
+    )
+    def test_create_room_then_modify_join_rules(
+        self, label: str, join_rule: str
+    ) -> None:
         """
-        Test that a misbehaving insurance client can not accidentally make their room
-        public after room was created
+        Test that a misbehaving insurance client can not set forbidden join rules
+        after room was created
         """
         room_id = self.create_local_room(self.epa_user_d, [], is_public=False)
         assert room_id, "Private room should be created"
-        # This should be FORBIDDEN
+        # This should be BAD_REQUEST
         self.helper.send_state(
             room_id,
             EventTypes.JoinRules,
-            {"join_rule": JoinRules.PUBLIC},
+            {"join_rule": join_rule},
             tok=self.access_token,
-            expect_code=HTTPStatus.FORBIDDEN,
+            expect_code=HTTPStatus.BAD_REQUEST,
         )
 
     def test_create_room_then_modify_history_visibility(self) -> None:
         """
         Test that a misbehaving insurance client can not accidentally make their room
-        public after room was created
+        world_readable after room was created. Expects 400 M_INVALID_ROOM_STATE.
         """
         room_id = self.create_local_room(self.epa_user_d, [], is_public=False)
         assert room_id, "Private room should be created"
-        # This should be FORBIDDEN
+        # This should be BAD_REQUEST
         self.helper.send_state(
             room_id,
             EventTypes.RoomHistoryVisibility,
             {"history_visibility": HistoryVisibility.WORLD_READABLE},
             tok=self.access_token,
-            expect_code=HTTPStatus.FORBIDDEN,
+            expect_code=HTTPStatus.BAD_REQUEST,
         )
 
     def test_create_server_notices_room(self) -> None:

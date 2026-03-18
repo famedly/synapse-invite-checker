@@ -764,33 +764,56 @@ class InviteChecker:
         # However, this callback is run for *every single event created* and should be
         # kept as "light weight" as possible
 
-        # Forbid "m.room.join_rules" being anything but "private" for EPA, and only being
-        # "public" on PRO if "m.federate" is set to True in the creation event
-        if (
-            event.type == EventTypes.JoinRules
-            and event.content["join_rule"] == JoinRules.PUBLIC
-        ):
-            # EPA gets no public rooms, full stop
-            if self.config.tim_type == TimType.EPA:
-                return False, None
-            creation_event = context.get((EventTypes.Create, ""))
-            # `m.federate` defaults to True if unspecified
-            if creation_event and creation_event["content"]:
-                federated_flag = creation_event["content"].get(
-                    EventContentFields.FEDERATE, True
+        # Forbid certain join rules for EPA
+        # PRO, only forbid "public" if "m.federate" is True in the creation event
+        if event.type == EventTypes.JoinRules:
+            join_rule = event.content["join_rule"]
+            if self.config.tim_type == TimType.EPA and join_rule in {
+                JoinRules.PUBLIC,
+                JoinRules.KNOCK,
+                JoinRules.RESTRICTED,
+                JoinRules.KNOCK_RESTRICTED,
+            }:
+                raise SynapseError(
+                    400,
+                    f"Join rule '{join_rule}' is not allowed in TI-M ePA",
+                    "M_INVALID_ROOM_STATE",
                 )
-            # Remember to account for the override disabler
-            # TODO: fix this possible reference before assignment
-            if federated_flag and self.config.override_public_room_federation:
-                return False, None
+            # PRO: only being "public" on PRO if "m.federate" is set to True in the creation event
+            elif self.config.tim_type == TimType.PRO and join_rule == JoinRules.PUBLIC:
+                creation_event = context.get((EventTypes.Create, ""))
+                # `m.federate` defaults to True if unspecified
+                federated_flag = True
+                if creation_event and creation_event["content"]:
+                    federated_flag = creation_event["content"].get(
+                        EventContentFields.FEDERATE, True
+                    )
+                # Remember to account for the override disabler
+                if federated_flag and self.config.override_public_room_federation:
+                    raise SynapseError(
+                        400,
+                        "Room cannot be federated",
+                        "M_INVALID_ROOM_STATE",
+                    )
 
-        # If configured, forbid "m.room.history_visibility" to be set as "world_readable"
+        # Forbid "m.room.history_visibility" from being "world_readable" when configured
+        # via `prohibit_world_readable_rooms`, or always for EPA servers on TIM >= 1.2.
         elif (
-            self.config.prohibit_world_readable_rooms
+            (
+                self.config.prohibit_world_readable_rooms
+                or (
+                    self.config.tim_type == TimType.EPA
+                    and self.config.tim_version >= TimVersion.V1_2
+                )
+            )
             and event.type == EventTypes.RoomHistoryVisibility
             and event.content["history_visibility"] == HistoryVisibility.WORLD_READABLE
         ):
-            return False, None
+            raise SynapseError(
+                400,
+                "History visibility 'world_readable' is not allowed",
+                "M_INVALID_ROOM_STATE",
+            )
 
         return True, None
 
@@ -844,7 +867,7 @@ class InviteChecker:
             raise SynapseError(
                 400,
                 "Creation of a public room is not allowed",
-                errors.Codes.FORBIDDEN,
+                "M_INVALID_ROOM_STATE",
             )
 
         # A_25481: Set default history visibility to "invited" if not explicitly set
