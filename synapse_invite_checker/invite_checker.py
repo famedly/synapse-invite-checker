@@ -261,10 +261,15 @@ class InviteChecker:
                     self.room_scan, self.config.room_scan_run_interval_ms
                 )
             else:
-                # A_28338: Room purging is not allowed in TIM 1.2, as rooms/events may not be
-                # deleted without explicit consent.
+                # A_28338: In TIM 1.2 and above, rooms and events may not be deleted without
+                # explicit user consent. This prohibits both:
+                #   - Room purges (inactive_room_scan)
+                #   - Force leaving / kicking users (insured_room_scan): although this does not
+                #     delete rooms, it does modify room state by writing membership change events,
+                #     which constitutes an action on room data without user consent.
+                # Therefore the entire room scan, including force leaving, is disabled.
                 logger.debug(
-                    "Room purging is disabled in TIM 1.2 and above, skipping room scan"
+                    "Room scan (purges and force leaving) is disabled in TIM 1.2 and above"
                 )
 
         if self.config.tim_type == TimType.PRO:
