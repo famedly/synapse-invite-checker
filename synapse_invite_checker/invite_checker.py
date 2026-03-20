@@ -888,13 +888,10 @@ class InviteChecker:
 
         invite_list: list[str] = request_content.get("invite", [])
         # Per A_25538, only a single additional user may be invited to a room during
-        # creation. See:
-        # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#A_25538
-        # Interesting potential error here, they display an http error code of 400, but
-        # then say to use "M_FORBIDDEN". Pretty sure that is a typo
+        # creation. Updated to A_25368-01, same text
         if len(invite_list) > 1:
             raise SynapseError(
-                403,
+                400,
                 "When creating a room, a maximum of one participant can be invited directly",
                 errors.Codes.FORBIDDEN,
             )
