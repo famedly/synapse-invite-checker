@@ -26,6 +26,7 @@ from synapse.types import TaskStatus, UserID
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
+from synapse_invite_checker.types import TimVersion
 from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import (
     DOMAIN_IN_LIST,
@@ -563,11 +564,13 @@ class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
         self.create_and_send_event(room_id, self.user_d_id)
 
 
-class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
+class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
     """
-    Test that inactive room scans are done, and subsequent room purges are run
+    Test that inactive room scans are done, and subsequent room purges are run but only
+    on Tim Version 1.1
     """
 
+    TIM_VERSION = TimVersion.V1_1
     # This test case will model being an PRO server on the federation list
     # By default we are SERVER_NAME_FROM_LIST
 
@@ -585,6 +588,8 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         # There should only be a single item in the 'modules' list, since this tests that module
         assert len(conf["modules"]) == 1, "more than one module found in config"
 
+        # Remember that the tim version is controlled through the parameterized_class.
+        # It should already be in place before this surgery below takes place.
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
         conf["modules"][0].setdefault("config", {}).update(
             {"room_scan_run_interval": "1h"}
@@ -810,11 +815,14 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
             room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
         )
 
-    def test_room_scan_purges_incomplete_inactive_rooms_after_skip(self) -> None:
+    def test_room_scan_ignores_incomplete_inactive_rooms(self) -> None:
         """
         Test that a partially formed room does not break the room scanner, but instead
-        is skipped one time before being reconsidered. Remember, rooms scans run every
-        hour by default in this TestCase
+        is skipped before being reconsidered. It is not the point of this test to make
+        sure such rooms are cleaned up. This only should occur if no state exists for
+        the room.
+
+        Remember, rooms scans run every hour by default in this TestCase.
         """
         # Make the bare minimum of a room, which is basically just a row in the `rooms` table
         room_version_id = self.hs.config.server.default_room_version.identifier
@@ -862,7 +870,7 @@ class InactiveRoomScanTaskTestCase(FederatingModuleApiTestCase):
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
         assert current_rooms is not None, "Room should still exist(try 3)"
 
-        # verify a scheduled task "completed" for this room
+        # verify a scheduled task never existed for this room
         self.assert_task_status_for_room_is(
             room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], "end"
         )
