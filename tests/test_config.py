@@ -237,6 +237,28 @@ class ConfigParsingTestCase(TestCase):
         with pytest.raises(ConfigError):
             InviteChecker.parse_config(test_config)
 
+        test_config = self.config.copy()
+        # Shouldn't work if set to a string
+        test_config.update({"state_only_room_purge": "not a dict"})
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
+
+        # Shouldn't work if set to a list of strings
+        test_config.update(
+            {
+                "state_only_room_purge": [
+                    "lists",
+                    "are",
+                    "never",
+                    "good",
+                    "before",
+                    "weekends",
+                ]
+            }
+        )
+        with pytest.raises(ConfigError):
+            InviteChecker.parse_config(test_config)
+
     def test_public_room_override_defaults_to_true(self) -> None:
         test_config = self.config.copy()
         config = InviteChecker.parse_config(test_config)

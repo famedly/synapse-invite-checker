@@ -217,7 +217,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     server_name_for_this_server = SERVER_NAME_FROM_LIST
     OTHER_SERVER_NAME = INSURANCE_DOMAIN_IN_LIST
     ROOM_VERSION = "10"
-    TIM_VERSION = TimVersion.V1_1.value
+    TIM_VERSION = TimVersion.V1_1
 
     @classmethod
     def setUpClass(cls):
@@ -304,7 +304,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                     "module": "synapse_invite_checker.InviteChecker",
                     "config": {
                         "tim-type": "pro",
-                        "tim_version": self.TIM_VERSION,
+                        "tim_version": self.TIM_VERSION.value,
                         "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
                         "federation_localization_url": "http://dummy.test/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",

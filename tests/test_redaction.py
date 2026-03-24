@@ -51,7 +51,7 @@ class RedactionTimeLimitTestCase(FederatingModuleApiTestCase):
     Test that redactions of events older than 24 hours are rejected in TIM version 1.2.
     """
 
-    TIM_VERSION = TimVersion.V1_2.value
+    TIM_VERSION = TimVersion.V1_2
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -134,7 +134,7 @@ class RedactionTimeLimitV1_1TestCase(FederatingModuleApiTestCase):
     Test that redactions are NOT restricted by time in TIM version 1.1.
     """
 
-    TIM_VERSION = TimVersion.V1_1.value
+    TIM_VERSION = TimVersion.V1_1
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
