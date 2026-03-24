@@ -256,9 +256,21 @@ class InviteChecker:
             # Should be
             # > Calls f after waiting msec, then repeats. This is an inexact, "best effort"
             # > figure when the reactor/event loop is under heavy load
-            self.api.looping_background_call(
-                self.room_scan, self.config.room_scan_run_interval_ms
-            )
+            if self.config.tim_version < TimVersion.V1_2:
+                self.api.looping_background_call(
+                    self.room_scan, self.config.room_scan_run_interval_ms
+                )
+            else:
+                # A_28338: In TIM 1.2 and above, rooms and events may not be deleted without
+                # explicit user consent. This prohibits both:
+                #   - Room purges (inactive_room_scan)
+                #   - Force leaving / kicking users (insured_room_scan): although this does not
+                #     delete rooms, it does modify room state by writing membership change events,
+                #     which constitutes an action on room data without user consent.
+                # Therefore the entire room scan, including force leaving, is disabled.
+                logger.debug(
+                    "Room scan (purges and force leaving) is disabled in TIM 1.2 and above"
+                )
 
         if self.config.tim_type == TimType.PRO:
             # The TiMessengerInformation API resource
