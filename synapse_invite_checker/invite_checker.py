@@ -1106,8 +1106,8 @@ class InviteChecker:
             create_event_ts,
         )
 
-    @measure_func("get_timestamp_of_last_eligible_activity_in_room")
-    async def get_timestamp_of_last_eligible_activity_in_room(
+    @measure_func("get_timestamp_of_last_eligible_activity_in_room_v1_1")
+    async def get_timestamp_of_last_eligible_activity_in_room_v1_1(
         self, room_id: str
     ) -> int | None:
         """
@@ -1129,7 +1129,6 @@ class InviteChecker:
         filter_json = {
             "types": [EventTypes.Message, EventTypes.Encrypted, EventTypes.Create]
         }
-
         events = await self._get_filtered_events_from_pagination(room_id, filter_json)
 
         collected_timestamps = {event_base.origin_server_ts for event_base in events}
@@ -1144,6 +1143,55 @@ class InviteChecker:
         # to get outlier events, neither did the partial_state variant.
 
         # This will either have the timestamp or be None if none was found
+        return await self._last_explicit_membership_ts_in_room(room_id)
+
+    @measure_func("get_timestamp_of_last_eligible_activity_in_room_v1_2")
+    async def get_timestamp_of_last_eligible_activity_in_room_v1_2(
+        self, room_id: str
+    ) -> int | None:
+        """
+        TIM version 1.2 introduces a different criteria for determining what a
+        purge-able room is. If a room contains only state events then it is eligible for
+        purge.
+
+        Args:
+            room_id:
+
+        Returns: millisecond integer of the timestamp on that last eligible event, or
+        None if the room should not be considered eligible for automated purging
+
+        """
+        # First check for messages in the room. If there are any, this room is not
+        # eligible.
+        # Including a type doesn't guarantee that at least one of each is present in the
+        # result
+        filter_json = {"types": [EventTypes.Message, EventTypes.Encrypted]}
+        events = await self._get_filtered_events_from_pagination(room_id, filter_json)
+
+        collected_timestamps = {event_base.origin_server_ts for event_base in events}
+        if collected_timestamps:
+            return None
+
+        # Then, we check for membership events of type JOIN and type INVITE. Collect the
+        # timestamps from them and then take their max() to return. Youngest timestamp
+        # wins
+        state_map = await self.api.get_room_state(room_id, ((EventTypes.Member, None),))
+
+        memberships_to_consider = (Membership.JOIN, Membership.INVITE)
+        # What do we do if there was no invites?
+        collected_timestamps = {
+            event_base.origin_server_ts
+            for event_base in state_map.values()
+            if event_base.content[EventContentFields.MEMBERSHIP]
+            in memberships_to_consider
+        }
+
+        if collected_timestamps:
+            return max(collected_timestamps)
+
+        # Last ditch effort to try and get some kind of information about a remote room
+        # that this server only has an invite too
+
         return await self._last_explicit_membership_ts_in_room(room_id)
 
     async def _get_filtered_events_from_pagination(
@@ -1418,9 +1466,15 @@ class InviteChecker:
 
         if self.config.inactive_room_scan_options.enabled:
             for room_id in all_room_ids:
-                last_eligible_event_ts = (
-                    await self.get_timestamp_of_last_eligible_activity_in_room(room_id)
-                )
+                match self.config.tim_version:
+                    case TimVersion.V1_2:
+                        last_eligible_event_ts = await self.get_timestamp_of_last_eligible_activity_in_room_v1_2(
+                            room_id
+                        )
+                    case _:
+                        last_eligible_event_ts = await self.get_timestamp_of_last_eligible_activity_in_room_v1_1(
+                            room_id
+                        )
                 if last_eligible_event_ts is None:
                     logger.warning(
                         "A room was found that contained no events, skipping purge for: %s",

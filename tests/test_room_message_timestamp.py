@@ -51,7 +51,9 @@ class MessageTimestampTestCase(FederatingModuleApiTestCase):
             event_ts = event.get("origin_server_ts")
 
             ts_found = self.get_success_or_raise(
-                self.inv_checker.get_timestamp_of_last_eligible_activity_in_room(room)
+                self.inv_checker.get_timestamp_of_last_eligible_activity_in_room_v1_1(
+                    room
+                )
             )
 
             assert event_ts == ts_found
