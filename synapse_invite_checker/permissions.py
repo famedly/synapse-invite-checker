@@ -56,6 +56,7 @@ class InviteCheckerPermissionsHandler:
             # 1. No existing permissions or if they are somehow mis-set as {}
             # 2. The defaultSetting key is missing, indicating a broken permission structure
             permissions = self.default_perms
+            logger.debug("Setting default/initial permissions for user '%s'", user_id)
             await self.update_permissions(user_id, permissions)
         else:
             try:

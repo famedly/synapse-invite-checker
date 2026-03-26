@@ -202,6 +202,25 @@ class FederationAllowListClient(BaseHttpClient):
 BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
 
 
+def _wrap_callback(func, name: str, error_msg: str):
+    """Wrap a callback to ensure unexpected exceptions are logged"""
+
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            result = await func(*args, **kwargs)
+        except SynapseError as e:
+            logger.debug("%s: rejected: %s %s", name, e.errcode, e.msg)
+            raise
+        except Exception as e:
+            logger.exception("Unexpected exception during %s callback", name)
+            raise SynapseError(500, error_msg, errcode=errors.Codes.UNKNOWN) from e
+
+        return result
+
+    return wrapper
+
+
 class InviteChecker:
     __version__ = "0.4.13"
 
@@ -221,21 +240,39 @@ class InviteChecker:
 
         self.federation_list_client = FederationAllowListClient(api._hs, self.config)
 
-        self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
         self.api.register_spam_checker_callbacks(
-            user_may_join_room=self.user_may_join_room
-        )
-        self.api.register_third_party_rules_callbacks(
-            on_create_room=self.on_create_room
-        )
-        self.api.register_third_party_rules_callbacks(
-            on_upgrade_room=self.on_upgrade_room
-        )
-        self.api.register_third_party_rules_callbacks(
-            check_event_allowed=self.check_event_allowed
+            user_may_invite=_wrap_callback(
+                self.user_may_invite, "user_may_invite", "Invite not allowed"
+            )
         )
         self.api.register_spam_checker_callbacks(
-            check_login_for_spam=self.check_login_for_spam
+            user_may_join_room=_wrap_callback(
+                self.user_may_join_room,
+                "user_may_join_room",
+                "Joining room not allowed",
+            )
+        )
+        self.api.register_third_party_rules_callbacks(
+            on_create_room=_wrap_callback(
+                self.on_create_room,
+                "on_create_room",
+                "Room creation forbidden with these parameters",
+            )
+        )
+        self.api.register_third_party_rules_callbacks(
+            on_upgrade_room=_wrap_callback(
+                self.on_upgrade_room, "on_upgrade_room", "Room upgrade not allowed"
+            )
+        )
+        self.api.register_third_party_rules_callbacks(
+            check_event_allowed=_wrap_callback(
+                self.check_event_allowed, "check_event_allowed", "Event not allowed"
+            )
+        )
+        self.api.register_spam_checker_callbacks(
+            check_login_for_spam=_wrap_callback(
+                self.check_login_for_spam, "check_login_for_spam", "Login not allowed"
+            )
         )
 
         # Make sure this doesn't get initialized until after the default permissions
@@ -607,7 +644,10 @@ class InviteChecker:
         return fed_list.is_insurance(domain)
 
     async def on_upgrade_room(
-        self, _: Requester, room_version: RoomVersion, is_requester_admin: bool = False
+        self,
+        requester: Requester,
+        room_version: RoomVersion,
+        is_requester_admin: bool = False,
     ) -> None:
         if (
             not is_requester_admin
@@ -618,6 +658,11 @@ class InviteChecker:
                 f"Room version ('{room_version}') not allowed",
                 errors.Codes.FORBIDDEN,
             )
+        logger.debug(
+            "Allowing room upgrade to version '%s' by user '%s'",
+            room_version,
+            requester.user.to_string(),
+        )
 
     async def user_may_join_room(
         self, user: str, room_id: str, is_invited: bool
@@ -683,6 +728,9 @@ class InviteChecker:
                     return errors.Codes.FORBIDDEN
 
             # Room was created by a local user
+            logger.debug(
+                "Allowing join of '%s' to room '%s' (local creator)", user, room_id
+            )
             return NOT_SPAM
 
         else:
@@ -743,6 +791,8 @@ class InviteChecker:
                         errors.Codes.FORBIDDEN,
                     )
 
+            logger.debug("Allowing join of '%s' to invited room '%s'", user, room_id)
+
             return NOT_SPAM
 
     async def check_event_allowed(
@@ -767,6 +817,9 @@ class InviteChecker:
         # as is feasible
         # Never touch anything from another server
         if not self.api.is_mine(event.sender):
+            logger.debug(
+                "Allowing event '%s' from remote sender '%s'", event.type, event.sender
+            )
             return True, None
 
         if not event.is_state():
@@ -822,6 +875,7 @@ class InviteChecker:
                         )
 
             # Otherwise, we only check state events
+            logger.debug("Allowing event '%s' from '%s'", event.type, event.sender)
             return True, None
         # Important Note: This callback also runs during room creation, and may end up
         # being appropriate for checking the same things we check in `on_create_room()`.
@@ -879,6 +933,7 @@ class InviteChecker:
                 "M_INVALID_ROOM_STATE",
             )
 
+        logger.debug("Allowing event '%s' from '%s'", event.type, event.sender)
         return True, None
 
     async def on_create_room(
@@ -966,6 +1021,9 @@ class InviteChecker:
             )
 
         if is_request_admin:
+            logger.debug(
+                "Allowing room creation for user '%s'", requester.user.to_string()
+            )
             return
 
         # Unlike `user_may_invite()`, `on_create_room()` only runs with the inviter being
@@ -1006,6 +1064,7 @@ class InviteChecker:
                 f"Room version ('{room_version}') not allowed",
                 errors.Codes.FORBIDDEN,
             )
+        logger.debug("Allowing room creation for user '%s'", requester.user.to_string())
 
     async def check_login_for_spam(
         self,
