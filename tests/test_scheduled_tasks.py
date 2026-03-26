@@ -654,11 +654,11 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
         if status_list:
             assert (
                 len(purge_task_list) > 0
-            ), f"{comment} | GT status_list: {status_list}, purge_list: {purge_task_list}"
+            ), f"{comment} | GT expected status list: {status_list}, actual status list: {purge_task_list}"
         else:
             assert (
                 len(purge_task_list) == 0
-            ), f"{comment} | EQ status_list: {status_list}, purge_list: {purge_task_list}"
+            ), f"{comment} | EQ expected status list: {status_list}, actual status list: {purge_task_list}"
 
         completed_task = [
             task for task in purge_task_list if task.status == TaskStatus.COMPLETE
@@ -1097,11 +1097,11 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         if status_list:
             assert (
                 len(purge_task_list) > 0
-            ), f"{comment} | GT status_list: {status_list}, purge_list: {purge_task_list}"
+            ), f"{comment} | GT expected status list: {status_list}, actual status list: {purge_task_list}"
         else:
             assert (
                 len(purge_task_list) == 0
-            ), f"{comment} | EQ status_list: {status_list}, purge_list: {purge_task_list}"
+            ), f"{comment} | EQ expected status list: {status_list}, actual status list: {purge_task_list}"
 
         completed_task = [
             task for task in purge_task_list if task.status == TaskStatus.COMPLETE
