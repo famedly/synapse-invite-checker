@@ -200,6 +200,35 @@ class FederationAllowListClient(BaseHttpClient):
 BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
 
 
+def _wrap_callback(func, name: str, error_msg: str):
+    """Wrap a callback to ensure unexpected exceptions are logged and all rejections
+    or accept outcomes are logged at debug level."""
+
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            result = await func(*args, **kwargs)
+        except SynapseError:
+            logger.debug("%s: rejected", name)
+            raise
+        except Exception:
+            logger.exception("Unexpected exception during %s callback", name)
+            raise SynapseError(403, error_msg)
+
+        if (
+            result is NOT_SPAM
+            or result is None
+            or (isinstance(result, tuple) and result[0])
+        ):
+            logger.debug("%s: accepted", name)
+        else:
+            logger.debug("%s: rejected", name)
+
+        return result
+
+    return wrapper
+
+
 class InviteChecker:
     __version__ = "0.4.13"
 
@@ -219,21 +248,39 @@ class InviteChecker:
 
         self.federation_list_client = FederationAllowListClient(api._hs, self.config)
 
-        self.api.register_spam_checker_callbacks(user_may_invite=self.user_may_invite)
         self.api.register_spam_checker_callbacks(
-            user_may_join_room=self.user_may_join_room
-        )
-        self.api.register_third_party_rules_callbacks(
-            on_create_room=self.on_create_room
-        )
-        self.api.register_third_party_rules_callbacks(
-            on_upgrade_room=self.on_upgrade_room
-        )
-        self.api.register_third_party_rules_callbacks(
-            check_event_allowed=self.check_event_allowed
+            user_may_invite=_wrap_callback(
+                self.user_may_invite, "user_may_invite", "Invite not allowed"
+            )
         )
         self.api.register_spam_checker_callbacks(
-            check_login_for_spam=self.check_login_for_spam
+            user_may_join_room=_wrap_callback(
+                self.user_may_join_room,
+                "user_may_join_room",
+                "Joining room not allowed",
+            )
+        )
+        self.api.register_third_party_rules_callbacks(
+            on_create_room=_wrap_callback(
+                self.on_create_room,
+                "on_create_room",
+                "Room creation forbidden with these parameters",
+            )
+        )
+        self.api.register_third_party_rules_callbacks(
+            on_upgrade_room=_wrap_callback(
+                self.on_upgrade_room, "on_upgrade_room", "Room upgrade not allowed"
+            )
+        )
+        self.api.register_third_party_rules_callbacks(
+            check_event_allowed=_wrap_callback(
+                self.check_event_allowed, "check_event_allowed", "Event not allowed"
+            )
+        )
+        self.api.register_spam_checker_callbacks(
+            check_login_for_spam=_wrap_callback(
+                self.check_login_for_spam, "check_login_for_spam", "Login not allowed"
+            )
         )
 
         # Make sure this doesn't get initialized until after the default permissions
