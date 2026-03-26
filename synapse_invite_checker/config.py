@@ -31,6 +31,12 @@ class InactiveRoomScanConfig:
 
 
 @dataclass
+class StateOnlyRoomPurgeConfig:
+    grace_period_ms: int = 0
+    enabled: bool = False
+
+
+@dataclass
 class InviteCheckerConfig:
     default_permissions: DefaultPermissionConfig
     title: str = "Invite Checker module by Famedly"
@@ -49,6 +55,9 @@ class InviteCheckerConfig:
     )
     inactive_room_scan_options: InactiveRoomScanConfig = field(
         default_factory=InactiveRoomScanConfig
+    )
+    state_only_room_purge: StateOnlyRoomPurgeConfig = field(
+        default_factory=StateOnlyRoomPurgeConfig
     )
     override_public_room_federation: bool = True
     prohibit_world_readable_rooms: bool = True

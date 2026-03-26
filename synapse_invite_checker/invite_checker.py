@@ -362,6 +362,8 @@ class InviteChecker:
             max(run_interval, clamp_minimum_to) if run_interval > 0 else run_interval
         )
 
+        # The room scan section for shutting down(but not purging) rooms with insured
+        # members. By default, only runs on EPA hosts
         insured_room_scan_section = config.get("insured_only_room_scan", {})
         if not isinstance(insured_room_scan_section, dict):
             msg = "`insured_only_room_scan` should be configured as a dictionary"
@@ -392,13 +394,17 @@ class InviteChecker:
             epa_room_invites_grace_period
         )
 
-        # This option is considered for all server modes unlike 'insured_only_room_scan'
+        # TIM 1.1 section
         inactive_room_scan_section = config.get("inactive_room_scan", {})
         if not isinstance(inactive_room_scan_section, dict):
             msg = "`inactive_room_scan` should be formatted as a dictionary"
             raise ConfigError(msg)
 
         enable_inactive_room_scan = inactive_room_scan_section.get("enabled", True)
+        if enable_inactive_room_scan and _config.tim_version > TimVersion.V1_1:
+            logger.warning(
+                "Found `inactive_room_scan` enabled for TIM version newer than v1.1. This configuration will be ignored"
+            )
         _config.inactive_room_scan_options.enabled = enable_inactive_room_scan
 
         # "26w" calculates as 6 months
@@ -409,6 +415,29 @@ class InviteChecker:
             inactive_room_scan_grace_period
         )
 
+        # TIM 1.2 section
+        state_only_room_purge_section = config.get("state_only_room_purge", {})
+        if not isinstance(state_only_room_purge_section, dict):
+            msg = "`state_only_room_purge` should be formatted as a dictionary"
+            raise ConfigError(msg)
+
+        enable_state_only_room_purges = state_only_room_purge_section.get(
+            "enabled", False
+        )
+        if enable_state_only_room_purges and _config.tim_version < TimVersion.V1_2:
+            logger.warning(
+                "Found `state_only_room_purge` enabled for TIM version older than v1.2. This configuration will be ignored"
+            )
+
+        state_only_room_purge_grace_period = Config.parse_duration(
+            state_only_room_purge_section.get("grace_period", "6w")
+        )
+        _config.state_only_room_purge.enabled = enable_state_only_room_purges
+        _config.state_only_room_purge.grace_period_ms = (
+            state_only_room_purge_grace_period
+        )
+
+        # Event checking section
         _override_public_room_federation = config.get(
             "override_public_room_federation", _config.override_public_room_federation
         )
@@ -1370,20 +1399,12 @@ class InviteChecker:
 
     async def room_scan(self) -> None:
         """
-        Scan all rooms for eligible conditions to shutdown and purge a room.
+        Scan all rooms for eligible conditions to shutdown and/or purge a room.
         """
-        # Changed for version 0.4.2
-        # To help mitigate the potential racing of a room scan during a room creation,
-        # we will keep track that we already looked at this room. The next room scan
-        # should pick up on this and then force the kick/purge if it still does not meet
-        # the criteria. If this legitimately was a seriously broken room, the inactive
-        # purge below will still completely remove it.
-
         all_room_ids = await self.get_all_room_ids()
 
         logger.debug("Detected %d total rooms", len(all_room_ids))
 
-        server_notice_rooms = set()
         # On servers that don't have server notices set up, the mxid will be None
         if self.api._hs.config.servernotices.server_notices_mxid is not None:
             # This database call was chosen over `is_server_notice_room()` as batching
@@ -1399,94 +1420,137 @@ class InviteChecker:
             # Simplify notice room list for fast lookup
             server_notice_rooms = {room.room_id for room in server_notice_rooms_list}
 
+            # Remove the server notice rooms from the set of all rooms
+            all_room_ids.difference_update(server_notice_rooms)
+
+        # All TIM versions can run the insured room scan
         if self.config.insured_room_scan_options.enabled:
-            # grab a couple of references, this will be used frequently and helps make
-            # the below conditions more readable.
-            # XXX: should we do the same for 'current_time'?
-            invites_grace_period_ms = (
-                self.config.insured_room_scan_options.invites_grace_period_ms
-            )
-            grace_period_ms = self.config.insured_room_scan_options.grace_period_ms
+            await self.run_insured_room_scan(all_room_ids)
 
-            for room_id in all_room_ids:
-                # Server notice rooms are exempt, don't want to necessarily hide that
-                # a notice showed up before the user has a chance to see it.
-                if room_id in server_notice_rooms:
-                    continue
+        # Only TIM v1.1 should be running the inactive room scan
+        if (
+            self.config.inactive_room_scan_options.enabled
+            and self.config.tim_version == TimVersion.V1_1
+        ):
+            await self.run_inactive_room_scan_v1_1(all_room_ids)
 
-                # only shut down rooms that only have EPA hosts in them
-                if await self.have_all_pro_hosts_left(room_id):
-                    epa_room_results = await self.get_timestamps_from_eligible_events_for_epa_room_purge(
+        # Only TIM v1.2(and newer) should be running the state only room purge
+        if (
+            self.config.state_only_room_purge.enabled
+            and self.config.tim_version >= TimVersion.V1_2
+        ):
+            await self.run_state_only_room_purge_v1_2(all_room_ids)
+
+    async def run_insured_room_scan(self, all_room_ids: set[str]) -> None:
+        """
+        For shutting down rooms that contain insured members. This will not purge rooms.
+
+        Args:
+            all_room_ids:
+
+        """
+
+        invites_grace_period_ms = (
+            self.config.insured_room_scan_options.invites_grace_period_ms
+        )
+        grace_period_ms = self.config.insured_room_scan_options.grace_period_ms
+
+        for room_id in all_room_ids:
+            # only shut down rooms that only have EPA hosts in them
+            if await self.have_all_pro_hosts_left(room_id):
+                epa_room_results = (
+                    await self.get_timestamps_from_eligible_events_for_epa_room_purge(
                         room_id
                     )
-                    current_time = self.api._hs.get_clock().time_msec()
+                )
+                current_time = self.api._hs.get_clock().time_msec()
 
-                    # Invites(if found) are ignored if the invites_grace_period is 0 or
-                    # if the invites_grace_period + the actual timestamp of the invite
-                    # are greater than now
-                    if (
-                        epa_room_results.last_invite_in_room is not None
-                        and (
-                            invites_grace_period_ms == 0
-                            or (
-                                epa_room_results.last_invite_in_room
-                                + invites_grace_period_ms
-                                > current_time
-                            )
-                        )
-                        # Leaves(if found) are ignored if the grace_period + timestamp are
-                        # greater than now
+                # Invites(if found) are ignored if the invites_grace_period is 0 or
+                # if the invites_grace_period + the actual timestamp of the invite
+                # are greater than now
+                if (
+                    epa_room_results.last_invite_in_room is not None
+                    and (
+                        invites_grace_period_ms == 0
                         or (
-                            epa_room_results.last_leave_in_room is not None
-                            and epa_room_results.last_leave_in_room + grace_period_ms
+                            epa_room_results.last_invite_in_room
+                            + invites_grace_period_ms
                             > current_time
                         )
-                        # There is not always a create event available, but if there is and
-                        # its timestamp + grace_period are greater than now, then it is ignored
-                        or epa_room_results.room_creation_ts is not None
-                        and (
-                            epa_room_results.room_creation_ts + grace_period_ms
-                            > current_time
-                        )
-                    ):
-                        pass
+                    )
+                    # Leaves(if found) are ignored if the grace_period + timestamp are
+                    # greater than now
+                    or (
+                        epa_room_results.last_leave_in_room is not None
+                        and epa_room_results.last_leave_in_room + grace_period_ms
+                        > current_time
+                    )
+                    # There is not always a create event available, but if there is and
+                    # its timestamp + grace_period are greater than now, then it is ignored
+                    or epa_room_results.room_creation_ts is not None
+                    and (
+                        epa_room_results.room_creation_ts + grace_period_ms
+                        > current_time
+                    )
+                ):
+                    pass
 
-                    # In the unlikely event that all of the above did not happen, warn.
-                    # Recall that we only get to this place if there are no Pro hosts in
-                    # the room, so either an invite or a leave has to have occurred and
-                    # in their absence we use the create event. So if there is no create
-                    # event, then it is likely this room is broken somehow.
-                    elif epa_room_results.room_creation_ts is None:
-                        logger.warning(
-                            "Not kicking users from room during ePA user room scan because it contained no events: %s",
-                            room_id,
-                        )
-                    else:
-                        await self.kick_all_local_users(room_id)
-
-        if self.config.inactive_room_scan_options.enabled:
-            for room_id in all_room_ids:
-                match self.config.tim_version:
-                    case TimVersion.V1_2:
-                        last_eligible_event_ts = await self.get_timestamp_of_last_eligible_activity_in_room_v1_2(
-                            room_id
-                        )
-                    case _:
-                        last_eligible_event_ts = await self.get_timestamp_of_last_eligible_activity_in_room_v1_1(
-                            room_id
-                        )
-                if last_eligible_event_ts is None:
+                # In the unlikely event that all of the above did not happen, warn.
+                # Recall that we only get to this place if there are no Pro hosts in
+                # the room, so either an invite or a leave has to have occurred and
+                # in their absence we use the create event. So if there is no create
+                # event, then it is likely this room is broken somehow.
+                elif epa_room_results.room_creation_ts is None:
                     logger.warning(
-                        "A room was found that contained no events, skipping purge for: %s",
+                        "Not kicking users from room during ePA user room scan because it contained no events: %s",
                         room_id,
                     )
+                else:
+                    await self.kick_all_local_users(room_id)
 
-                elif (
-                    last_eligible_event_ts
-                    + self.config.inactive_room_scan_options.grace_period_ms
-                    <= self.api._hs.get_clock().time_msec()
-                ):
-                    await self.schedule_room_for_purge(room_id)
+    async def run_inactive_room_scan_v1_1(self, all_room_ids: set[str]) -> None:
+        """
+        For purging rooms that have been inactive for a given amount of time
+
+        Args:
+            all_room_ids:
+
+        """
+        for room_id in all_room_ids:
+            last_eligible_event_ts = (
+                await self.get_timestamp_of_last_eligible_activity_in_room_v1_1(room_id)
+            )
+            if last_eligible_event_ts is None:
+                logger.warning(
+                    "A room was found that contained no events, skipping purge for: %s",
+                    room_id,
+                )
+
+            elif (
+                last_eligible_event_ts
+                + self.config.inactive_room_scan_options.grace_period_ms
+                <= self.api._hs.get_clock().time_msec()
+            ):
+                await self.schedule_room_for_purge(room_id)
+
+    async def run_state_only_room_purge_v1_2(self, all_room_ids: set[str]) -> None:
+        """
+        For purging rooms that contain state-only events
+
+        Args:
+            all_room_ids:
+
+        """
+        for room_id in all_room_ids:
+            last_eligible_event_ts = (
+                await self.get_timestamp_of_last_eligible_activity_in_room_v1_2(room_id)
+            )
+            if last_eligible_event_ts is not None and (
+                last_eligible_event_ts
+                + self.config.state_only_room_purge.grace_period_ms
+                <= self.api._hs.get_clock().time_msec()
+            ):
+                await self.schedule_room_for_purge(room_id)
 
     async def have_all_pro_hosts_left(self, room_id: str) -> bool:
         """

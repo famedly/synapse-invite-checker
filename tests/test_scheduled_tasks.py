@@ -595,12 +595,18 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
             {"room_scan_run_interval": "1h"}
         )
         conf["modules"][0].setdefault("config", {}).update(
+            # Add in both here. Since the tim version decides what runs,
+            # this is its own test
             {
                 "inactive_room_scan": {
                     "enabled": True,
                     "grace_period": "6h",
-                }
-            }
+                },
+                "state_only_room_purge": {
+                    "enabled": True,
+                    "grace_period": "6h",
+                },
+            },
         )
 
         return conf
@@ -1038,12 +1044,18 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
             {"room_scan_run_interval": "1h"}
         )
         conf["modules"][0].setdefault("config", {}).update(
+            # Add in both here. Since the tim version decides what runs,
+            # this is its own test
             {
                 "inactive_room_scan": {
                     "enabled": True,
                     "grace_period": "6h",
-                }
-            }
+                },
+                "state_only_room_purge": {
+                    "enabled": True,
+                    "grace_period": "6h",
+                },
+            },
         )
 
         return conf
