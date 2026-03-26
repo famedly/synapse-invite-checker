@@ -202,7 +202,7 @@ BASE_API_PREFIX = "/_synapse/client/com.famedly/tim"
 
 def _wrap_callback(func, name: str, error_msg: str):
     """Wrap a callback to ensure unexpected exceptions are logged and all rejections
-    or accept outcomes are logged at debug level."""
+    or accepted outcomes are logged at debug level."""
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
@@ -211,12 +211,12 @@ def _wrap_callback(func, name: str, error_msg: str):
         except SynapseError:
             logger.debug("%s: rejected", name)
             raise
-        except Exception:
+        except Exception as e:
             logger.exception("Unexpected exception during %s callback", name)
-            raise SynapseError(403, error_msg)
+            raise SynapseError(403, error_msg, errcode=errors.Codes.FORBIDDEN) from e
 
         if (
-            result is NOT_SPAM
+            result == NOT_SPAM
             or result is None
             or (isinstance(result, tuple) and result[0])
         ):
