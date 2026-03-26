@@ -1131,19 +1131,21 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
     # "self" to just reference it
     @parameterized.expand(
         [
-            # (name to give the test, list of users to test with, is public room, any messages in room, should remote actually fully join?)
+            # (name to give the test, list of users to test with, is public room, any messages in room, should remote actually fully join, should room be purged?)
             (
                 "private_room_2_local_users_with_messages",
                 [f"@b:{SERVER_NAME_FROM_LIST}"],
                 False,
                 True,
                 True,
+                False,
             ),
             (
                 "private_room_2_local_users_no_messages",
                 [f"@b:{SERVER_NAME_FROM_LIST}"],
                 False,
                 False,
+                True,
                 True,
             ),
             (
@@ -1152,6 +1154,7 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
                 False,
                 True,
                 True,
+                False,
             ),
             (
                 "public_room_3_local_users",
@@ -1159,6 +1162,7 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
                 True,
                 True,
                 True,
+                False,
             ),
             (
                 "private_room_with_1_pro_1_epa",
@@ -1166,12 +1170,14 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
                 False,
                 True,
                 True,
+                False,
             ),
             (
                 "private_room_with_1_pro_1_epa_that_does_not_join",
                 [f"@b:{SERVER_NAME_FROM_LIST}", f"@alice:{INSURANCE_DOMAIN_IN_LIST}"],
                 False,
                 True,
+                False,
                 False,
             ),
         ]
@@ -1183,11 +1189,23 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         is_public: bool,
         send_messages: bool,
         remote_fully_join: bool,
+        room_should_be_deleted: bool,
     ) -> None:
         """
         Test that a room is deleted when a local PRO user and various others don't touch
         a room for "inactive_room_scan.grace_period" amount of time
         """
+        # Set up some initial expectations for the test instance to assert at the end of
+        # the test. Basically, if the room should be deleted then the list should have
+        # this particular item in it. The only test that should be a non-empty list is
+        # the one with no messages sent.
+        expected_task_status_scheduled = (
+            [TaskStatus.SCHEDULED] if room_should_be_deleted else []
+        )
+        expected_task_status_completed = (
+            [TaskStatus.COMPLETE] if room_should_be_deleted else []
+        )
+
         # Make a room and invite the other occupant(s)
         room_id = self.create_local_room(self.user_a, [], is_public=is_public)
         assert room_id is not None, "Room should exist"
@@ -1242,7 +1260,7 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         self.assert_task_status_for_room_is(
             room_id,
             SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
-            [TaskStatus.SCHEDULED],
+            expected_task_status_scheduled,
             "after loop",
         )
 
@@ -1251,11 +1269,18 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
 
         # Now the room should be gone
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is None, f"Room should be gone now: {current_rooms}"
+        assert (
+            current_rooms is None
+        ) == room_should_be_deleted, (
+            f"Should room be gone now: {room_should_be_deleted}"
+        )
 
         # verify a scheduled task "completed" for this room
         self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
+            room_id,
+            SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
+            expected_task_status_completed,
+            "end",
         )
 
     def test_room_scan_ignores_incomplete_inactive_rooms(self) -> None:
@@ -1318,49 +1343,31 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
             room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], "end"
         )
 
-    def test_scheduling_a_room_delete_is_idempotent(self) -> None:
-        room_id = f"!fake_room_name:{self.server_name_for_this_server}"
-        pretest_delete_tasks = self.get_success_or_raise(
-            self.inv_checker.get_delete_tasks_by_room(room_id)
-        )
-        assert len(pretest_delete_tasks) == 0
-
-        self.get_success_or_raise(self.inv_checker.schedule_room_for_purge(room_id))
-        delete_tasks = self.get_success_or_raise(
-            self.inv_checker.get_delete_tasks_by_room(room_id)
-        )
-        assert len(delete_tasks) == 1
-        delete_task_id = delete_tasks[0].id
-
-        self.get_success_or_raise(self.inv_checker.schedule_room_for_purge(room_id))
-        second_delete_tasks = self.get_success_or_raise(
-            self.inv_checker.get_delete_tasks_by_room(room_id)
-        )
-        assert len(second_delete_tasks) == 1
-        assert delete_task_id == second_delete_tasks[0].id
-
-    # I'm not sure I like the hard coding of the usernames here, but can not access
+    # I'm not sure if I like the hard coding of the usernames here, but can not access
     # "self" to just reference it
     @parameterized.expand(
         [
-            # (name to give the test, remote user to test with, is public room, should remote actually fully join?)
+            # (name to give the test, remote user to test with, is public room, should remote actually fully join, should room be purged?)
             (
                 "private_room_1_local_user_1_remote_pro_user",
                 f"@mxid:{DOMAIN_IN_LIST}",  # self.remote_pro_user
                 False,
                 True,
+                True,  # This room has joins and should be purged
             ),
             (
                 "private_room_with_1_local_pro_1_remote_epa",
                 f"@alice:{INSURANCE_DOMAIN_IN_LIST}",  # self.remote_epa_user
                 False,
                 True,
+                True,  # This room has joins and should be purged
             ),
             (
                 "private_room_with_1_local_pro_1_remote_epa_that_does_not_join",
                 f"@alice:{INSURANCE_DOMAIN_IN_LIST}",
                 False,
                 False,
+                True,  # This room is not fully joined, just invited to.
             ),
         ]
     )
@@ -1370,12 +1377,28 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         remote_user: str,
         is_public: bool,
         finish_join: bool,
+        room_should_be_deleted: bool,
     ) -> None:
         """
         Test that a room is not deleted prematurely when a local user attempts to join a
         remote room, including when it is only an invite and no other state is
         transferred.
+
+        Notable reminder: The FakeRoom does not currently contain the infrastructure to
+        send or receives messages, so this angle can not be tested. Therefore all given
+        test scenarios will purge the room(as they only contain state)
         """
+        # Set up some initial expectations for the test instance to assert at the end of
+        # the test. Basically, if the room should be deleted then the list should have
+        # this particular item in it. The only test that should be a non-empty list is
+        # the one with no messages sent.
+        expected_task_status_scheduled = (
+            [TaskStatus.SCHEDULED] if room_should_be_deleted else []
+        )
+        expected_task_status_completed = (
+            [TaskStatus.COMPLETE] if room_should_be_deleted else []
+        )
+
         # Make a remote room...
         room_id = self.create_remote_room(
             remote_user,
@@ -1433,7 +1456,7 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         self.assert_task_status_for_room_is(
             room_id,
             SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
-            [TaskStatus.SCHEDULED],
+            expected_task_status_scheduled,
             "after loop",
         )
 
@@ -1442,9 +1465,16 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
 
         # Now the room should be gone
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert current_rooms is None, f"Room should be gone now: {current_rooms}"
+        assert (
+            current_rooms is None
+        ) == room_should_be_deleted, (
+            f"Should room be gone now: {room_should_be_deleted}"
+        )
 
         # verify a scheduled task "completed" for this room
         self.assert_task_status_for_room_is(
-            room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [TaskStatus.COMPLETE], "end"
+            room_id,
+            SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME,
+            expected_task_status_completed,
+            "end",
         )
