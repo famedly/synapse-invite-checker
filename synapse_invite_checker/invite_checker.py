@@ -1272,7 +1272,7 @@ class InviteChecker:
             LIMIT 1
         """
         rows = await self.api._store.db_pool.execute(
-            "_last_explicit_non_state_event_ts_in_room", sql, room_id
+            "_is_any_non_state_event_in_room", sql, room_id
         )
 
         # The rows will be a list. The list will be empty or have a single (1,)
