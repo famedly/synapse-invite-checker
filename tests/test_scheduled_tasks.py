@@ -657,14 +657,15 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
             self.task_scheduler.get_tasks(actions=[task_name], resource_id=room_id)
         )
 
+        actual_task_list = [task.status for task in purge_task_list]
         if status_list:
             assert (
-                len(purge_task_list) > 0
-            ), f"{comment} | GT expected status list: {status_list}, actual status list: {purge_task_list}"
+                len(actual_task_list) > 0
+            ), f"{comment} | GT expected status list: {status_list}, actual status list: {actual_task_list}"
         else:
             assert (
-                len(purge_task_list) == 0
-            ), f"{comment} | EQ expected status list: {status_list}, actual status list: {purge_task_list}"
+                len(actual_task_list) == 0
+            ), f"{comment} | EQ expected status list: {status_list}, actual status list: {actual_task_list}"
 
         completed_task = [
             task for task in purge_task_list if task.status == TaskStatus.COMPLETE
@@ -1074,7 +1075,7 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         self.login("b", "password")
         self.login("c", "password")
 
-        # OTHER_SERVER_NAME already has it's signing key injected into our database so
+        # OTHER_SERVER_NAME already has its signing key injected into our database so
         # our server doesn't have to make that request. Add the other servers we will be
         # using as well
         self.inject_servers_signing_key(INSURANCE_DOMAIN_IN_LIST)
@@ -1106,14 +1107,15 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
             self.task_scheduler.get_tasks(actions=[task_name], resource_id=room_id)
         )
 
+        actual_task_list = [task.status for task in purge_task_list]
         if status_list:
             assert (
-                len(purge_task_list) > 0
-            ), f"{comment} | GT expected status list: {status_list}, actual status list: {purge_task_list}"
+                len(actual_task_list) > 0
+            ), f"{comment} | GT expected status list: {status_list}, actual status list: {actual_task_list}"
         else:
             assert (
-                len(purge_task_list) == 0
-            ), f"{comment} | EQ expected status list: {status_list}, actual status list: {purge_task_list}"
+                len(actual_task_list) == 0
+            ), f"{comment} | EQ expected status list: {status_list}, actual status list: {actual_task_list}"
 
         completed_task = [
             task for task in purge_task_list if task.status == TaskStatus.COMPLETE
@@ -1295,7 +1297,7 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
             "end",
         )
 
-    def test_room_scan_ignores_incomplete_inactive_rooms(self) -> None:
+    def test_room_scan_ignores_incomplete_rooms_without_state(self) -> None:
         """
         Test that a partially formed room does not break the room scanner, but instead
         is skipped before being reconsidered. It is not the point of this test to make
@@ -1397,7 +1399,7 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         transferred.
 
         Notable reminder: The FakeRoom does not currently contain the infrastructure to
-        send or receives messages, so this angle can not be tested. Therefore, all given
+        send or receive messages, so this angle can not be tested. Therefore, all given
         test scenarios will purge the room(as they only contain state)
         """
         # Set up some initial expectations for the test instance to assert at the end of
