@@ -66,6 +66,7 @@ modules:
         prohibit_world_readable_rooms: true or false, # Prevent setting any rooms history visibility as 'world_readable'. Defaults to "true"
         block_invites_into_dms: true or false, # Prevent invites into existing DM chats. Defaults to true
         limit_reactions: true or false, # Prevent more than a single grapheme cluster in a reaction. Defaults to true, false to disable
+        disable_epa_communication: true or false, # Explicitly block all invites and joins to/from ePA domains. Logs a warning at startup when enabled. Defaults to false
 ```
 ### default_permissions
 

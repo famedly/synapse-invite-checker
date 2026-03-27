@@ -357,6 +357,27 @@ class ConfigParsingTestCase(TestCase):
         with pytest.raises(Exception, match="Invalid connection attempt"):
             policy.creatorForNetloc(invalid_bytes, 8443)
 
+    def test_disable_epa_communication_defaults_to_false(self) -> None:
+        config = InviteChecker.parse_config(self.config)
+        assert (
+            config.disable_epa_communication is False
+        ), "`disable_epa_communication` should default to False"
+
+    def test_disable_epa_communication_can_be_enabled(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"disable_epa_communication": True})
+        config = InviteChecker.parse_config(test_config)
+        assert (
+            config.disable_epa_communication is True
+        ), "`disable_epa_communication` should be True when set"
+
+    def test_disable_epa_communication_rejects_non_bool(self) -> None:
+        for bad_value in ("true", 1, "yes"):
+            test_config = self.config.copy()
+            test_config.update({"disable_epa_communication": bad_value})
+            with pytest.raises(ConfigError):
+                InviteChecker.parse_config(test_config)
+
     def test_unexpected_non_booleans(self) -> None:
         test_config = self.config.copy()
         # Although a boolean is an int, an int is not a boolean
