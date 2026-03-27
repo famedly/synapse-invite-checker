@@ -400,7 +400,9 @@ class InviteChecker:
             msg = "`inactive_room_scan` should be formatted as a dictionary"
             raise ConfigError(msg)
 
-        enable_inactive_room_scan = inactive_room_scan_section.get("enabled", True)
+        enable_inactive_room_scan = inactive_room_scan_section.get(
+            "enabled", True if _config.tim_version == TimVersion.V1_1 else False
+        )
         if enable_inactive_room_scan and _config.tim_version > TimVersion.V1_1:
             logger.warning(
                 "Found `inactive_room_scan` enabled for TIM version newer than v1.1. This configuration will be ignored"
@@ -422,7 +424,7 @@ class InviteChecker:
             raise ConfigError(msg)
 
         enable_state_only_room_purges = state_only_room_purge_section.get(
-            "enabled", False
+            "enabled", True if _config.tim_version == TimVersion.V1_2 else False
         )
         if enable_state_only_room_purges and _config.tim_version < TimVersion.V1_2:
             logger.warning(
