@@ -90,6 +90,8 @@ from synapse_invite_checker.types import (
 
 logger = logging.getLogger(__name__)
 
+EPA_COMMUNICATION_DISABLED_MSG = "Insurance communication disabled by the organisation"
+
 if TYPE_CHECKING:
     from synapse.storage.roommember import RoomsForUser
 
@@ -441,6 +443,14 @@ class InviteChecker:
         )
         _config.redaction_max_age_ms = _redaction_max_age
 
+        _disable_epa_communication = config.get(
+            "disable_epa_communication", _config.disable_epa_communication
+        )
+        if not isinstance(_disable_epa_communication, bool):
+            msg = "`disable_epa_communication` must be a boolean"
+            raise ConfigError(msg)
+        _config.disable_epa_communication = _disable_epa_communication
+
         return _config
 
     def after_startup(self) -> None:
@@ -454,6 +464,12 @@ class InviteChecker:
         To be called when the reactor is running. Validates that the epa setting matches
         the insurance setting in the federation list.
         """
+        if self.config.disable_epa_communication:
+            logger.warning(
+                "ePA communication has been explicitly disabled via 'disable_epa_communication' "
+                "config. Invites and joins to and from ePA servers will be blocked. "
+            )
+
         try:
             fed_list = await self._fetch_federation_list()
             if self.config.tim_type == TimType.EPA and not fed_list.is_insurance(
@@ -678,6 +694,20 @@ class InviteChecker:
                     room_id,
                 )
                 return errors.Codes.FORBIDDEN
+
+            if self.config.disable_epa_communication:
+                inviter_domain = UserID.from_string(invite_event.sender).domain
+                if await self.is_domain_insurance(inviter_domain):
+                    logger.debug(
+                        "Forbidding user '%s' from joining room '%s' as disable_epa_communication is enabled in the config.",
+                        user,
+                        room_id,
+                    )
+                    raise SynapseError(
+                        403,
+                        EPA_COMMUNICATION_DISABLED_MSG,
+                        errors.Codes.FORBIDDEN,
+                    )
 
             return NOT_SPAM
 
@@ -994,18 +1024,34 @@ class InviteChecker:
             )
             return errors.Codes.FORBIDDEN
 
+        inviter_is_insurance = await self.is_domain_insurance(inviter_domain)
+        invitee_is_insurance = await self.is_domain_insurance(invitee_domain)
+
         # Step 1b
         # Per AF_10233: Deny incoming remote invites if in ePA mode(which means the
         # local user is an 'insured') and if the remote domain is type 'insurance'.
-        if await self.is_domain_insurance(
-            inviter_domain
-        ) and await self.is_domain_insurance(invitee_domain):
+        if inviter_is_insurance and invitee_is_insurance:
             logger.warning(
                 "Discarding invite from between insured users: %s and %s",
                 inviter,
                 invitee,
             )
             return errors.Codes.FORBIDDEN
+
+        # Step 1c: If ePA communication is explicitly disabled, block any
+        # invite to or from an ePA domain.
+        if self.config.disable_epa_communication:
+            if inviter_is_insurance or invitee_is_insurance:
+                logger.debug(
+                    "Blocking invite between (%s) and (%s): ePA communication disabled with disable_epa_communication in the config",
+                    inviter_domain,
+                    invitee_domain,
+                )
+                raise SynapseError(
+                    403,
+                    EPA_COMMUNICATION_DISABLED_MSG,
+                    errors.Codes.FORBIDDEN,
+                )
 
         # Find out if this is a public room
         # The domains are different, or the first section would have caught it. The same

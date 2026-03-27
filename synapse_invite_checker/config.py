@@ -55,3 +55,4 @@ class InviteCheckerConfig:
     block_invites_into_dms: bool = True
     limit_reactions: bool = True
     redaction_max_age_ms: int = 24 * 60 * 60 * 1000
+    disable_epa_communication: bool = False
