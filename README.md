@@ -64,7 +64,7 @@ modules:
           grace_period: see 'Duration Parsing' below # Length of time a room is allowed to have no message activity before it is eligible for deletion. Ignored if 'enabled' is false. Defaults to "26w" which is 6 months
         state_only_room_purge:  # This section only applies to TIM version 1.2. If using an older TIM version, these settings will be ignored
           enabled: true or false  # optional switch to disable the room scan for state only rooms, defaults to true if TIM version is set to "1.2" (or newer)
-          grace_period: see 'Duration Parsing' below #  Length of time a room is allowed to have no message activity before it is eligible for deletion. Ignored if 'enabled' is false. Defaults to "6w" which is 6 weeks
+          grace_period: see 'Duration Parsing' below #  Length of time a room is allowed to have no non-state/timeline activity(such as a message) before it is eligible for deletion. Ignored if 'enabled' is false. Defaults to "6w" which is 6 weeks
         override_public_room_federation: true or false, # Forces the `m.federate` flag to be set to False when creating a public room to prevent it from federating. Default is "true", disable with "false"
         prohibit_world_readable_rooms: true or false, # Prevent setting any rooms history visibility as 'world_readable'. Defaults to "true"
         block_invites_into_dms: true or false, # Prevent invites into existing DM chats. Defaults to true

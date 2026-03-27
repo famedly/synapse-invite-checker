@@ -56,7 +56,7 @@ class InviteCheckerConfig:
     inactive_room_scan_options: InactiveRoomScanConfig = field(
         default_factory=InactiveRoomScanConfig
     )
-    state_only_room_purge: StateOnlyRoomPurgeConfig = field(
+    state_only_room_purge_options: StateOnlyRoomPurgeConfig = field(
         default_factory=StateOnlyRoomPurgeConfig
     )
     override_public_room_federation: bool = True

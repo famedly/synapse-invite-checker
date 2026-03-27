@@ -424,7 +424,7 @@ class InviteChecker:
             raise ConfigError(msg)
 
         enable_state_only_room_purges = state_only_room_purge_section.get(
-            "enabled", True if _config.tim_version == TimVersion.V1_2 else False
+            "enabled", True if _config.tim_version >= TimVersion.V1_2 else False
         )
         if enable_state_only_room_purges and _config.tim_version < TimVersion.V1_2:
             logger.warning(
@@ -434,8 +434,8 @@ class InviteChecker:
         state_only_room_purge_grace_period = Config.parse_duration(
             state_only_room_purge_section.get("grace_period", "6w")
         )
-        _config.state_only_room_purge.enabled = enable_state_only_room_purges
-        _config.state_only_room_purge.grace_period_ms = (
+        _config.state_only_room_purge_options.enabled = enable_state_only_room_purges
+        _config.state_only_room_purge_options.grace_period_ms = (
             state_only_room_purge_grace_period
         )
 
@@ -1192,37 +1192,25 @@ class InviteChecker:
         None if the room should not be considered eligible for automated purging
 
         """
-        # First check for messages in the room. If there are any, this room is not
-        # eligible.
-        # Including a type doesn't guarantee that at least one of each is present in the
-        # result
-        filter_json = {"types": [EventTypes.Message, EventTypes.Encrypted]}
-        events = await self._get_filtered_events_from_pagination(room_id, filter_json)
-
-        collected_timestamps = {event_base.origin_server_ts for event_base in events}
-        if collected_timestamps:
+        # First check for non-state events in the room. If there are any, this room is
+        # not eligible.
+        if await self._is_any_non_state_event_in_room(room_id):
             return None
 
-        # Then, we check for membership events of type JOIN and type INVITE. Collect the
-        # timestamps from them and then take their max() to return. Youngest timestamp
-        # wins
-        state_map = await self.api.get_room_state(room_id, ((EventTypes.Member, None),))
+        # Then, we check for state events. Collect the timestamps from them and then
+        # take their max() to return. Youngest timestamp wins.
+        # It could be that the room has not been de-outliered yet or has not been joined
+        # but only has an invite. We check for this separately below.
+        state_map = await self.api.get_room_state(room_id, None)
 
-        memberships_to_consider = (Membership.JOIN, Membership.INVITE)
-        # What do we do if there was no invites?
         collected_timestamps = {
-            event_base.origin_server_ts
-            for event_base in state_map.values()
-            if event_base.content[EventContentFields.MEMBERSHIP]
-            in memberships_to_consider
+            event_base.origin_server_ts for event_base in state_map.values()
         }
-
         if collected_timestamps:
             return max(collected_timestamps)
 
         # Last ditch effort to try and get some kind of information about a remote room
-        # that this server only has an invite too
-
+        # that this server only has an invite to. This is a raw event lookup
         return await self._last_explicit_membership_ts_in_room(room_id)
 
     async def _get_filtered_events_from_pagination(
@@ -1263,6 +1251,32 @@ class InviteChecker:
         )
 
         return events
+
+    async def _is_any_non_state_event_in_room(self, room_id: str) -> bool:
+        """
+        Find if any event that is not state(by having no state_key) exists in a given
+        room. This is going to be most likely a message but could be any other kind of
+        event.
+        """
+        # Only need the minimum proof that there is non-state in the room. State_key
+        # being explicitly compared to NULL here is correct, as a state_key can have a
+        # value or be an empty string(which is not the same as None, we don't want the
+        # python 'falsy' equivalent here). Limiting by 1 means the query is complete on
+        # the first value found. This particular query is using an index scan on
+        # 'room_id, stream_ordering' which feels weird, but also seems to cause the
+        # count to begin at the beginning of the room. It is therefore relatively quick.
+        sql = """
+            SELECT 1
+            FROM events
+            WHERE room_id = ? AND state_key IS NULL
+            LIMIT 1
+        """
+        rows = await self.api._store.db_pool.execute(
+            "_last_explicit_non_state_event_ts_in_room", sql, room_id
+        )
+
+        # The rows will be a list. The list will be empty or have a single (1,)
+        return bool(rows)
 
     async def _last_explicit_membership_ts_in_room(self, room_id: str) -> int | None:
         """
@@ -1438,7 +1452,7 @@ class InviteChecker:
 
         # Only TIM v1.2(and newer) should be running the state only room purge
         if (
-            self.config.state_only_room_purge.enabled
+            self.config.state_only_room_purge_options.enabled
             and self.config.tim_version >= TimVersion.V1_2
         ):
             await self.run_state_only_room_purge_v1_2(all_room_ids)
@@ -1549,7 +1563,7 @@ class InviteChecker:
             )
             if last_eligible_event_ts is not None and (
                 last_eligible_event_ts
-                + self.config.state_only_room_purge.grace_period_ms
+                + self.config.state_only_room_purge_options.grace_period_ms
                 <= self.api._hs.get_clock().time_msec()
             ):
                 await self.schedule_room_for_purge(room_id)

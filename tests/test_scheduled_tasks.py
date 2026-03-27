@@ -1013,10 +1013,10 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
         )
 
 
-class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
+class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
     """
-    Test that inactive room scans are done, and subsequent room purges are run but only
-    on Tim Version 1.2
+    Test that state-only room scans are done, and subsequent room purges are run, but
+    only on Tim Version 1.2
     """
 
     TIM_VERSION = TimVersion.V1_2
@@ -1024,7 +1024,7 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
     # By default we are SERVER_NAME_FROM_LIST
 
     # Test with one other remote PRO server and one EPA server
-    # The inactive grace period is going to be 6 hours, room scans run each hour
+    # The detection grace period is going to be 6 hours, room scans run each hour
     remote_pro_user = f"@mxid:{DOMAIN_IN_LIST}"
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     # The default "fake" remote server name that has its server signing keys auto-injected
@@ -1037,7 +1037,7 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         # There should only be a single item in the 'modules' list, since this tests that module
         assert len(conf["modules"]) == 1, "more than one module found in config"
 
-        # Remember that the tim version is controlled through the parameterized_class.
+        # Remember that the tim version is controlled by attribute on the TestCase.
         # It should already be in place before this surgery below takes place.
         conf["modules"][0].setdefault("config", {}).update({"tim-type": "pro"})
         conf["modules"][0].setdefault("config", {}).update(
@@ -1205,7 +1205,7 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
     ) -> None:
         """
         Test that a room is deleted when a local PRO user and various others don't touch
-        a room for "inactive_room_scan.grace_period" amount of time
+        a room for "state_only_room_purge_options.grace_period" amount of time
         """
         # Set up some initial expectations for the test instance to assert at the end of
         # the test. Basically, if the room should be deleted then the list should have
@@ -1397,7 +1397,7 @@ class InactiveRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         transferred.
 
         Notable reminder: The FakeRoom does not currently contain the infrastructure to
-        send or receives messages, so this angle can not be tested. Therefore all given
+        send or receives messages, so this angle can not be tested. Therefore, all given
         test scenarios will purge the room(as they only contain state)
         """
         # Set up some initial expectations for the test instance to assert at the end of
