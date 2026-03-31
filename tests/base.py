@@ -216,7 +216,8 @@ class FakeInviteResponse:
 class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     server_name_for_this_server = SERVER_NAME_FROM_LIST
     OTHER_SERVER_NAME = INSURANCE_DOMAIN_IN_LIST
-    ROOM_VERSION = "10"
+    DEFAULT_ROOM_VERSION = "10"
+    ALLOWED_ROOM_VERSIONS = ["9", "10"]
     TIM_VERSION = TimVersion.V1_1
 
     @classmethod
@@ -298,6 +299,10 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
+        assert (
+            self.DEFAULT_ROOM_VERSION in KNOWN_ROOM_VERSIONS
+        ), f"Requested default room version unknown: {self.DEFAULT_ROOM_VERSION}"
+        conf["default_room_version"] = self.DEFAULT_ROOM_VERSION
         if "modules" not in conf:
             conf["modules"] = [
                 {
@@ -305,6 +310,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                     "config": {
                         "tim-type": "pro",
                         "tim_version": self.TIM_VERSION.value,
+                        "allowed_room_versions": self.ALLOWED_ROOM_VERSIONS,
                         "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
                         "federation_localization_url": "http://dummy.test/localization",
                         "federation_list_client_cert": "tests/certs/client.pem",
@@ -330,13 +336,15 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             self.inv_checker.permissions_handler.update_permissions(owning_user, perms)
         )
 
-    def _make_join(self, user_id: str, room_id: str) -> FakeChannel:
+    def _make_join(
+        self, user_id: str, room_id: str, room_version_str: str | None = None
+    ) -> FakeChannel:
         """Generate the make_join template"""
         users_domain = UserID.from_string(user_id).domain
         return self.make_signed_federation_request(
             "GET",
             f"/_matrix/federation/v1/make_join/{room_id}/{user_id}"
-            f"?ver={self.ROOM_VERSION}",
+            f"?ver={room_version_str or self.DEFAULT_ROOM_VERSION}",
             from_server=users_domain,
         )
 
@@ -346,6 +354,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         room_id: str,
         make_join_expected_code: int = HTTPStatus.OK,
         send_join_expected_code: int = HTTPStatus.OK,
+        room_version_str: str | None = None,
     ) -> None:
         """
         Join a remote user to a local server. Should be a complete make_join/send_join
@@ -368,7 +377,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         joining_users_domain = UserID.from_string(joining_user).domain
         self.add_hashes_and_signatures_from_other_server(
             join_event_dict,
-            KNOWN_ROOM_VERSIONS[self.ROOM_VERSION],
+            KNOWN_ROOM_VERSIONS[room_version_str or self.DEFAULT_ROOM_VERSION],
             joining_users_domain,
         )
         channel = self.make_signed_federation_request(
