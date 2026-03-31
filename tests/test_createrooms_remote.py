@@ -41,7 +41,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These PRO server tests are for room creation process, to demonstrate that rooms can
     be created when inviting during it's processing.
-    NOTE: Event though the server is designated as "block all" the outgoing invites are
+    NOTE: Even though the server is designated as "block all" the outgoing invites are
     allowed as invites are only checked by the receiving user. This means the room will
     be created, but empty of the other user. Public rooms with invites to a remote user
     will still fail as expected
