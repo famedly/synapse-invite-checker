@@ -19,7 +19,7 @@ from synapse.server import HomeServer
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
-from tests.base import FederatingModuleApiTestCase, construct_extra_content
+from tests.base import FederatingModuleApiTestCase
 from tests.server import make_request
 
 
@@ -37,31 +37,6 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
 
         self.admin_b = self.register_user("b", "password", admin=True)
         self.access_token_b = self.login("b", "password")
-
-    def user_create_room(
-        self,
-        is_public: bool = False,
-        room_ver: str | None = None,
-        expect_code: int = HTTPStatus.OK,
-    ) -> str | None:
-        """
-        Helper to send an api request with a full set of required additional room state
-        to the room creation matrix endpoint. Returns a room_id if successful.
-
-        This differs from the create_local_room() helper, as it allows to designate
-        the room version and the expected response code. It also will subvert the
-        invitee_list, as it is not useful when determining if the room would be created.
-        """
-        # Hide the assertion from create_room_as() when the error code is unexpected. It
-        # makes errors for the tests less clear when all we get is the http response
-        return self.helper.create_room_as(
-            self.user_a,
-            is_public=is_public,
-            room_version=room_ver,
-            tok=self.access_token_a,
-            expect_code=expect_code,
-            extra_content=construct_extra_content(self.user_a, []),
-        )
 
     def upgrade_room_to_version(
         self,
@@ -99,34 +74,39 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         Test that most generic ways of not doing a room version string, and a room
         version that is outside of what is wanted, fail
         """
-        self.user_create_room(
+        self.create_local_room(
+            self.user_a,
             is_public=is_public,
-            room_ver="8",
-            expect_code=HTTPStatus.BAD_REQUEST,
+            room_version="8",
+            expected_code=HTTPStatus.BAD_REQUEST,
         )
 
-        self.user_create_room(
+        self.create_local_room(
+            self.user_a,
             is_public=is_public,
-            room_ver=8,  # type: ignore[arg-type]
-            expect_code=HTTPStatus.BAD_REQUEST,
+            room_version=8,  # type: ignore[arg-type]
+            expected_code=HTTPStatus.BAD_REQUEST,
         )
 
-        self.user_create_room(
+        self.create_local_room(
+            self.user_a,
             is_public=is_public,
-            room_ver="11",
-            expect_code=HTTPStatus.BAD_REQUEST,
+            room_version="11",
+            expected_code=HTTPStatus.BAD_REQUEST,
         )
 
-        self.user_create_room(
+        self.create_local_room(
+            self.user_a,
             is_public=is_public,
-            room_ver=11,  # type: ignore[arg-type]
-            expect_code=HTTPStatus.BAD_REQUEST,
+            room_version=11,  # type: ignore[arg-type]
+            expected_code=HTTPStatus.BAD_REQUEST,
         )
 
-        self.user_create_room(
+        self.create_local_room(
+            self.user_a,
             is_public=is_public,
-            room_ver="bad_version",
-            expect_code=HTTPStatus.BAD_REQUEST,
+            room_version="bad_version",
+            expected_code=HTTPStatus.BAD_REQUEST,
         )
 
     @parameterized.expand([("public", True), ("private", False)])
@@ -134,15 +114,17 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         """
         Tests that a room version that is allowed succeeds
         """
-        self.user_create_room(
+        self.create_local_room(
+            self.user_a,
             is_public=is_public,
-            room_ver="9",
-            expect_code=HTTPStatus.OK,
+            room_version="9",
+            expected_code=HTTPStatus.OK,
         )
-        self.user_create_room(
+        self.create_local_room(
+            self.user_a,
             is_public=is_public,
-            room_ver="10",
-            expect_code=HTTPStatus.OK,
+            room_version="10",
+            expected_code=HTTPStatus.OK,
         )
 
     @parameterized.expand([("public", True), ("private", False)])
@@ -151,38 +133,41 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         Test room upgrades fail outside of defaults
         """
         # 9 -> 9 works
-        room_id = self.user_create_room(is_public=is_public, room_ver="9")
+        room_id = self.create_local_room(
+            self.user_a, is_public=is_public, room_version="9"
+        )
         assert room_id
         room_id = self.upgrade_room_to_version(room_id, "9", self.access_token_a)
         assert room_id
 
         # 10 -> 10 works
-        room_id = self.user_create_room(is_public=is_public, room_ver="10")
+        room_id = self.create_local_room(
+            self.user_a, is_public=is_public, room_version="10"
+        )
         assert room_id
         room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)
         assert room_id
 
         # 9 -> 10 works
-        room_id = self.user_create_room(is_public=is_public, room_ver="9")
+        room_id = self.create_local_room(
+            self.user_a, is_public=is_public, room_version="9"
+        )
         assert room_id
         room_id = self.upgrade_room_to_version(room_id, "10", self.access_token_a)
         assert room_id
 
         # 9 -> 8 doesn't work
-        room_id = self.user_create_room(is_public=is_public, room_ver="9")
+        room_id = self.create_local_room(
+            self.user_a, is_public=is_public, room_version="9"
+        )
         assert room_id
 
         room_id = self.upgrade_room_to_version(room_id, "8", self.access_token_a)
         assert room_id is None
 
         # 9 -> 8 requires an admin
-        room_id = self.helper.create_room_as(
-            self.admin_b,
-            is_public=is_public,
-            room_version="9",
-            tok=self.access_token_b,
-            expect_code=200,
-            extra_content=construct_extra_content(self.admin_b, []),
+        room_id = self.create_local_room(
+            self.admin_b, is_public=is_public, room_version="9"
         )
         assert room_id
 
