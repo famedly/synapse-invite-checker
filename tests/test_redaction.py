@@ -15,6 +15,7 @@
 import logging
 from http import HTTPStatus
 
+from parameterized import parameterized_class
 from synapse.server import HomeServer
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
@@ -46,12 +47,22 @@ def _redact_event_helper(
     return channel.json_body
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class RedactionTimeLimitTestCase(FederatingModuleApiTestCase):
     """
     Test that redactions of events older than 24 hours are rejected in TIM version 1.2.
     """
 
     TIM_VERSION = TimVersion.V1_2
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -129,12 +140,22 @@ class RedactionTimeLimitTestCase(FederatingModuleApiTestCase):
         )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class RedactionTimeLimitV1_1TestCase(FederatingModuleApiTestCase):
     """
     Test that redactions are NOT restricted by time in TIM version 1.1.
     """
 
     TIM_VERSION = TimVersion.V1_1
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)

@@ -15,7 +15,7 @@
 from http import HTTPStatus
 from typing import Any
 
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 from synapse.server import HomeServer
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
@@ -25,11 +25,22 @@ from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class LocalProModeInviteTest(FederatingModuleApiTestCase):
     """
     These PRO server tests are for invites that happen after the room creation process
     has completed
     """
+
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -355,12 +366,22 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
         )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     """
     These EPA server tests are for invites that happen after the room creation process
     has completed
     """
 
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
@@ -622,10 +643,21 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
         )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
     """
     This tests to make sure the DM check can be disabled
     """
+
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)

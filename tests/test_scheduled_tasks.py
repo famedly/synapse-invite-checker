@@ -16,7 +16,7 @@
 from typing import Any
 
 import pytest
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 from synapse.api.constants import EventTypes, JoinRules, Membership
 from synapse.api.errors import AuthError
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
@@ -37,6 +37,15 @@ from tests.test_utils import (
 )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     """
     Test that insured only room scans are done, and required room kicks are done
@@ -51,6 +60,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
     # The default "fake" remote server name that has its server signing keys auto-injected
     OTHER_SERVER_NAME = DOMAIN_IN_LIST
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -464,6 +474,15 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
             self.create_and_send_event(room_id, self.user_d_id)
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
     """
     Test that insured only room scans are done, and required room kicks are done. Unlike
@@ -477,6 +496,7 @@ class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
     # The default "fake" remote server name that has its server signing keys auto-injected
     OTHER_SERVER_NAME = DOMAIN_IN_LIST
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()

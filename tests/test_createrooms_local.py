@@ -15,7 +15,7 @@
 from http import HTTPStatus
 from typing import Any
 
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 from synapse.api.constants import EventTypes, HistoryVisibility, JoinRules
 from synapse.server import HomeServer
 from synapse.util.clock import Clock
@@ -25,11 +25,22 @@ from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These PRO server tests are for room creation process, including invite checking for
     local users and special cases that should be allowed or prevented.
     """
+
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -271,12 +282,22 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         ), "Room with de.gematik.tim.roomtype.default.v2 type should not be created"
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These EPA server tests are for room creation process, including invite checking for
     local users and special cases that should be allowed or prevented.
     """
 
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):

@@ -14,7 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from typing import Any
 
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 from synapse.server import HomeServer
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
@@ -28,6 +28,15 @@ from tests.test_utils import (
 )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These PRO server tests are for room creation process, to demonstrate that rooms can
@@ -47,6 +56,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
     # SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -159,6 +169,15 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
             ), f"User-HBA {label} room should not be created(after permission) with invites to: {invitee_list}"
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These EPA server tests are for room creation process, including invite checking for
@@ -175,6 +194,7 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
