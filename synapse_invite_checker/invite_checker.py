@@ -408,10 +408,19 @@ class InviteChecker:
             msg = "`insured_only_room_scan` should be configured as a dictionary"
             raise ConfigError(msg)
 
-        # Only default enable this room scan if in EPA mode
+        # Defaults to true if in ePA mode and TIM version is 1.1
+        # Defaults to false if TIM version is 1.2 or higher
         enable_insured_room_scan = insured_room_scan_section.get(
-            "enabled", _config.tim_type == TimType.EPA
+            "enabled",
+            (
+                _config.tim_type == TimType.EPA
+                if _config.tim_version < TimVersion.V1_2
+                else False
+            ),
         )
+        if not isinstance(enable_insured_room_scan, bool):
+            msg = "`insured_only_room_scan.enabled` must be a boolean"
+            raise ConfigError(msg)
         # But also prevent it running in PRO mode completely
         enable_insured_room_scan = (
             False if _config.tim_type == TimType.PRO else enable_insured_room_scan

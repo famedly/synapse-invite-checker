@@ -56,7 +56,7 @@ modules:
           - "10"
         room_scan_run_interval: see 'Duration Parsing' below, # How often to scan for rooms that are eligible for deletion. Defaults to "1h". Setting to "0" completely disables all room scanning
         insured_only_room_scan:
-          enabled: true or false  # optional switch to disable the insured-only room scan from running.  The scan is enabled by default, but only runs in EPA mode, otherwise this option is ignored and the scan is disabled.
+          enabled: true or false  # optional switch to disable the insured-only room scan from running. The scan is enabled by default, but only runs in EPA mode, otherwise this option is ignored and the scan is disabled.
           grace_period: see 'Duration Parsing' below, # Length of time a room with only EPA members is allowed to exist before deletion. Ignored if `enabled` is false. Defaults to "1w"
           invites_grace_period: see 'Duration Parsing' below, # Optional, a separate grace period just for invites, after which an invite will be considered stale and ignored. Otherwise invited "Pro" users are considered joined and will prevent purging the room. Ignored if `enabled` is false. Defaults to "0", which will never consider an invite stale.
         inactive_room_scan:  # This section only applies to TIM version 1.1. If using a different TIM version, these settings will be ignored

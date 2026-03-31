@@ -47,33 +47,81 @@ class ConfigParsingTestCase(TestCase):
         test_config.update({"tim-type": "ePA"})
         assert InviteChecker.parse_config(test_config).tim_type == TimType.EPA
 
-    def test_tim_type_defaults_to_pro_mode(self) -> None:
-        test_config = self.config.copy()
-        test_config.pop("tim-type")
-        assert InviteChecker.parse_config(test_config).tim_type == TimType.PRO
-
     def test_incorrect_tim_type_raises(self) -> None:
         test_config = self.config.copy()
         test_config.update({"tim-type": "fake"})
         with pytest.raises(ConfigError):
             InviteChecker.parse_config(test_config)
 
-    def test_tim_version_defaults_to_1_1(self) -> None:
+    def test_tim_v1_1_pro_room_scan_defaults(self) -> None:
+        """
+        When no TIM version is set, it defaults to 1.1, PRO mode. Verify that the
+        room scan options reflect 1.1 PRO defaults: inactive scan enabled, state-only
+        purge and insured scan disabled.
+        """
         test_config = self.config.copy()
         config = InviteChecker.parse_config(test_config)
+        assert config.tim_type == TimType.PRO
         assert config.tim_version == TimVersion.V1_1
+        assert config.inactive_room_scan_options.enabled
+        assert not config.state_only_room_purge_options.enabled
+        assert not config.insured_room_scan_options.enabled
 
-    def test_tim_version_can_be_set_to_1_1(self) -> None:
+    def test_tim_v1_1_epa_room_scan_defaults(self) -> None:
+        """
+        When TIM version is 1.1 in ePA mode, verify the room scan defaults: inactive
+        scan enabled, state-only purge disabled, and insured scan enabled.
+        """
+        test_config = self.config.copy()
+        test_config.update({"tim-type": "epa"})
+        config = InviteChecker.parse_config(test_config)
+        assert config.tim_type == TimType.EPA
+        assert config.tim_version == TimVersion.V1_1
+        assert config.inactive_room_scan_options.enabled
+        assert not config.state_only_room_purge_options.enabled
+        assert config.insured_room_scan_options.enabled
+
+    def test_tim_v1_1_explicit_room_scan_defaults(self) -> None:
+        """
+        When TIM version is explicitly set to 1.1, verify the same room scan defaults
+        as the implicit 1.1 case: inactive scan enabled, state-only purge and insured
+        scan disabled (the latter also because the base config is PRO mode).
+        """
         test_config = self.config.copy()
         test_config.update({"tim_version": "1.1"})
         config = InviteChecker.parse_config(test_config)
         assert config.tim_version == TimVersion.V1_1
+        assert config.inactive_room_scan_options.enabled
+        assert not config.state_only_room_purge_options.enabled
+        assert not config.insured_room_scan_options.enabled  # PRO mode
 
-    def test_tim_version_can_be_set_to_1_2(self) -> None:
+    def test_tim_v1_2_epa_room_scan_defaults(self) -> None:
+        """
+        When TIM version is set to 1.2 in ePA mode, verify the room scan defaults flip
+        accordingly: inactive scan disabled, state-only purge enabled, and the insured
+        scan disabled by default (can be explicitly enabled).
+        """
         test_config = self.config.copy()
-        test_config.update({"tim_version": "1.2"})
+        test_config.update({"tim_version": "1.2", "tim-type": "epa"})
         config = InviteChecker.parse_config(test_config)
         assert config.tim_version == TimVersion.V1_2
+        assert not config.inactive_room_scan_options.enabled
+        assert config.state_only_room_purge_options.enabled
+        assert not config.insured_room_scan_options.enabled
+
+    def test_tim_v1_2_pro_room_scan_defaults(self) -> None:
+        """
+        When TIM version is set to 1.2 in PRO mode, verify the room scan defaults flip
+        accordingly: inactive scan disabled, state-only purge enabled, and the insured
+        scan disabled.
+        """
+        test_config = self.config.copy()
+        test_config.update({"tim_version": "1.2", "tim-type": "pro"})
+        config = InviteChecker.parse_config(test_config)
+        assert config.tim_version == TimVersion.V1_2
+        assert not config.inactive_room_scan_options.enabled
+        assert config.state_only_room_purge_options.enabled
+        assert not config.insured_room_scan_options.enabled
 
     def test_incorrect_tim_version_raises(self) -> None:
         test_config = self.config.copy()
