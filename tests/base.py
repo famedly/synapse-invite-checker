@@ -635,8 +635,8 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     def create_local_room(
         self,
         creating_user: str,
-        invitee_list: list[str],
         is_public: bool,
+        invitee_list: list[str] | None = None,
         override_content: dict[str, Any] | None = None,
         room_version: str | None = None,
         expected_code: int = HTTPStatus.OK,
@@ -665,7 +665,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
 
         # First create the extra content, then let override_content replace/merge items.
         # extra_content will be passed to the room creation helper function
-        extra_content = construct_extra_content(creating_user, invitee_list)
+        extra_content = construct_extra_content(creating_user, invitee_list or [])
         if override_content:
             for key, value in override_content.items():
                 # initial_state is special, it's a list so we don't override it as much

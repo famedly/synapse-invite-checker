@@ -83,7 +83,7 @@ class RedactionTimeLimitTestCase(FederatingModuleApiTestCase):
         )
 
     def test_redaction_within_24h_allowed(self) -> None:
-        room_id = self.create_local_room(self.user_a, [], False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None
 
         body = self.helper.send(
@@ -100,7 +100,7 @@ class RedactionTimeLimitTestCase(FederatingModuleApiTestCase):
         )
 
     def test_redaction_after_24h_rejected(self) -> None:
-        room_id = self.create_local_room(self.user_a, [], False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None
 
         body = self.helper.send(
@@ -120,7 +120,7 @@ class RedactionTimeLimitTestCase(FederatingModuleApiTestCase):
         )
 
     def test_redaction_after_24h_allowed_for_admin(self) -> None:
-        room_id = self.create_local_room(self.admin_user, [], False)
+        room_id = self.create_local_room(self.admin_user, is_public=False)
         assert room_id is not None
 
         body = self.helper.send(
@@ -174,7 +174,7 @@ class RedactionTimeLimitV1_1TestCase(FederatingModuleApiTestCase):
         )
 
     def test_redaction_after_24h_allowed_in_v1_1(self) -> None:
-        room_id = self.create_local_room(self.user_a, [], False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None
 
         body = self.helper.send(

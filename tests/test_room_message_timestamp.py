@@ -58,7 +58,7 @@ class MessageTimestampTestCase(FederatingModuleApiTestCase):
 
             assert event_ts == ts_found
 
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id, "Room created"
 
         self.helper.invite(room_id, targ=self.user_b, tok=self.access_token_a)

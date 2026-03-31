@@ -88,8 +88,8 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         for remote_user in (self.remote_pro_user, self.remote_epa_user):
             room_id = self.create_local_room(
                 self.pro_user_a,
-                [remote_user],
                 is_public=is_public,
+                invitee_list=[remote_user],
             )
             assert (
                 room_id is not None
@@ -105,8 +105,8 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         for local_user in (self.pro_user_a, self.pro_user_b):
             room_id = self.create_local_room(
                 local_user,
-                [self.remote_non_fed_list_user],
                 is_public=is_public,
+                invitee_list=[self.remote_non_fed_list_user],
             )
             assert (
                 room_id is None
@@ -134,8 +134,8 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         ]:
             room_id = self.create_local_room(
                 self.pro_user_a,
-                invitee_list,
                 is_public=is_public,
+                invitee_list=invitee_list,
             )
             assert (
                 room_id is None
@@ -161,8 +161,8 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         ]:
             room_id = self.create_local_room(
                 self.pro_user_a,
-                invitee_list,
                 is_public=is_public,
+                invitee_list=invitee_list,
             )
             assert (
                 room_id is None
@@ -223,8 +223,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_pro_user],
             is_public=is_public,
+            invitee_list=[self.remote_pro_user],
         )
         assert (
             (room_id is None) if is_public else room_id
@@ -238,8 +238,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_epa_user],
             is_public=is_public,
+            invitee_list=[self.remote_epa_user],
         )
         assert (
             room_id is None
@@ -251,8 +251,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
 
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_epa_user],
             is_public=is_public,
+            invitee_list=[self.remote_epa_user],
         )
         assert (
             room_id is None
@@ -267,8 +267,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_non_fed_list_user],
             is_public=is_public,
+            invitee_list=[self.remote_non_fed_list_user],
         )
         assert (
             room_id is None
@@ -280,8 +280,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
 
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_non_fed_list_user],
             is_public=is_public,
+            invitee_list=[self.remote_non_fed_list_user],
         )
         assert (
             room_id is None
@@ -303,8 +303,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         ]:
             room_id = self.create_local_room(
                 self.epa_user_e,
-                invitee_list,
                 is_public=is_public,
+                invitee_list=invitee_list,
             )
             assert (
                 room_id is None
@@ -327,8 +327,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         ]:
             room_id = self.create_local_room(
                 self.epa_user_e,
-                invitee_list,
                 is_public=is_public,
+                invitee_list=invitee_list,
             )
             assert (
                 room_id is None

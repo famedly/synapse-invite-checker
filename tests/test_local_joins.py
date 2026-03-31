@@ -69,7 +69,7 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_public_with_invites(self) -> None:
         """Test joining a local public room with invites is allowed"""
-        room_id = self.create_local_room(self.user_a, [], is_public=True)
+        room_id = self.create_local_room(self.user_a, is_public=True)
         assert room_id is not None, "Room should have been created"
 
         self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)
@@ -77,14 +77,14 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_public_no_invites(self) -> None:
         """Test joining a local public room with no invites is allowed"""
-        room_id = self.create_local_room(self.user_a, [], is_public=True)
+        room_id = self.create_local_room(self.user_a, is_public=True)
         assert room_id is not None, "Room should have been created"
 
         self.helper.join(room_id, self.user_b, tok=self.access_token_b)
 
     def test_rejoining_public_no_invites(self) -> None:
         """Test re-joining a local public room with no invites is allowed"""
-        room_id = self.create_local_room(self.user_a, [], is_public=True)
+        room_id = self.create_local_room(self.user_a, is_public=True)
         assert room_id is not None, "Room should have been created"
 
         self.helper.join(room_id, self.user_b, tok=self.access_token_b)
@@ -95,7 +95,7 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_private_no_invites(self) -> None:
         """Test joining a local private room with no invites is denied"""
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None, "Room should have been created"
 
         self.helper.join(
@@ -107,7 +107,7 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_private_with_invites(self) -> None:
         """Test joining a local private room with invites is allowed"""
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None, "Room should have been created"
 
         self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)
@@ -115,7 +115,7 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
 
     def test_rejoining_private_with_invites(self) -> None:
         """Test re-joining a local private room with initial invites forbidden"""
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None, "Room should have been created"
 
         self.helper.invite(room_id, self.user_a, self.user_b, tok=self.access_token_a)
@@ -175,7 +175,7 @@ class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
 
         See comments below for thoughts on why
         """
-        room_id = self.create_local_room(self.user_a, [], is_public=True)
+        room_id = self.create_local_room(self.user_a, is_public=True)
         # Public rooms don't exist, so it should be "None" here. Rather hard to invite
         # and join a room without a room ID
         assert room_id is None, "Room should not have been created"
@@ -196,7 +196,7 @@ class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_private_no_invites(self) -> None:
         """Test joining a local private room with no invites is denied"""
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None, "Room should have been created"
 
         self.helper.join(
@@ -208,7 +208,7 @@ class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
 
     def test_joining_private_with_invites(self) -> None:
         """Test joining a local private room with invites is denied"""
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None, "Room should have been created"
 
         self.helper.invite(
