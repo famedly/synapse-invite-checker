@@ -17,6 +17,7 @@ import json
 import logging
 from collections.abc import Iterable
 from http import HTTPStatus
+from random import random
 from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -424,6 +425,17 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     def create_remote_room(
         self, creator_id: str, room_version: str, is_public: bool
     ) -> str:
+        # Creating a room before version "12" means the room gets a randomly generated
+        # room id. Starting with "12" the room is based on the create event itself. To
+        # avoid arbitrary errors when doing tests that repeatedly create rooms
+        # rapid-fire, let's introduce a small time advance so that the timestamp on the
+        # room is just different enough to have a different hash than a previously
+        # created room. This should help stop errors like
+        #  "store_room with room_id=!dE_jLFdFgPIHXZuc1wZ3qVANUu4R0y8zimGAzqmbqOg failed:
+        #   UNIQUE constraint failed: rooms.room_id".
+        current_time_per_reactor = self.reactor.rightNow
+        self.reactor.advance(current_time_per_reactor + (random() * 2))
+
         domain = UserID.from_string(creator_id).domain
         assert (
             domain in self.map_server_name_to_signing_key
@@ -626,6 +638,8 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         invitee_list: list[str],
         is_public: bool,
         override_content: dict[str, Any] | None = None,
+        room_version: str | None = None,
+        expected_code: int = HTTPStatus.OK,
     ) -> str | None:
         """
         Custom helper to send an api request with a full set of required additional room
@@ -638,6 +652,16 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         Returns a room_id if successful or None if not, allowing tests to give the
             assertion errors they want instead of the http response which is not useful
         """
+        # Creating a room before version "12" means the room gets a randomly generated
+        # room id. Starting with "12" the room is based on the create event itself. To
+        # avoid arbitrary errors when doing tests that repeatedly create rooms
+        # rapid-fire, let's introduce a small time advance so that the timestamp on the
+        # room is just different enough to have a different hash than a previously
+        # created room. This should help stop errors like
+        #  "store_room with room_id=!dE_jLFdFgPIHXZuc1wZ3qVANUu4R0y8zimGAzqmbqOg failed:
+        #   UNIQUE constraint failed: rooms.room_id".
+        current_time_per_reactor = self.reactor.rightNow
+        self.reactor.advance(current_time_per_reactor + (random() * 2))
 
         # First create the extra content, then let override_content replace/merge items.
         # extra_content will be passed to the room creation helper function
@@ -667,8 +691,10 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             return self.helper.create_room_as(
                 creating_user,
                 is_public=is_public,
+                room_version=room_version or self.DEFAULT_ROOM_VERSION,
                 tok=self.map_user_id_to_token[creating_user],
                 extra_content=extra_content,
+                expect_code=expected_code,
             )
         except AssertionError as e:
             logger.warning(
