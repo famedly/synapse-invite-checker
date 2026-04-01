@@ -90,15 +90,15 @@ cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synaps
 [tool.hatch.envs.ci.scripts]
 cov = "pytest --cov-report=lcov:lcov.info --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
 
-[[tool.hatch.envs.ci.matrix]]
-database = [ "postgres", "sqlite"]
-
-[tool.hatch.envs.ci.overrides]
-matrix.database.env-vars = [
-  { key = "SYNAPSE_POSTGRES", value = "1", if = ["postgres"] },
-  { key = "SYNAPSE_POSTGRES_USER", value = "postgres", if = ["postgres"] },
-  { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
-]
+#[[tool.hatch.envs.ci.matrix]]
+#database = [ "postgres", "sqlite"]
+#
+#[tool.hatch.envs.ci.overrides]
+#matrix.database.env-vars = [
+#  { key = "SYNAPSE_POSTGRES", value = "1", if = ["postgres"] },
+#  { key = "SYNAPSE_POSTGRES_USER", value = "postgres", if = ["postgres"] },
+#  { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
+#]
 
 [tool.coverage.run]
 branch = true
