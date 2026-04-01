@@ -81,7 +81,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test _with no invites_ behavior for public and private rooms when there is an
         incoming remote user
         """
-        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # public should not succeed
@@ -100,7 +100,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         incoming remote user
         """
         # Try with user "d", make a fresh room
-        room_id = self.create_local_room(self.user_d, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_d, is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # for a public room this should fail
@@ -129,7 +129,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test with no invites behavior for public and private rooms when there is an
         incoming remote user
         """
-        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # public should not succeed
@@ -147,7 +147,7 @@ class IncomingRemoteJoinTestCase(FederatingModuleApiTestCase):
         Test with invites behavior for public and private rooms when there is an
         incoming remote user
         """
-        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, is_public=is_public)
         assert room_id is not None, "Room should have been created"
 
         # Private rooms, this should be allowed without permission
@@ -217,7 +217,7 @@ class DisableOverridePublicRoomFederationTestCase(FederatingModuleApiTestCase):
         Test that the local server can successfully allow joining a remote room when
         there are no invites
         """
-        room_id = self.create_local_room(self.user_a, [], is_public=True)
+        room_id = self.create_local_room(self.user_a, is_public=True)
         assert room_id is not None, "Room should have been created"
 
         # make_join should succeed, as the override was blocked
