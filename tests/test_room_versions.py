@@ -127,12 +127,13 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         version that is outside what is allowed, fail
         """
         for room_version in self.ROOM_VERSIONS_THAT_SHOULD_FAIL:
-            self.create_local_room(
+            room_id = self.create_local_room(
                 self.user_a,
                 is_public=is_public,
                 room_version=room_version,
                 expected_code=HTTPStatus.BAD_REQUEST,
             )
+            assert room_id is None
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_succeeds(self, _label: str, is_public: bool) -> None:
@@ -140,11 +141,12 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
         Tests that a room version that is allowed succeeds. This will use the default
         room version since they are all itemized per the parameterize_class
         """
-        self.create_local_room(
+        room_id = self.create_local_room(
             self.user_a,
             is_public=is_public,
             expected_code=HTTPStatus.OK,
         )
+        assert room_id is not None
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_room_upgrades_and_downgrades(self, _label: str, is_public: bool) -> None:
@@ -161,21 +163,21 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
             room_id = self.create_local_room(
                 self.user_a, is_public=is_public, room_version=start_room_version
             )
-            assert room_id
+            assert room_id is not None
             room_id = self.upgrade_room_to_version(
                 room_id, start_room_version, self.access_token_a
             )
-            assert room_id
+            assert room_id is not None
 
             # Then test that a real version change works
             room_id = self.create_local_room(
                 self.user_a, is_public=is_public, room_version=start_room_version
             )
-            assert room_id
+            assert room_id is not None
             room_id = self.upgrade_room_to_version(
                 room_id, finish_room_version, self.access_token_a
             )
-            assert room_id
+            assert room_id is not None
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_room_version_fails_outside_of_allowed_limits(
@@ -189,7 +191,7 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
             # First test that the "downgrade" fails with normal user
             # This is a DEFAULT_ROOM_VERSION room
             room_id = self.create_local_room(self.user_a, is_public=is_public)
-            assert room_id
+            assert room_id is not None
 
             room_id = self.upgrade_room_to_version(
                 room_id, change_room_version_to, self.access_token_a
@@ -199,9 +201,9 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
 
             # Then make sure it works with an admin. This is a DEFAULT_ROOM_VERSION room
             room_id = self.create_local_room(self.admin_b, is_public=is_public)
-            assert room_id
+            assert room_id is not None
 
             room_id = self.upgrade_room_to_version(
                 room_id, change_room_version_to, self.access_token_b
             )
-            assert room_id
+            assert room_id is not None

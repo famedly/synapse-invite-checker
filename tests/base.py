@@ -433,8 +433,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         # created room. This should help stop errors like
         #  "store_room with room_id=!dE_jLFdFgPIHXZuc1wZ3qVANUu4R0y8zimGAzqmbqOg failed:
         #   UNIQUE constraint failed: rooms.room_id".
-        current_time_per_reactor = self.reactor.rightNow
-        self.reactor.advance(current_time_per_reactor + (random() * 2))
+        self.reactor.advance(random() * 2)
 
         domain = UserID.from_string(creator_id).domain
         assert (
@@ -660,8 +659,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         # created room. This should help stop errors like
         #  "store_room with room_id=!dE_jLFdFgPIHXZuc1wZ3qVANUu4R0y8zimGAzqmbqOg failed:
         #   UNIQUE constraint failed: rooms.room_id".
-        current_time_per_reactor = self.reactor.rightNow
-        self.reactor.advance(current_time_per_reactor + (random() * 2))
+        self.reactor.advance(random() * 2)
 
         # First create the extra content, then let override_content replace/merge items.
         # extra_content will be passed to the room creation helper function
