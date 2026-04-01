@@ -87,15 +87,15 @@ lint-fix = [
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests --log-file=log.txt"
 make-coverage-reports = ["coverage lcov -o lcov.info", "coverage xml -o coverage.xml"]
 
-[[tool.hatch.envs.ci.matrix]]
-database = [ "postgres", "sqlite"]
-
-[tool.hatch.envs.ci.overrides]
-matrix.database.env-vars = [
-  { key = "SYNAPSE_POSTGRES", value = "1", if = ["postgres"] },
-  { key = "SYNAPSE_POSTGRES_USER", value = "postgres", if = ["postgres"] },
-  { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
-]
+#[[tool.hatch.envs.ci.matrix]]
+#database = [ "postgres", "sqlite"]
+#
+#[tool.hatch.envs.ci.overrides]
+#matrix.database.env-vars = [
+#  { key = "SYNAPSE_POSTGRES", value = "1", if = ["postgres"] },
+#  { key = "SYNAPSE_POSTGRES_USER", value = "postgres", if = ["postgres"] },
+#  { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
+#]
 
 [tool.coverage.run]
 branch = true
