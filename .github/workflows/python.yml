@@ -7,6 +7,7 @@ on:
   pull_request:
     branches: ["*"]
   merge_group:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,6 +25,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
+        database: ["sqlite", "postgres"]
     steps:
       - uses: actions/checkout@v4
 
@@ -66,6 +68,13 @@ jobs:
         env:
           # to ensure we run ci:cov instead of default:cov, where the former generates more coverage files
           HATCH_ENV: "ci"
+          # These next two options can always be populated, as unless the third below
+          # is also enabled they are just ignored.
+          SYNAPSE_POSTGRES_USER: "postgres"
+          SYNAPSE_POSTGRES_PASSWORD: "postgres"
+          # Although the options are 'postgres' and 'sqlite', we only populate this when
+          # it is 'postgres'
+          SYNAPSE_POSTGRES: ${{ matrix.database == 'postgres' || ''}}
 
       - name: Codecov - Upload coverage
         uses: codecov/codecov-action@v4

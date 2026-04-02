@@ -63,7 +63,7 @@ class ReactionLimitationTestCase(FederatingModuleApiTestCase):
         return conf
 
     def test_single_cluster_reaction(self) -> None:
-        room_id = self.create_local_room(self.user_a, [], False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None
         message_1_body = self.helper.send(
             room_id, "message 1", tok=self.map_user_id_to_token[self.user_a]
@@ -164,7 +164,7 @@ class ReactionLimitationTestCase(FederatingModuleApiTestCase):
         )
 
     def test_empty_reaction(self) -> None:
-        room_id = self.create_local_room(self.user_a, [], False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None
         message_1_body = self.helper.send(
             room_id, "message 1", tok=self.map_user_id_to_token[self.user_a]
@@ -185,7 +185,7 @@ class ReactionLimitationTestCase(FederatingModuleApiTestCase):
         )
 
     def test_multiple_cluster_reaction(self) -> None:
-        room_id = self.create_local_room(self.user_a, [], False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id is not None
         message_1_body = self.helper.send(
             room_id, "message 1", tok=self.map_user_id_to_token[self.user_a]

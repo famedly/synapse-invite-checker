@@ -16,7 +16,7 @@
 from typing import Any
 
 import pytest
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 from synapse.api.constants import EventTypes, JoinRules, Membership
 from synapse.api.errors import AuthError
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
@@ -37,6 +37,15 @@ from tests.test_utils import (
 )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     """
     Test that insured only room scans are done, and required room kicks are done
@@ -51,6 +60,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
     # The default "fake" remote server name that has its server signing keys auto-injected
     OTHER_SERVER_NAME = DOMAIN_IN_LIST
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -113,7 +123,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         rooms) and rooms with no invites at all.
         """
         # Make a room...
-        room_id = self.create_local_room(self.user_d, [], is_public=False)
+        room_id = self.create_local_room(self.user_d, is_public=False)
         assert room_id is not None, "Room should be created"
 
         # ...then (maybe) invite the doctor
@@ -264,7 +274,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         """
         # Make a room and invite the doctor
         room_id = self.create_local_room(
-            self.user_d, [self.remote_pro_user], is_public=False
+            self.user_d, is_public=False, invitee_list=[self.remote_pro_user]
         )
         assert room_id is not None
 
@@ -412,7 +422,7 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
         Test that a room is not detected as inactive if one of two doctors never show up
         """
         # Make a room and invite the doctor
-        room_id = self.create_local_room(self.user_d, [], is_public=False)
+        room_id = self.create_local_room(self.user_d, is_public=False)
         assert room_id is not None
 
         is_room_blocked = self.get_success_or_raise(self.store.is_room_blocked(room_id))
@@ -464,6 +474,15 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
             self.create_and_send_event(room_id, self.user_d_id)
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
     """
     Test that insured only room scans are done, and required room kicks are done. Unlike
@@ -477,6 +496,7 @@ class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
     # The default "fake" remote server name that has its server signing keys auto-injected
     OTHER_SERVER_NAME = DOMAIN_IN_LIST
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -518,7 +538,7 @@ class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
         """
         # Make a room and invite the doctor
         room_id = self.create_local_room(
-            self.user_d, [self.remote_pro_user], is_public=False
+            self.user_d, is_public=False, invitee_list=[self.remote_pro_user]
         )
         assert room_id is not None, "Room should be created"
 
@@ -753,7 +773,7 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
         a room for "inactive_room_scan.grace_period" amount of time
         """
         # Make a room and invite the other occupant(s)
-        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, is_public=is_public)
         assert room_id is not None, "Room should exist"
 
         for other_user in other_users:
@@ -1221,7 +1241,7 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         )
 
         # Make a room and invite the other occupant(s)
-        room_id = self.create_local_room(self.user_a, [], is_public=is_public)
+        room_id = self.create_local_room(self.user_a, is_public=is_public)
         assert room_id is not None, "Room should exist"
 
         for other_user in other_users:
