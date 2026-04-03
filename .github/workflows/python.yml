@@ -29,6 +29,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
+        id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
@@ -38,6 +39,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install hatch
+
+      - name: Check Hatch environment
+        run: hatch env show
 
       - name: Set up PostgreSQL 15
         # 1. Mount postgres data files onto a tmpfs in-memory filesystem to reduce overhead of docker's overlayfs layer.
@@ -70,6 +74,7 @@ jobs:
         env:
           # to ensure we run ci:cov instead of default:cov, where the former generates more coverage files
           HATCH_ENV: "ci"
+          HATCH_PYTHON: ${{ steps.setup-python.outputs.python-path }}
           # These next two options can always be populated, as unless the third below
           # is also enabled they are just ignored.
           SYNAPSE_POSTGRES_USER: "postgres"
