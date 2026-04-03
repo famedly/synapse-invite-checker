@@ -24,10 +24,12 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
+        database: ["sqlite", "postgres"]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
+        id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
@@ -62,10 +64,16 @@ jobs:
           args: check --target-version ${{ env.PYTHON_TARGET }}
 
       - name: Tests and coverage
-        run: hatch run cov
+        shell: bash
+        run: hatch test --python ${{ matrix.python-version }} -p -c
         env:
-          # to ensure we run ci:cov instead of default:cov, where the former generates more coverage files
-          HATCH_ENV: "ci"
+          # These two options can always be populated, as unless the third below
+          # is also enabled they are just ignored.
+          SYNAPSE_POSTGRES_USER: "postgres"
+          SYNAPSE_POSTGRES_PASSWORD: "postgres"
+          # Although the options are 'postgres' and 'sqlite', we only populate this when
+          # it is 'postgres'
+          SYNAPSE_POSTGRES: ${{ matrix.database == 'postgres' || ''}}
 
       - name: Codecov - Upload coverage
         uses: codecov/codecov-action@v4
