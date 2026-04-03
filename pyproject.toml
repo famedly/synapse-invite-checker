@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "synapse-invite-checker"
 description = 'Synapse module to handle TIM contact management and invite permissions'
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "AGPL-3.0-only"
 keywords = []
 authors = [
@@ -84,26 +84,23 @@ lint-fix = [
 ]
 
 [tool.hatch.envs.default.scripts]
-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
-
-# For CI use
-[tool.hatch.envs.ci.scripts]
-cov = "pytest --cov-report=lcov:lcov.info --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
-
-[[tool.hatch.envs.ci.matrix]]
-database = [ "postgres", "sqlite"]
-
-[tool.hatch.envs.ci.overrides]
-matrix.database.env-vars = [
-  { key = "SYNAPSE_POSTGRES", value = "1", if = ["postgres"] },
-  { key = "SYNAPSE_POSTGRES_USER", value = "postgres", if = ["postgres"] },
-  { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
+cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests --log-file=log.txt"
+make-coverage-reports = [
+  "coverage lcov -o lcov.info",
+  "coverage xml -o coverage.xml"
 ]
 
 [tool.coverage.run]
 branch = true
 parallel = true
-omit = ["tests/*"]
+# For some reason the coverage module is getting confused and thinks there is no data
+# collected even though there are files with data. Disable the warning to prevent CI
+# failures that are fake. If the situation changes, this is the first culprit
+disable_warnings = ["no-data-collected"]
+# Including a specific directory excludes coverage in other areas, like tests. Since
+# test infrastructure has poor coverage with its extra utilities imported from Synapse,
+# there seems little use in having coverage of it.
+include = ["synapse_invite_checker/*"]
 
 [tool.ruff]
 target-version = "py310"
@@ -143,3 +140,37 @@ files = ["synapse_invite_checker", "tests"]
 [tool.isort]
 profile = "black"
 src_paths = ["synapse_invite_checker", "tests"]
+
+[tool.hatch.envs.hatch-test]
+# These below are installed by default. This list is to help not reinstall something.
+# Updating hatch will change the version numbers, so ignored the pinned versions.
+#dependencies = [
+#  "coverage-enable-subprocess==1.0",
+#  "coverage[toml]~=7.11",
+#  "pytest~=9.0",
+#  "pytest-mock~=3.12",
+#  "pytest-randomly~=3.15",
+#  "pytest-rerunfailures~=14.0",
+#  "pytest-xdist[psutil]~=3.5",
+#]
+
+extra-dependencies = [
+  "black",
+  "pytest-cov",
+  "parameterized",
+  "psycopg2",
+  # we don't depend on synapse directly to prevent pip from pulling the wrong synapse,
+  # when we just want to install the module
+  "matrix-synapse @ git+https://github.com/famedly/synapse.git@master"
+]
+
+[tool.hatch.envs.hatch-test.scripts]
+# The HATCH_TEST_ARGS environment variable is how the `test` command's flags are
+# translated and internally populated without affecting the user's arguments. This is
+# also the way that "extra arguments" are passed.
+run = "pytest{env:HATCH_TEST_ARGS:} {args}"
+run-cov = "coverage run -m pytest{env:HATCH_TEST_ARGS:} {args}"
+cov-combine = "coverage combine"
+# -m should add the equivalent to the --cov-report=term-missing we used before to show
+# missing lines
+cov-report = "coverage report -m"
