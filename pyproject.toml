@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "synapse-invite-checker"
 description = 'Synapse module to handle TIM contact management and invite permissions'
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "AGPL-3.0-only"
 keywords = []
 authors = [
