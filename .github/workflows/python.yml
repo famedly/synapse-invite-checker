@@ -63,8 +63,9 @@ jobs:
           args: check --target-version ${{ env.PYTHON_TARGET }}
 
       - name: Tests and coverage
+        shell: bash
         run: |
-          hatch test -p -c
+          hatch test --python ${{ matrix.python-version }} -p -c
           hatch run make-coverage-reports
         env:
           # to ensure we run ci:cov instead of default:cov, where the former generates more coverage files
