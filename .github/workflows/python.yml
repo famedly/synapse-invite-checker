@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
+        id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
@@ -64,11 +65,10 @@ jobs:
           args: check --target-version ${{ env.PYTHON_TARGET }}
 
       - name: Tests and coverage
-        run: hatch run cov
+        shell: bash
+        run: hatch test --python ${{ matrix.python-version }} -p -c
         env:
-          # to ensure we run ci:cov instead of default:cov, where the former generates more coverage files
-          HATCH_ENV: "ci"
-          # These next two options can always be populated, as unless the third below
+          # These two options can always be populated, as unless the third below
           # is also enabled they are just ignored.
           SYNAPSE_POSTGRES_USER: "postgres"
           SYNAPSE_POSTGRES_PASSWORD: "postgres"
