@@ -109,12 +109,26 @@ To create virtual env and install dependency:
 hatch shell
 ```
 
-The tests uses twisted's testing framework trial, with the development
-environment managed by hatch. Running the tests and generating a coverage report
-can be done like this:
+The tests uses pytest, with the development environment managed by hatch. Running the tests can be done like this:
 
 ```console
-hatch run cov
+hatch test
+```
+
+#### Additional optional testing arguments:
+Run the tests in parallel: `-p`
+
+Collect coverage data(automatically output as `lcov.info`): `-c`
+
+#### Running a specific test:
+Selecting a specific test to run can be as easy as providing the path to the test. All tests start from
+the base test directory, `tests`. If running all tests, this can be left out. If requiring only tests
+from `test_createrooms_local.py`, append `tests/test_createrooms_local.py` to the command, and all tests
+in that file will run. If requiring only tests in `LocalProModeCreateRoomTest`, appending
+`tests/test_createrooms_local.py::LocalProModeCreateRoomTest` to the command will run only those tests.
+As an example of running only the test for checking that the default state of the history visibility for a room is "invited":
+```console
+hatch test tests/test_createrooms_local.py::LocalProModeCreateRoomTest::test_create_room_default_history_visibility_invited
 ```
 
 ## Code Quality
