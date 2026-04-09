@@ -222,7 +222,7 @@ def _wrap_callback(func, name: str, error_msg: str):
 
 
 class InviteChecker:
-    __version__ = "0.4.13"
+    __version__ = "0.5.0"
 
     def __init__(self, config: InviteCheckerConfig, api: ModuleApi):
         self.api = api

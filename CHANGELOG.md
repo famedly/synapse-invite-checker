@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-04-09
+
+This release contains the first feature work for TIM 1.2 support. TIM 1.2 support is
+opt-in, and should be enabled by setting `tim_version` to `"1.2"`.
+
+- feat: disable room shutdowns for TIM 1.2 and above (FrenchGithubUser)
+- chore: add debug logging for unexcepted callback exceptions (FrenchGithubUser)
+- feat: TIM v1.2 state only room purging (Jason Little)
+- feat: config option to disable TIM ePA federation (invites) (FrenchGithubUser)
+- feat: TIM 1.2: prevent creation of public rooms V2 (FrenchGithubUser)
+- fix: Change multiple invite error status code from 403 to 400 (Jason Little)
+- feat: gematik room type v2 support (FrenchGithubUser)
+- feat: make `redaction_max_age` configurable (FrenchGithubUser)
+- feat: prevent local redactions after 24h for TIM 1.2 and above - A_28358 (FrenchGithubUser)
+- feat: tim version config flag (FrenchGithubUser)
+- feat: feat: trigger CI actions (that are triggered on PRs) in merge queue (FrenchGithubUser)
+- tests: update with element's recent changes to Content-Length header handling (#114) (FrenchGithubUser)
+
 ## [0.4.13] - 2026-01-05
 
 - feat: set default history visibility to `invited` (FrenchGithubUser)
