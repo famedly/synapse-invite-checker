@@ -175,7 +175,7 @@ class DisableEpaCommunicationJoinTest(FederatingModuleApiTestCase):
         Joining via an invite from an ePA domain must be blocked.
         """
         epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
-        room_id = self.create_local_room(self.pro_user_a, [], is_public=False)
+        room_id = self.create_local_room(self.pro_user_a, is_public=False)
         assert room_id is not None
 
         p_invite, p_event = self._patched_store(epa_user)
@@ -194,7 +194,7 @@ class DisableEpaCommunicationJoinTest(FederatingModuleApiTestCase):
         Joining via an invite from a non-ePA domain must not be blocked.
         """
         pro_user = f"@bob:{DOMAIN_IN_LIST}"
-        room_id = self.create_local_room(self.pro_user_a, [], is_public=False)
+        room_id = self.create_local_room(self.pro_user_a, is_public=False)
         assert room_id is not None
 
         p_invite, p_event = self._patched_store(pro_user)

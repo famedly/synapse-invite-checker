@@ -14,7 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 from typing import Any
 
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 from synapse.server import HomeServer
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
@@ -28,11 +28,20 @@ from tests.test_utils import (
 )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These PRO server tests are for room creation process, to demonstrate that rooms can
     be created when inviting during it's processing.
-    NOTE: Event though the server is designated as "block all" the outgoing invites are
+    NOTE: Even though the server is designated as "block all" the outgoing invites are
     allowed as invites are only checked by the receiving user. This means the room will
     be created, but empty of the other user. Public rooms with invites to a remote user
     will still fail as expected
@@ -47,6 +56,7 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
     # SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -78,8 +88,8 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         for remote_user in (self.remote_pro_user, self.remote_epa_user):
             room_id = self.create_local_room(
                 self.pro_user_a,
-                [remote_user],
                 is_public=is_public,
+                invitee_list=[remote_user],
             )
             assert (
                 room_id is not None
@@ -95,8 +105,8 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         for local_user in (self.pro_user_a, self.pro_user_b):
             room_id = self.create_local_room(
                 local_user,
-                [self.remote_non_fed_list_user],
                 is_public=is_public,
+                invitee_list=[self.remote_non_fed_list_user],
             )
             assert (
                 room_id is None
@@ -124,8 +134,8 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         ]:
             room_id = self.create_local_room(
                 self.pro_user_a,
-                invitee_list,
                 is_public=is_public,
+                invitee_list=invitee_list,
             )
             assert (
                 room_id is None
@@ -151,14 +161,23 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
         ]:
             room_id = self.create_local_room(
                 self.pro_user_a,
-                invitee_list,
                 is_public=is_public,
+                invitee_list=invitee_list,
             )
             assert (
                 room_id is None
             ), f"User-HBA {label} room should not be created(after permission) with invites to: {invitee_list}"
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     """
     These EPA server tests are for room creation process, including invite checking for
@@ -175,6 +194,7 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -203,8 +223,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_pro_user],
             is_public=is_public,
+            invitee_list=[self.remote_pro_user],
         )
         assert (
             (room_id is None) if is_public else room_id
@@ -218,8 +238,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_epa_user],
             is_public=is_public,
+            invitee_list=[self.remote_epa_user],
         )
         assert (
             room_id is None
@@ -231,8 +251,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
 
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_epa_user],
             is_public=is_public,
+            invitee_list=[self.remote_epa_user],
         )
         assert (
             room_id is None
@@ -247,8 +267,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_non_fed_list_user],
             is_public=is_public,
+            invitee_list=[self.remote_non_fed_list_user],
         )
         assert (
             room_id is None
@@ -260,8 +280,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
 
         room_id = self.create_local_room(
             self.epa_user_d,
-            [self.remote_non_fed_list_user],
             is_public=is_public,
+            invitee_list=[self.remote_non_fed_list_user],
         )
         assert (
             room_id is None
@@ -283,8 +303,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         ]:
             room_id = self.create_local_room(
                 self.epa_user_e,
-                invitee_list,
                 is_public=is_public,
+                invitee_list=invitee_list,
             )
             assert (
                 room_id is None
@@ -307,8 +327,8 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         ]:
             room_id = self.create_local_room(
                 self.epa_user_e,
-                invitee_list,
                 is_public=is_public,
+                invitee_list=invitee_list,
             )
             assert (
                 room_id is None
