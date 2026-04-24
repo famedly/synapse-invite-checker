@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "synapse-invite-checker"
 description = 'Synapse module to handle TIM contact management and invite permissions'
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "AGPL-3.0-only"
 keywords = []
 authors = [
@@ -15,8 +15,10 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -83,27 +85,16 @@ lint-fix = [
   "ruff check --fix"
 ]
 
-[tool.hatch.envs.default.scripts]
-cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
-
-# For CI use
-[tool.hatch.envs.ci.scripts]
-cov = "pytest --cov-report=lcov:lcov.info --cov-report=xml --cov-report=term-missing --cov-config=pyproject.toml --cov=synapse_invite_checker --cov=tests"
-
-[[tool.hatch.envs.ci.matrix]]
-database = [ "postgres", "sqlite"]
-
-[tool.hatch.envs.ci.overrides]
-matrix.database.env-vars = [
-  { key = "SYNAPSE_POSTGRES", value = "1", if = ["postgres"] },
-  { key = "SYNAPSE_POSTGRES_USER", value = "postgres", if = ["postgres"] },
-  { key = "SYNAPSE_POSTGRES_PASSWORD", value = "postgres", if = ["postgres"] },
-]
-
 [tool.coverage.run]
 branch = true
 parallel = true
-omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
 
 [tool.ruff]
 target-version = "py310"
@@ -123,13 +114,6 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "PLR2004", "N803", "SLF001", "UP035", "PT019"]
 
-[tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
-
 [tool.mypy]
 python_version = "3.10"
 ignore_missing_imports = true
@@ -143,3 +127,48 @@ files = ["synapse_invite_checker", "tests"]
 [tool.isort]
 profile = "black"
 src_paths = ["synapse_invite_checker", "tests"]
+
+[tool.hatch.envs.hatch-test]
+# The Hatch test environment includes the default pytest, mock and coverage
+# dependencies. If you should need additional, use the 'extra-dependencies' section
+# below.
+extra-dependencies = [
+  "parameterized",
+  "psycopg2",
+  "pytest-cov",
+  # we don't depend on synapse directly to prevent pip from pulling the wrong synapse,
+  # when we just want to install the module
+  "matrix-synapse @ git+https://github.com/famedly/synapse.git@master"
+]
+
+# The 'hatch test ...' command has the built-in scripts that define its invocation.
+# Override these scripts so coverage works as expected.
+#
+# In particular, the 'coverage run -m pytest ...' command does not work correctly.
+# In CI, it was not producing the subprocess-enabled coverage files, even though it
+# worked locally (there should have been 4 files, but only 1 was produced, and it had
+# no data). Using the pytest-cov plugin does seem to produce these files, and the
+# missing-lines display format is also correct. Since it handles the internal
+# combine/report commands, set those scripts below to do nothing (or CI will report
+# fake errors).
+[tool.hatch.envs.hatch-test.scripts]
+# The HATCH_TEST_ARGS environment variable is how the `test` command's flags are
+# translated and internally populated without affecting the user's arguments. This is
+# also the way that "extra arguments" are passed. Leave it there
+run = "pytest{env:HATCH_TEST_ARGS:} {args}"
+# The original 'run-cov' is below; this is overridden to produce coverage properly.
+#run-cov = "coverage run -m pytest{env:HATCH_TEST_ARGS:} {args}"
+# Notes for this command line: using --cov=synapse_invite_checker instead of having
+# that directory in the 'coverage.run' config above actually produces the correct
+# coverage files (the ones that were missing, as mentioned above). The 'cov-report'
+# options both produce useful output (one for the codecov file and the other displays
+# the missing coverage lines).
+run-cov = "pytest{env:HATCH_TEST_ARGS:} --cov=synapse_invite_checker --cov-report=lcov:lcov.info --cov-report=term-missing --cov-config=pyproject.toml {args}"
+
+# As mentioned above, the defaults for these scripts are commented out as they will
+# produce fake errors in CI. They attempt to run but the result of those commands
+# already exists. This raises error codes and fails the test.
+#cov-combine = "coverage combine"
+#cov-report = "coverage report"
+cov-combine = ""
+cov-report = ""
