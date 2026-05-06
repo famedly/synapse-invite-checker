@@ -15,7 +15,7 @@
 from http import HTTPStatus
 from typing import Any
 
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 from synapse.server import HomeServer
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
@@ -25,11 +25,22 @@ from tests.base import FederatingModuleApiTestCase
 from tests.test_utils import INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class LocalProModeInviteTest(FederatingModuleApiTestCase):
     """
     These PRO server tests are for invites that happen after the room creation process
     has completed
     """
+
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -80,7 +91,6 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
     ) -> None:
         room_id = self.create_local_room(
             self.user_b,
-            [],
             is_public=is_public,
         )
         assert room_id is not None, "Room should have been created"
@@ -137,7 +147,6 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
     ) -> None:
         room_id = self.create_local_room(
             self.user_b,
-            [],
             is_public=is_public,
         )
         assert room_id is not None, "Room should have been created"
@@ -218,7 +227,6 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
 
         room_b = self.create_local_room(
             self.user_b,
-            [],
             is_public=is_public,
         )
         assert room_b is not None, "Room should have been created"
@@ -233,7 +241,6 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
         )
         room_c = self.create_local_room(
             self.user_c,
-            [],
             is_public=is_public,
         )
         assert room_c is not None, "Room should have been created"
@@ -249,7 +256,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, but nobody else invited"""
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -289,7 +296,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_group(self) -> None:
         """Tests that a group with local users works normally"""
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -328,7 +335,7 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_group_without_dm_event(self) -> None:
         """Tests that a group with local users works normally in case the user has no m.direct set"""
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id, "Room not created"
 
         # Can invite other users
@@ -355,12 +362,22 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
         )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     """
     These EPA server tests are for invites that happen after the room creation process
     has completed
     """
 
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
@@ -404,7 +421,6 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     ) -> None:
         room_id = self.create_local_room(
             self.user_e,
-            [],
             is_public=False,
         )
         assert room_id is not None, "Room should have been created"
@@ -446,7 +462,6 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     ) -> None:
         room_id = self.create_local_room(
             self.user_e,
-            [],
             is_public=False,
         )
         assert room_id is not None, "Room should have been created"
@@ -506,7 +521,6 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
 
         room_e = self.create_local_room(
             self.user_e,
-            [],
             is_public=False,
         )
         assert room_e is not None, "Room should have been created"
@@ -521,7 +535,6 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
         )
         room_f = self.create_local_room(
             self.user_f,
-            [],
             is_public=False,
         )
         assert room_f is not None, "Room should have been created"
@@ -537,7 +550,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_dm_post_room_creation(self) -> None:
         """Tests that a private room as a dm will deny inviting any local users"""
-        room_id = self.create_local_room(self.user_d, [], is_public=False)
+        room_id = self.create_local_room(self.user_d, is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -570,7 +583,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_group_post_room_creation(self) -> None:
         """Tests that a private room for a group will deny inviting any local users, with an unrelated m.direct tag"""
-        room_id = self.create_local_room(self.user_d, [], is_public=False)
+        room_id = self.create_local_room(self.user_d, is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
@@ -602,7 +615,7 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
 
     def test_invite_to_group_without_dm_event_post_room_creation(self) -> None:
         """Tests that a group with local users is denied when the user has no m.direct set"""
-        room_id = self.create_local_room(self.user_d, [], is_public=False)
+        room_id = self.create_local_room(self.user_d, is_public=False)
         assert room_id, "Room not created"
 
         # Can't invite other users
@@ -622,10 +635,21 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
         )
 
 
+@parameterized_class(
+    ("DEFAULT_ROOM_VERSION",),
+    [
+        ("9",),
+        ("10",),
+        ("11",),
+        ("12",),
+    ],
+)
 class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
     """
     This tests to make sure the DM check can be disabled
     """
+
+    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -650,7 +674,7 @@ class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
     def test_invite_to_dm(self) -> None:
         """Tests that a dm with a local user can be created, and others can be invited"""
         # This just copies the test from LocalProModeInviteTest but adjusts the expect_code to 200
-        room_id = self.create_local_room(self.user_a, [], is_public=False)
+        room_id = self.create_local_room(self.user_a, is_public=False)
         assert room_id, "Room not created"
 
         # create DM event
