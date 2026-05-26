@@ -30,7 +30,7 @@ jobs:
 
       - name: Set up Python ${{ matrix.python-version }}
         id: setup-python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@c8813ba1bc76ebf779b911ad8ffccbf2e449cb48
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -59,7 +59,7 @@ jobs:
         run: echo PYTHON_TARGET="py${{ matrix.python-version }}" | sed -r "s/\.//" >> $GITHUB_ENV
 
       - name: Lint
-        uses: chartboost/ruff-action@491342200cdd1cf4d5132a30ddc546b3b5bc531b
+        uses: chartboost/ruff-action@1ec810db51b3ebdd902c812e962d2f7aafe85fcf
         with:
           args: check --target-version ${{ env.PYTHON_TARGET }}
 
@@ -76,7 +76,7 @@ jobs:
           SYNAPSE_POSTGRES: ${{ matrix.database == 'postgres' || ''}}
 
       - name: Codecov - Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@ca0a928a4cb3911011e868128a5cd90437c12db1
         with:
           token: ${{secrets.CODECOV_TOKEN}}
           files: "lcov.info"
