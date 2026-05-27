@@ -37,6 +37,7 @@ from synapse.rest.client import (
     room_upgrade_rest_servlet,
 )
 from synapse.server import HomeServer
+from synapse.synapse_rust.events import Signatures
 from synapse.types import UserID, create_requester
 from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
@@ -208,9 +209,9 @@ def construct_extra_content(
 
 
 class FakeInviteResponse:
-    signatures: ClassVar[dict[str, dict[str, str]]] = {
-        "example.com": {"test_key": "whateversomethingstupidlongsoitlooksgood"}
-    }
+    signatures: ClassVar[Signatures] = Signatures(
+        {"example.com": {"test_key": "whateversomethingstupidlongsoitlooksgood"}}
+    )
 
 
 class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
