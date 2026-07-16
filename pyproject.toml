@@ -39,6 +39,7 @@ Issues = "https://github.com/famedly/synapse-invite-checker/-/issues"
 Source = "https://github.com/famedly/synapse-invite-checker/"
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = [
   "black",
   "pytest",
