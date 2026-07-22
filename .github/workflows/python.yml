@@ -54,15 +54,6 @@ jobs:
       - name: Type checking and Formatting
         run: hatch fmt --check
 
-      - name: Prepare lint
-        shell: bash
-        run: echo PYTHON_TARGET="py${{ matrix.python-version }}" | sed -r "s/\.//" >> $GITHUB_ENV
-
-      - name: Lint
-        uses: chartboost/ruff-action@1ec810db51b3ebdd902c812e962d2f7aafe85fcf
-        with:
-          args: check --target-version ${{ env.PYTHON_TARGET }}
-
       - name: Tests and coverage
         shell: bash
         run: hatch test --python ${{ matrix.python-version }} -p -c
