@@ -56,7 +56,7 @@ dependencies = [
 dependencies = [
   "black",
   "isort",
-  "ruff",
+  "ruff==0.15.22",
   "mypy",
   "mypy-zope",
   "pydantic",
