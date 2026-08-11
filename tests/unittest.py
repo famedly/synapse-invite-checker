@@ -85,7 +85,7 @@ R = TypeVar("R")
 S = TypeVar("S")
 
 
-class _TypedFailure(Generic[_ExcType_co], Protocol):
+class _TypedFailure(Protocol, Generic[_ExcType_co]):
     """Extension to twisted.Failure, where the 'value' has a certain type."""
 
     @property
@@ -225,12 +225,12 @@ class TestCase(unittest.TestCase):
     def assertObjectHasAttributes(self, attrs: dict[str, object], obj: object) -> None:
         """Asserts that the given object has each of the attributes given, and
         that the value of each matches according to assertEqual."""
-        for key in attrs:
+        for key, value in attrs.items():
             if not hasattr(obj, key):
                 msg = f"Expected obj to have a '.{key}'"
                 raise AssertionError(msg)
             try:
-                assert attrs[key] == getattr(obj, key)
+                assert value == getattr(obj, key)
             except AssertionError as e:
                 msg = f"Assert error for '.{key}':"
                 raise (type(e))(msg) from e

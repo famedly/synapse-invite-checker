@@ -210,11 +210,9 @@ class RestHelper:
             data,
         )
 
-        assert channel.code == expect_code, "Expected: %d, got: %d, resp: %r" % (
-            expect_code,
-            channel.code,
-            channel.result["body"],
-        )
+        assert (
+            channel.code == expect_code
+        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
 
         self.auth_user_id = temp_id
 
@@ -307,11 +305,9 @@ class RestHelper:
             data,
         )
 
-        assert channel.code == expect_code, "Expected: %d, got: %d, resp: %r" % (
-            expect_code,
-            channel.code,
-            channel.result["body"],
-        )
+        assert (
+            channel.code == expect_code
+        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
 
         if expect_errcode:
             assert (
@@ -383,11 +379,9 @@ class RestHelper:
             custom_headers=custom_headers,
         )
 
-        assert channel.code == expect_code, "Expected: %d, got: %d, resp: %r" % (
-            expect_code,
-            channel.code,
-            channel.result["body"],
-        )
+        assert (
+            channel.code == expect_code
+        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
 
         return channel.json_body
 
@@ -420,11 +414,9 @@ class RestHelper:
             path,
         )
 
-        assert channel.code == expect_code, "Expected: %d, got: %d, resp: %r" % (
-            expect_code,
-            channel.code,
-            channel.result["body"],
-        )
+        assert (
+            channel.code == expect_code
+        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
 
         return channel.json_body
 
@@ -556,11 +548,9 @@ class RestHelper:
             custom_headers=[("Content-Length", str(image_length))],
         )
 
-        assert channel.code == expect_code, "Expected: %d, got: %d, resp: %r" % (
-            expect_code,
-            channel.code,
-            channel.result["body"],
-        )
+        assert (
+            channel.code == expect_code
+        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
 
         return channel.json_body
 
@@ -584,11 +574,9 @@ class RestHelper:
             access_token=access_token,
         )
 
-        assert channel.code == expect_code, "Exepcted: %d, got %d, resp: %r" % (
-            expect_code,
-            channel.code,
-            channel.result["body"],
-        )
+        assert (
+            channel.code == expect_code
+        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
 
         return channel.json_body
 

@@ -40,8 +40,6 @@ class LocalProModeInviteTest(FederatingModuleApiTestCase):
     has completed
     """
 
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
-
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.user_a = self.register_user("a", "password")
@@ -377,7 +375,6 @@ class LocalEpaModeInviteTest(FederatingModuleApiTestCase):
     has completed
     """
 
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
@@ -648,8 +645,6 @@ class DisabledDMCheckInviteTest(FederatingModuleApiTestCase):
     """
     This tests to make sure the DM check can be disabled
     """
-
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)

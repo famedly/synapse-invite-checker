@@ -96,7 +96,6 @@ if TYPE_CHECKING:
     from synapse.storage.roommember import RoomsForUser
 
 # We need to access the private API in some places, in particular the store and the homeserver
-# ruff: noqa: SLF001
 
 
 def cached(cache):
@@ -449,7 +448,7 @@ class InviteChecker:
             raise ConfigError(msg)
 
         enable_inactive_room_scan = inactive_room_scan_section.get(
-            "enabled", True if _config.tim_version == TimVersion.V1_1 else False
+            "enabled", _config.tim_version == TimVersion.V1_1
         )
         if enable_inactive_room_scan and _config.tim_version > TimVersion.V1_1:
             logger.warning(
@@ -474,7 +473,7 @@ class InviteChecker:
             raise ConfigError(msg)
 
         enable_state_only_room_purges = state_only_room_purge_section.get(
-            "enabled", True if _config.tim_version >= TimVersion.V1_2 else False
+            "enabled", _config.tim_version >= TimVersion.V1_2
         )
         if enable_state_only_room_purges and _config.tim_version < TimVersion.V1_2:
             logger.warning(
@@ -907,17 +906,17 @@ class InviteChecker:
                     "M_INVALID_ROOM_STATE",
                 )
             # PRO: only being "public" on PRO if "m.federate" is set to True in the creation event
-            elif self.config.tim_type == TimType.PRO and join_rule == JoinRules.PUBLIC:
-                # Remember to account for the override disabler
-                if (
-                    is_room_federate_capable(context)
-                    and self.config.override_public_room_federation
-                ):
-                    raise SynapseError(
-                        400,
-                        "Room cannot be federated",
-                        "M_INVALID_ROOM_STATE",
-                    )
+            elif (
+                self.config.tim_type == TimType.PRO
+                and join_rule == JoinRules.PUBLIC
+                and is_room_federate_capable(context)
+                and self.config.override_public_room_federation
+            ):
+                raise SynapseError(
+                    400,
+                    "Room cannot be federated",
+                    "M_INVALID_ROOM_STATE",
+                )
 
         # Forbid "m.room.history_visibility" of "world_readable" when the room is capable of federation,
         # configured via `prohibit_world_readable_rooms`, or always for EPA servers on TIM >= 1.2.
@@ -978,17 +977,16 @@ class InviteChecker:
         # m.federate defaults to True if unspecified
         can_federate = creation_content.get("m.federate", True)
 
-        if self.config.tim_type == TimType.PRO:
-            if can_federate and is_public:
-                if self.config.override_public_room_federation:
-                    logger.debug("Overriding `m.room.create` to disable federation")
-                    request_content.setdefault("creation_content", {}).update(
-                        {"m.federate": False}
-                    )
-                else:
-                    logger.warning(
-                        "Room creation with a public room allowed to federate detected."
-                    )
+        if self.config.tim_type == TimType.PRO and can_federate and is_public:
+            if self.config.override_public_room_federation:
+                logger.debug("Overriding `m.room.create` to disable federation")
+                request_content.setdefault("creation_content", {}).update(
+                    {"m.federate": False}
+                )
+            else:
+                logger.warning(
+                    "Room creation with a public room allowed to federate detected."
+                )
 
         # Forbid EPA servers from creating any kind of public room
         if self.config.tim_type == TimType.EPA and is_public:
@@ -1163,18 +1161,19 @@ class InviteChecker:
 
         # Step 1c: If ePA communication is explicitly disabled, block any
         # invite to or from an ePA domain.
-        if self.config.disable_epa_communication:
-            if inviter_is_insurance or invitee_is_insurance:
-                logger.debug(
-                    "Blocking invite between (%s) and (%s): ePA communication disabled with disable_epa_communication in the config",
-                    inviter_domain,
-                    invitee_domain,
-                )
-                raise SynapseError(
-                    403,
-                    EPA_COMMUNICATION_DISABLED_MSG,
-                    errors.Codes.FORBIDDEN,
-                )
+        if self.config.disable_epa_communication and (
+            inviter_is_insurance or invitee_is_insurance
+        ):
+            logger.debug(
+                "Blocking invite between (%s) and (%s): ePA communication disabled with disable_epa_communication in the config",
+                inviter_domain,
+                invitee_domain,
+            )
+            raise SynapseError(
+                403,
+                EPA_COMMUNICATION_DISABLED_MSG,
+                errors.Codes.FORBIDDEN,
+            )
 
         # Find out if this is a public room
         # The domains are different, or the first section would have caught it. The same
@@ -1374,9 +1373,9 @@ class InviteChecker:
         )
 
         (
-            events,
-            next_key,
-            _,
+            list_of_events,
+            _next_key,
+            _limited,
         ) = await self.api._store.paginate_room_events_by_topological_ordering(
             room_id=room_id,
             from_key=from_token.room_key,
@@ -1388,7 +1387,7 @@ class InviteChecker:
             event_filter=event_filter,
         )
 
-        return events
+        return list_of_events
 
     async def _is_any_non_state_event_in_room(self, room_id: str) -> bool:
         """
@@ -1498,8 +1497,8 @@ class InviteChecker:
             try:
                 # Kick users from room
                 (
-                    _,
-                    stream_id,
+                    _event_id,
+                    _stream_id,
                 ) = await self.api._hs.get_room_member_handler().update_membership(
                     requester=target_requester,
                     target=target_requester.user,

@@ -40,8 +40,6 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
     local users and special cases that should be allowed or prevented.
     """
 
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
-
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
         self.pro_user_a = self.register_user("a", "password")
@@ -303,7 +301,6 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     local users and special cases that should be allowed or prevented.
     """
 
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
