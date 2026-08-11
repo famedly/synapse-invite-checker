@@ -908,33 +908,32 @@ class InviteChecker:
                 )
             # PRO: only being "public" on PRO if "m.federate" is set to True in the creation event
             elif self.config.tim_type == TimType.PRO and join_rule == JoinRules.PUBLIC:
-                creation_event = context.get((EventTypes.Create, ""))
-                # `m.federate` defaults to True if unspecified
-                federated_flag = True
-                if creation_event and creation_event["content"]:
-                    federated_flag = creation_event["content"].get(
-                        EventContentFields.FEDERATE, True
-                    )
                 # Remember to account for the override disabler
-                if federated_flag and self.config.override_public_room_federation:
+                if (
+                    is_room_federate_capable(context)
+                    and self.config.override_public_room_federation
+                ):
                     raise SynapseError(
                         400,
                         "Room cannot be federated",
                         "M_INVALID_ROOM_STATE",
                     )
 
-        # Forbid "m.room.history_visibility" from being "world_readable" when configured
-        # via `prohibit_world_readable_rooms`, or always for EPA servers on TIM >= 1.2.
+        # Forbid "m.room.history_visibility" of "world_readable" when the room is capable of federation,
+        # configured via `prohibit_world_readable_rooms`, or always for EPA servers on TIM >= 1.2.
         elif (
-            (
-                self.config.prohibit_world_readable_rooms
+            event.type == EventTypes.RoomHistoryVisibility
+            and event.content["history_visibility"] == HistoryVisibility.WORLD_READABLE
+            and (
+                (
+                    self.config.prohibit_world_readable_rooms
+                    or is_room_federate_capable(context)
+                )
                 or (
                     self.config.tim_type == TimType.EPA
                     and self.config.tim_version >= TimVersion.V1_2
                 )
             )
-            and event.type == EventTypes.RoomHistoryVisibility
-            and event.content["history_visibility"] == HistoryVisibility.WORLD_READABLE
         ):
             raise SynapseError(
                 400,
@@ -959,8 +958,8 @@ class InviteChecker:
         """
         # visibility can be either "public" or "private". If not included, it defaults to "private"
         room_visibility: str = request_content.get("visibility", "private")
-        # preset can be any of "private_chat", "trusted_private_chat" or "public_chat"
-        # Do not allow "public_chat". Default is based on setting of visibility
+        # preset can be any of "private_chat", "trusted_private_chat" or "public_chat".
+        # Default is based on setting of visibility
         room_preset: str = request_content.get(
             "preset",
             (
@@ -974,11 +973,12 @@ class InviteChecker:
             room_preset == RoomCreationPreset.PUBLIC_CHAT or room_visibility == "public"
         )
 
-        if self.config.tim_type == TimType.PRO:
-            creation_content = request_content.get("creation_content", {})
-            # m.federate defaults to True if unspecified
-            can_federate = creation_content.get("m.federate", True)
+        # This will be needed in a couple places
+        creation_content = request_content.get("creation_content", {})
+        # m.federate defaults to True if unspecified
+        can_federate = creation_content.get("m.federate", True)
 
+        if self.config.tim_type == TimType.PRO:
             if can_federate and is_public:
                 if self.config.override_public_room_federation:
                     logger.debug("Overriding `m.room.create` to disable federation")
@@ -1002,14 +1002,14 @@ class InviteChecker:
         # Users can still override this by providing their own history_visibility in initial_state
         initial_state: list[dict[str, Any]] = request_content.get("initial_state", [])
 
-        # Check if history_visibility is already set in initial_state
-        has_history_visibility = any(
-            event.get("type") == EventTypes.RoomHistoryVisibility
-            for event in initial_state
-        )
+        # Save the data of the history visibility event, if it is found
+        history_visibility_event: dict[str, Any] | None = None
+        for initial_state_event in initial_state:
+            if initial_state_event.get("type") == EventTypes.RoomHistoryVisibility:
+                history_visibility_event = initial_state_event
 
         # If not set, add default history_visibility as "invited"
-        if not has_history_visibility:
+        if not history_visibility_event:
             initial_state.append(
                 {
                     "type": EventTypes.RoomHistoryVisibility,
@@ -1018,6 +1018,27 @@ class InviteChecker:
                 }
             )
             request_content["initial_state"] = initial_state
+
+        else:
+            # A provided history visibility event must not be set to world_readable if the ability to federate is
+            # enabled. This guard has a comparable twin in `check_event_allowed()`, but this one forbids creation of a
+            # dangling room. The other is for the instance of an attempt of changing this setting after the room is
+            # already created.
+            if history_visibility_event.get("content", {}).get(
+                "history_visibility"
+            ) == HistoryVisibility.WORLD_READABLE and (
+                (can_federate or self.config.prohibit_world_readable_rooms)
+                or (
+                    self.config.tim_type == TimType.EPA
+                    and self.config.tim_version >= TimVersion.V1_2
+                )
+            ):
+                raise SynapseError(
+                    400,
+                    "History visibility 'world_readable' is not allowed in a room allowed to federate, or "
+                    "world-readable rooms are forbidden on this server",
+                    "M_INVALID_ROOM_STATE",
+                )
 
         # A_28596: The TI-M specialist service MUST prevent the use of the room type
         # `de.gematik.tim.roomtype.default.v2` on room creation (TIM 1.2)
@@ -1701,3 +1722,16 @@ class InviteChecker:
                 return False
 
         return True
+
+
+def is_room_federate_capable(context: StateMap[EventBase]) -> bool:
+    # Guard that this can not be called unless the context has the creation event. That means this function should only
+    # be used in `check_event_allowed()` for any other event
+    if (EventTypes.Create, "") not in context:
+        # unfortunately, we can not know the room ID at this point
+        raise SynapseError(500, "Creation Event not found")
+
+    # Do the above so this is not an uninformative KeyError
+    creation_event = context[(EventTypes.Create, "")]
+    # `m.federate` defaults to True if unspecified
+    return creation_event.content.get(EventContentFields.FEDERATE, True)

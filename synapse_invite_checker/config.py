@@ -60,7 +60,7 @@ class InviteCheckerConfig:
         default_factory=StateOnlyRoomPurgeConfig
     )
     override_public_room_federation: bool = True
-    prohibit_world_readable_rooms: bool = True
+    prohibit_world_readable_rooms: bool = False
     block_invites_into_dms: bool = True
     limit_reactions: bool = True
     redaction_max_age_ms: int = 24 * 60 * 60 * 1000
