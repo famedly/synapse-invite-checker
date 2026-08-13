@@ -500,7 +500,6 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
 
     def callFromThread(
         self,
-        # noqa: A002, `callable` is inherited from IReactorFromThreads.callFromThread
         callable: Callable[..., Any],
         *args: object,
         **kwargs: object,
@@ -518,7 +517,6 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
 
     def callInThread(
         self,
-        # noqa: A002, `callable` is inherited from IReactorFromThreads.callInThread
         callable: Callable[..., Any],
         *args: object,
         **kwargs: object,
@@ -1095,12 +1093,12 @@ def setup_test_homeserver(
     # because AuthHandler's constructor requires the HS, so we can't make one
     # beforehand and pass it in to the HS's constructor (chicken / egg)
     async def _hash(p: str) -> str:
-        return hashlib.md5(p.encode("utf8")).hexdigest()  # noqa: S324
+        return hashlib.md5(p.encode("utf8")).hexdigest()
 
     hs.get_auth_handler().hash = _hash  # type: ignore[assignment]
 
     async def validate_hash(p: str, h: str) -> bool:
-        return hashlib.md5(p.encode("utf8")).hexdigest() == h  # noqa: S324
+        return hashlib.md5(p.encode("utf8")).hexdigest() == h
 
     hs.get_auth_handler().validate_hash = validate_hash  # type: ignore[assignment]
 

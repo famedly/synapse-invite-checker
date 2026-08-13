@@ -60,7 +60,6 @@ class InsuredOnlyRoomScanTaskTestCase(FederatingModuleApiTestCase):
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
     # The default "fake" remote server name that has its server signing keys auto-injected
     OTHER_SERVER_NAME = DOMAIN_IN_LIST
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
@@ -496,7 +495,6 @@ class InsuredOnlyRoomScanIgnoreInvitesTaskTestCase(FederatingModuleApiTestCase):
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
     # The default "fake" remote server name that has its server signing keys auto-injected
     OTHER_SERVER_NAME = DOMAIN_IN_LIST
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()

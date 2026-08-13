@@ -56,7 +56,6 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
     # SERVER_NAME_FROM_LIST = "tim.test.gematik.de"
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -194,7 +193,6 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
     remote_epa_user = f"@alice:{INSURANCE_DOMAIN_IN_LIST}"
     remote_non_fed_list_user = "@rando:fake-website.com"
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)

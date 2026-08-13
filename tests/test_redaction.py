@@ -62,7 +62,6 @@ class RedactionTimeLimitTestCase(FederatingModuleApiTestCase):
     """
 
     TIM_VERSION = TimVersion.V1_2
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)
@@ -155,7 +154,6 @@ class RedactionTimeLimitV1_1TestCase(FederatingModuleApiTestCase):
     """
 
     TIM_VERSION = TimVersion.V1_1
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
         super().prepare(reactor, clock, homeserver)

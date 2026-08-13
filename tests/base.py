@@ -51,7 +51,6 @@ from tests.test_utils import INSURANCE_DOMAIN_IN_LIST, SERVER_NAME_FROM_LIST
 from tests.test_utils.fake_room_creation import FakeRoom
 
 logger = logging.getLogger(__name__)
-# ruff: noqa: E501
 # We don't care about long lines in our testdata
 
 if TYPE_CHECKING:
@@ -219,7 +218,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
     server_name_for_this_server = SERVER_NAME_FROM_LIST
     OTHER_SERVER_NAME = INSURANCE_DOMAIN_IN_LIST
     DEFAULT_ROOM_VERSION = "10"
-    ALLOWED_ROOM_VERSIONS = ["9", "10"]
+    ALLOWED_ROOM_VERSIONS: ClassVar = ["9", "10", "11", "12"]
     TIM_VERSION = TimVersion.V1_1
 
     @classmethod

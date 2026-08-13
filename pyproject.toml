@@ -56,7 +56,7 @@ dependencies = [
 dependencies = [
   "black",
   "isort",
-  "ruff==0.15.22",
+  "ruff",
   "mypy",
   "mypy-zope",
   "pydantic",
@@ -113,7 +113,17 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "PLR2004", "N803", "SLF001", "UP035", "PT019"]
+"tests/*" = [
+  "S101",
+  "S105",
+  "PLR2004",
+  "N803",
+  "SLF001",
+  "UP035",
+  "UP046", # remove after Python 3.12(because of PEP695)
+  "UP047", # remove after Python 3.12(because of PEP695)
+  "PT019"
+]
 
 [tool.mypy]
 python_version = "3.10"

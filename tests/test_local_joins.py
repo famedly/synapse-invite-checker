@@ -44,7 +44,6 @@ class LocalProJoinTestCase(FederatingModuleApiTestCase):
     need this test, as they do not allow for local joining.
     """
 
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
     # server_name_for_this_server = "tim.test.gematik.de"
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
@@ -146,7 +145,6 @@ class LocalEpaJoinTestCase(FederatingModuleApiTestCase):
     Specifically, this checks the code for joining a room and not just inviting
     """
 
-    ALLOWED_ROOM_VERSIONS = ["9", "10", "11", "12"]
     server_name_for_this_server = INSURANCE_DOMAIN_IN_LIST_FOR_LOCAL
 
     def prepare(self, reactor: MemoryReactor, clock: Clock, homeserver: HomeServer):
