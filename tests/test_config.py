@@ -335,20 +335,20 @@ class ConfigParsingTestCase(TestCase):
         with pytest.raises(ConfigError):
             InviteChecker.parse_config(test_config)
 
-    def test_prohibit_world_readable_rooms_override_defaults_to_true(self) -> None:
+    def test_prohibit_world_readable_rooms_override_defaults_to_false(self) -> None:
         test_config = self.config.copy()
-        config = InviteChecker.parse_config(test_config)
-        assert (
-            config.prohibit_world_readable_rooms
-        ), "`prohibit_world_readable_rooms` should default to 'True'"
-
-    def test_prohibit_world_readable_rooms_override_can_be_disabled(self) -> None:
-        test_config = self.config.copy()
-        test_config.update({"prohibit_world_readable_rooms": False})
         config = InviteChecker.parse_config(test_config)
         assert (
             config.prohibit_world_readable_rooms is False
-        ), "`prohibit_world_readable_rooms` should be `False`'"
+        ), "`prohibit_world_readable_rooms` should default to 'False'"
+
+    def test_prohibit_world_readable_rooms_override_can_be_enabled(self) -> None:
+        test_config = self.config.copy()
+        test_config.update({"prohibit_world_readable_rooms": True})
+        config = InviteChecker.parse_config(test_config)
+        assert (
+            config.prohibit_world_readable_rooms is True
+        ), "`prohibit_world_readable_rooms` should be `True`'"
 
     def test_prohibit_world_readable_rooms_override_raises(self) -> None:
         test_config = self.config.copy()

@@ -66,7 +66,7 @@ modules:
           enabled: true or false  # optional switch to disable the room scan for state only rooms, defaults to true if TIM version is set to "1.2" (or newer)
           grace_period: see 'Duration Parsing' below #  Length of time a room is allowed to have no non-state/timeline activity(such as a message) before it is eligible for deletion. Ignored if 'enabled' is false. Defaults to "6w" which is 6 weeks
         override_public_room_federation: true or false, # Forces the `m.federate` flag to be set to False when creating a public room to prevent it from federating. Default is "true", disable with "false"
-        prohibit_world_readable_rooms: true or false, # Prevent setting any rooms history visibility as 'world_readable'. Defaults to "true"
+        prohibit_world_readable_rooms: true or false, # Prevent setting any rooms history visibility as 'world_readable'. Defaults to "false"
         block_invites_into_dms: true or false, # Prevent invites into existing DM chats. Defaults to true
         limit_reactions: true or false, # Prevent more than a single grapheme cluster in a reaction. Defaults to true, false to disable
         disable_epa_communication: true or false, # Explicitly block all invites and joins to/from ePA domains. Logs a warning at startup when enabled. Defaults to false

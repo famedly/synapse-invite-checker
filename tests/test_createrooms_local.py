@@ -175,13 +175,19 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         """
         room_id = self.create_local_room(self.pro_user_a, is_public=is_public)
         assert room_id, f"{label} room should be created"
-        # This should be BAD_REQUEST for any room
+        # Public rooms, by their nature, are not allowed to be federated. Borrow that signal instead of burrowing into
+        # state calls
+        if is_public:
+            expected_code = HTTPStatus.OK
+        else:
+            expected_code = HTTPStatus.BAD_REQUEST
+
         self.helper.send_state(
             room_id,
             EventTypes.RoomHistoryVisibility,
             {"history_visibility": HistoryVisibility.WORLD_READABLE},
             tok=self.access_token_a,
-            expect_code=HTTPStatus.BAD_REQUEST,
+            expect_code=expected_code,
         )
 
     def test_create_room_default_history_visibility_invited(self) -> None:
