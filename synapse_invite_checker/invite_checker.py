@@ -663,12 +663,12 @@ class InviteChecker:
         ):
             raise SynapseError(
                 400,
-                f"Room version ('{room_version}') not allowed",
+                f"Room version ('{room_version.identifier}') not allowed",
                 errors.Codes.FORBIDDEN,
             )
         logger.debug(
             "Allowing room upgrade to version '%s' by user '%s'",
-            room_version,
+            room_version.identifier,
             requester.user.to_string(),
         )
 
