@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-08-20
+
+This release contains a change to the default of the `prohibit_world_readable_rooms` setting. Prior to this release,
+the default was `true` for completely preventing all `world_readable` rooms. Disabling this setting was a requirement
+for TIM v1.2. The default is now `false`, and its logic has been adjusted to behave appropriately for TIM Pro v1.2.
+
+- chore!: Prohibit history visibility of world_readable if a room is allowed to federate (Jason Little)
+- chore: remove redundant CI steps (Soyoung Kim)
+- chore: Rework testing to reduce time spent and to remove the `hatch run cov` command (Jason Little)
+- chore: test more room versions in tests, from "9" to "12" (Jason Little)
+- chore: update GitHub Action pins (Niklas Zender)
+- chore: update typing of Event.signatures to work with recent synapse changes (FrenchGithubUser)
+- chore: use uv as the dependencies installer (FrenchGithubUser)
+- fix: Pin ruff to version 0.15.22 until a revisit can deal with its complaints (Jason Little)
+- fix: properly log invalid room versions (Soyoung Kim)
+- fix: Unpin ruff and fix all the errors (Jason Little)
+
 ## [0.5.0] - 2026-04-09
 
 This release contains the first feature work for TIM 1.2 support. TIM 1.2 support is
