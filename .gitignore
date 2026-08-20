@@ -10,3 +10,5 @@ base.lcov
 head.lcov
 lcov.info
 .idea
+.coveragerc
+.coverage.*
