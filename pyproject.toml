@@ -149,7 +149,7 @@ extra-dependencies = [
   "pytest-cov",
   # we don't depend on synapse directly to prevent pip from pulling the wrong synapse,
   # when we just want to install the module
-  "matrix-synapse @ git+https://github.com/famedly/synapse.git@master"
+  "matrix-synapse @ git+https://github.com/famedly/synapse.git@1651e05e33b7007ec3489622537525ab82327b9c"
 ]
 
 # The 'hatch test ...' command has the built-in scripts that define its invocation.
