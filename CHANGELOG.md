@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - 2026-09-18
+
+This release is to fix a problem in the Publish CI workflow. There is no functional difference compared to the prior
+release, `v0.6.0`.
+
 ## [0.6.0] - 2026-08-20
 
 This release contains a change to the default of the `prohibit_world_readable_rooms` setting. Prior to this release,
