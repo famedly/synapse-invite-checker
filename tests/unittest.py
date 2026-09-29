@@ -1,18 +1,9 @@
 # Copyright 2014-2016 OpenMarket Ltd
 # Copyright 2018 New Vector
 # Copyright 2019 Matrix.org Federation C.I.C
+# SPDX-FileCopyrightText: 2026 Famedly GmbH
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0
 import functools
 import gc
 import hashlib
@@ -93,7 +84,7 @@ class _TypedFailure(Protocol, Generic[_ExcType_co]):
 
 
 def around(target: TV) -> Callable[[Callable[Concatenate[S, P], R]], None]:
-    """A CLOS-style 'around' modifier, which wraps the original method of the
+    """A Common Lisp Object System-style 'around' modifier, which wraps the original method of the
     given instance with another piece of code.
 
     @around(self)
@@ -702,7 +693,7 @@ class HomeserverTestCase(TestCase):
         Args:
             username: the user to be registered by an application service.
                 Should NOT be a full username, i.e. just "localpart" as opposed to "@localpart:hostname"
-            appservice_token: the acccess token for that application service.
+            appservice_token: the access token for that application service.
 
         Raises: if the request to '/register' does not return 200 OK.
 

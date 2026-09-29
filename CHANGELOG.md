@@ -30,7 +30,7 @@ This release contains the first feature work for TIM 1.2 support. TIM 1.2 suppor
 opt-in, and should be enabled by setting `tim_version` to `"1.2"`.
 
 - feat: disable room shutdowns for TIM 1.2 and above (FrenchGithubUser)
-- chore: add debug logging for unexcepted callback exceptions (FrenchGithubUser)
+- chore: add debug logging for unexpected callback exceptions (FrenchGithubUser)
 - feat: TIM v1.2 state only room purging (Jason Little)
 - feat: config option to disable TIM ePA federation (invites) (FrenchGithubUser)
 - feat: TIM 1.2: prevent creation of public rooms V2 (FrenchGithubUser)

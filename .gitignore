@@ -12,3 +12,9 @@ lcov.info
 .idea
 .coveragerc
 .coverage.*
+.envrc
+.direnv/
+media/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

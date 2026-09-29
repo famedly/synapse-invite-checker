@@ -1,0 +1,7 @@
+version = 1
+
+[[annotations]]
+SPDX-FileCopyrightText = "2026 Famedly GmbH"
+SPDX-License-Identifier = "AGPL-3.0-only"
+path = [".github/CODEOWNERS", ".gitignore", "CHANGELOG.md", "README.md", "tests/certs/client.pem"]
+precedence = "aggregate"

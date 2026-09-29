@@ -71,24 +71,30 @@ modules:
         limit_reactions: true or false, # Prevent more than a single grapheme cluster in a reaction. Defaults to true, false to disable
         disable_epa_communication: true or false, # Explicitly block all invites and joins to/from ePA domains. Logs a warning at startup when enabled. Defaults to false
 ```
+
 ### default_permissions
 
 For establishing the default permissions for the users on this server. As the simplest
 example:
+
 ```yaml
 default_permissions:
   defaultSetting: "allow all"
 ```
+
 This is what the default will be if no setting is entered for this section.
 
 an example to allow all communication except for insured users
+
 ```yaml
 default_permissions:
   defaultSetting: "allow all"
   groupException:
     - groupName: "isInsuredPerson"
 ```
+
 and an example of blocking all communication except for users on the local server
+
 ```yaml
 default_permissions:
   defaultSetting: "block all"
@@ -105,6 +111,7 @@ that is converted to milliseconds. Suffixes with 's', 'm', 'h', 'd', 'w', or 'y'
 ## Testing
 
 To create virtual env and install dependency:
+
 ```console
 hatch shell
 ```
@@ -116,17 +123,20 @@ hatch test
 ```
 
 #### Additional optional testing arguments:
+
 Run the tests in parallel: `-p`
 
 Collect coverage data(automatically output as `lcov.info`): `-c`
 
 #### Running a specific test:
+
 Selecting a specific test to run can be as easy as providing the path to the test. All tests start from
 the base test directory, `tests`. If running all tests, this can be left out. If requiring only tests
 from `test_createrooms_local.py`, append `tests/test_createrooms_local.py` to the command, and all tests
 in that file will run. If requiring only tests in `LocalProModeCreateRoomTest`, appending
 `tests/test_createrooms_local.py::LocalProModeCreateRoomTest` to the command will run only those tests.
 As an example of running only the test for checking that the default state of the history visibility for a room is "invited":
+
 ```console
 hatch test tests/test_createrooms_local.py::LocalProModeCreateRoomTest::test_create_room_default_history_visibility_invited
 ```
