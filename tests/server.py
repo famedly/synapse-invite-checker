@@ -1,16 +1,7 @@
 # Copyright 2018-2021 The Matrix.org Foundation C.I.C.
+# SPDX-FileCopyrightText: 2026 Famedly GmbH
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0
 import hashlib
 import ipaddress
 import json
@@ -621,7 +612,7 @@ class ThreadedMemoryReactorClock(MemoryReactorClock):
 
 def validate_connector(connector: tcp.Connector, expected_ip: str) -> None:
     """Try to validate the obtained connector as it would happen when
-    synapse is running and the conection will be established.
+    synapse is running and the connection will be established.
 
     This method will raise a useful exception when necessary, else it will
     just do nothing.
@@ -918,12 +909,12 @@ class FakeTransport:
         if not streaming:
             self._reactor.callLater(0.0, _produce)
 
-    def write(self, byt: bytes) -> None:
+    def write(self, byte: bytes) -> None:
         if self.disconnecting:
             msg = "Writing to disconnecting FakeTransport"
             raise Exception(msg)
 
-        self.buffer = self.buffer + byt
+        self.buffer = self.buffer + byte
 
         # always actually do the write asynchronously. Some protocols (notably the
         # TLSMemoryBIOProtocol) get very confused if a read comes back while they are

@@ -1,0 +1,198 @@
+{
+  "nodes": {
+    "devshell": {
+      "inputs": {
+        "nixpkgs": [
+          "famedly-engineering-standards",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788342953,
+        "narHash": "sha256-EWkNM4JzBhZ/Yn1PG6lP4/QJuFAFeHYlY5gVxXu940Y=",
+        "owner": "numtide",
+        "repo": "devshell",
+        "rev": "a67c0f87b63bcbdbdcb56785bec0205a2e3d6026",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "devshell",
+        "type": "github"
+      }
+    },
+    "famedly-engineering-standards": {
+      "inputs": {
+        "devshell": "devshell",
+        "flake-parts": "flake-parts",
+        "github-actions-nix": "github-actions-nix",
+        "nixpkgs": "nixpkgs",
+        "rust-overlay": "rust-overlay",
+        "treefmt": "treefmt",
+        "wrappers": "wrappers"
+      },
+      "locked": {
+        "lastModified": 1791183744,
+        "narHash": "sha256-UsZcQ5GRvxYUn2WzdAdCAqnbYExE2Fik4ZkBCc2ahYQ=",
+        "owner": "famedly",
+        "repo": "engineering-standards",
+        "rev": "12c1fe72e581c89564ea0eeff16ecd75909f1692",
+        "type": "github"
+      },
+      "original": {
+        "owner": "famedly",
+        "repo": "engineering-standards",
+        "type": "github"
+      }
+    },
+    "flake-parts": {
+      "inputs": {
+        "nixpkgs-lib": "nixpkgs-lib"
+      },
+      "locked": {
+        "lastModified": 1788450739,
+        "narHash": "sha256-glZLQlzIn1fXH6PazR2iUmTo7kzzyYSshrWhLS9TqCU=",
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
+        "rev": "31729ca8cbdb4fa927b34e5f4353e6a83f39e993",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
+        "type": "github"
+      }
+    },
+    "github-actions-nix": {
+      "inputs": {
+        "flake-parts": [
+          "famedly-engineering-standards",
+          "flake-parts"
+        ],
+        "nixpkgs": [
+          "famedly-engineering-standards",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1780538232,
+        "narHash": "sha256-4fAohjPxuyg7m9iK1A9j/bLgsrNf7Nkqsl9BUks02SE=",
+        "owner": "synapdeck",
+        "repo": "github-actions-nix",
+        "rev": "9068b31c3acd21b5d3354268faf182dafb21f5a5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "synapdeck",
+        "repo": "github-actions-nix",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1790533781,
+        "narHash": "sha256-hzJtu90JIQXnmgxKeP23CAx86G4L+dcQ+GHB1JK04qA=",
+        "rev": "cf5e76507c6e23b59f7e0ffcc7baa2a39ddd8442",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixos/26.05/nixos-26.05.10769.cf5e76507c6e/nixexprs.tar.xz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://channels.nixos.org/nixos-26.05/nixexprs.tar.xz"
+      }
+    },
+    "nixpkgs-lib": {
+      "locked": {
+        "lastModified": 1788057806,
+        "narHash": "sha256-DTQSMxzDWmT0zhguthvegnVkn7CFqGCv4IHCzk5ZUpM=",
+        "owner": "nix-community",
+        "repo": "nixpkgs.lib",
+        "rev": "596e2e3940e09b2abbeb03f75fa1828c57fcd72c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "nixpkgs.lib",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "famedly-engineering-standards": "famedly-engineering-standards",
+        "flake-parts": [
+          "famedly-engineering-standards",
+          "flake-parts"
+        ],
+        "nixpkgs": [
+          "famedly-engineering-standards",
+          "nixpkgs"
+        ]
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "famedly-engineering-standards",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790669703,
+        "narHash": "sha256-PA75DaxgfJSDNr1eDF/l9TDfNxSUAjPRt08fICQWOqc=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "49b6548d31019e8bfe9d4415193ac1df3c48f53a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "treefmt": {
+      "inputs": {
+        "nixpkgs": [
+          "famedly-engineering-standards",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786901030,
+        "narHash": "sha256-WSFCsDSE5ffgD2MqzkM2CYjeFiKhRF/dJUN8uedb6YE=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "27b3b12a8e6375f28ebe122f07d230ca5459bbfa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "wrappers": {
+      "inputs": {
+        "nixpkgs": [
+          "famedly-engineering-standards",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788981141,
+        "narHash": "sha256-7xWS16u13YGlRNKWaAPzRbEyh4OLOXJe31k7h4AnXNU=",
+        "owner": "BirdeeHub",
+        "repo": "nix-wrapper-modules",
+        "rev": "1db3c116a6aa61823f8d8f3c47c306846428fc54",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BirdeeHub",
+        "repo": "nix-wrapper-modules",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

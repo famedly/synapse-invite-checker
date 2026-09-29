@@ -2,18 +2,9 @@
 # Copyright 2017 Vector Creations Ltd
 # Copyright 2018-2019 New Vector Ltd
 # Copyright 2019-2021 The Matrix.org Foundation C.I.C.
+# SPDX-FileCopyrightText: 2026 Famedly GmbH
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0
 
 import json
 import re
@@ -583,7 +574,7 @@ class RestHelper:
     def fake_oidc_server(self, issuer: str = TEST_OIDC_ISSUER) -> FakeOidcServer:
         """Create a ``FakeOidcServer``.
 
-        This can be used in conjuction with ``login_via_oidc``::
+        This can be used in conjunction with ``login_via_oidc``::
 
             fake_oidc_server = self.helper.fake_oidc_server()
             login_data, _ = self.helper.login_via_oidc(fake_oidc_server, "user")
@@ -699,7 +690,7 @@ class RestHelper:
             ui_auth_session_id: if set, we will perform a UI Auth flow. The session id
                 of the UI auth.
             with_sid: if True, generates a random `sid` (OIDC session ID)
-            idp_id: if set, explicitely chooses one specific IDP
+            idp_id: if set, explicitly chooses one specific IDP
 
         Returns:
             A FakeChannel containing the result of calling the OIDC callback endpoint.
@@ -808,7 +799,7 @@ class RestHelper:
             client_redirect_url: the client redirect URL to pass to the login redirect
                 endpoint
             cookies: any cookies returned will be added to this dict
-            idp_id: if set, explicitely chooses one specific IDP
+            idp_id: if set, explicitly chooses one specific IDP
 
         Returns:
             the URI that the client gets redirected to (ie, the SSO server)
