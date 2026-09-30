@@ -477,6 +477,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         ), "Remote room should have been found(was it created?)"
 
         remote_room = self.remote_rooms[room_id]
+        assert (
+            not remote_room.room_version.msc4242_state_dags
+        ), "MSC4242 based rooms are not supported yet."
 
         # This is the join event signed by the remote server
         # It is a tuple of [origin server, Join EventBase, RoomVersion]
