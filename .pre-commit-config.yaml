@@ -6,7 +6,6 @@
 #
 # Regenerate with `nix run .#filegen-activate`.
 
-exclude: tests/certs/client\.pem
 repos:
 - hooks:
   - id: check-added-large-files

@@ -10,6 +10,7 @@ from synapse.config import ConfigError
 
 from synapse_invite_checker import InviteChecker
 from synapse_invite_checker.types import DefaultPermissionConfig, TimType, TimVersion
+from tests.base import TEST_CLIENT_CERT
 
 
 class ConfigParsingTestCase(TestCase):
@@ -26,7 +27,7 @@ class ConfigParsingTestCase(TestCase):
     config: ClassVar[dict[str, Any]] = {
         "tim-type": "pro",
         "federation_list_url": "https://localhost:8080",
-        "federation_list_client_cert": "tests/certs/client.pem",
+        "federation_list_client_cert": TEST_CLIENT_CERT,
         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
         "allowed_room_versions": ["9", "10"],
     }

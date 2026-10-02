@@ -27,10 +27,7 @@
         # from the standards flake instead would get you the one that repository
         # uses on itself, which pins none of your tools.
         #
-        # devShells.default = config.devShells.standards;
-
-        # Prevent `detect private key` hook failure
-        prek-pre-commit.workspaces.".".exclude = "tests/certs/client\\.pem";
+        devShells.default = config.devShells.standards;
 
         famedly.standards = {
           # Read module documentation for further details, but most

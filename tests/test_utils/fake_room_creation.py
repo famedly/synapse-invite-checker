@@ -253,6 +253,7 @@ class FakeRoom:
             auth_chain=auth_chain,
             partial_state=False,
             servers_in_room=frozenset(),
+            state_dag=None,
         )
 
     def create_event(self) -> EventBase:

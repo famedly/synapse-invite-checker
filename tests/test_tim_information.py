@@ -8,7 +8,7 @@ from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
 import tests.unittest as synapse_test
-from tests.base import FederatingModuleApiTestCase
+from tests.base import TEST_CLIENT_CERT, FederatingModuleApiTestCase
 
 
 class MessengerInfoTestCase(FederatingModuleApiTestCase):
@@ -54,7 +54,7 @@ class MessengerInfoTestCase(FederatingModuleApiTestCase):
                         "description": "def",
                         "contact": "ghi",
                         "federation_list_url": "https://localhost:8080",
-                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "federation_list_client_cert": TEST_CLIENT_CERT,
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                         "allowed_room_versions": ["9", "10"],
                     },
@@ -143,7 +143,7 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
                         "description": "def",
                         "contact": "ghi",
                         "federation_list_url": "https://localhost:8080",
-                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "federation_list_client_cert": TEST_CLIENT_CERT,
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                         "allowed_room_versions": ["9", "10"],
                     },
@@ -219,7 +219,7 @@ class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
                         "description": "def",
                         "contact": "ghi",
                         "federation_list_url": "https://localhost:8080",
-                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "federation_list_client_cert": TEST_CLIENT_CERT,
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                         "allowed_room_versions": ["9", "10"],
                     },

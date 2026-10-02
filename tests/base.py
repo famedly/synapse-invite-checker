@@ -1,9 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Famedly GmbH
 #
 # SPDX-License-Identifier: AGPL-3.0-only
+import atexit
 import base64
+import datetime
 import json
 import logging
+import os
+import tempfile
 from collections.abc import Iterable
 from http import HTTPStatus
 from random import random
@@ -11,6 +15,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from synapse.api.constants import Membership, RoomCreationPreset
 from synapse.api.errors import SynapseError
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
@@ -133,6 +141,35 @@ def return_gem_cert(cn: str) -> bytes:
         return base64.b64decode(gem_komp_ca50_cert)
     raise Exception("Could not find cert" + cn)
 
+
+def _make_test_client_cert() -> str:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=1))
+        .sign(key, hashes.SHA256())
+    )
+    pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ) + cert.public_bytes(serialization.Encoding.PEM)
+
+    fd, path = tempfile.mkstemp(suffix=".pem")
+    with os.fdopen(fd, "wb") as f:
+        f.write(pem)
+    atexit.register(os.remove, path)
+    return path
+
+
+TEST_CLIENT_CERT = _make_test_client_cert()
 
 # Namespaced various room related strings for state events as defined by gematik in:
 # https://gemspec.gematik.de/docs/gemSpec/gemSpec_TI-M_Basis/gemSpec_TI-M_Basis_V1.1.1/#5.5
@@ -303,7 +340,7 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                         "allowed_room_versions": self.ALLOWED_ROOM_VERSIONS,
                         "federation_list_url": "http://dummy.test/FederationList/federationList.jws",
                         "federation_localization_url": "http://dummy.test/localization",
-                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "federation_list_client_cert": TEST_CLIENT_CERT,
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                     },
                 }
@@ -466,6 +503,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         ), "Remote room should have been found(was it created?)"
 
         remote_room = self.remote_rooms[room_id]
+        assert (
+            not remote_room.room_version.msc4242_state_dags
+        ), "MSC4242 based rooms are not supported yet."
 
         # This is the join event signed by the remote server
         # It is a tuple of [origin server, Join EventBase, RoomVersion]
