@@ -1,17 +1,6 @@
-# Copyright (C) 2020, 2024 Famedly
+# SPDX-FileCopyrightText: 2026 Famedly GmbH
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# SPDX-License-Identifier: AGPL-3.0-only
 from http import HTTPStatus
 
 from synapse.server import HomeServer
@@ -19,7 +8,7 @@ from synapse.util.clock import Clock
 from twisted.internet.testing import MemoryReactor
 
 import tests.unittest as synapse_test
-from tests.base import FederatingModuleApiTestCase
+from tests.base import TEST_CLIENT_CERT, FederatingModuleApiTestCase
 
 
 class MessengerInfoTestCase(FederatingModuleApiTestCase):
@@ -65,7 +54,7 @@ class MessengerInfoTestCase(FederatingModuleApiTestCase):
                         "description": "def",
                         "contact": "ghi",
                         "federation_list_url": "https://localhost:8080",
-                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "federation_list_client_cert": TEST_CLIENT_CERT,
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                         "allowed_room_versions": ["9", "10"],
                     },
@@ -154,7 +143,7 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
                         "description": "def",
                         "contact": "ghi",
                         "federation_list_url": "https://localhost:8080",
-                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "federation_list_client_cert": TEST_CLIENT_CERT,
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                         "allowed_room_versions": ["9", "10"],
                     },
@@ -230,7 +219,7 @@ class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
                         "description": "def",
                         "contact": "ghi",
                         "federation_list_url": "https://localhost:8080",
-                        "federation_list_client_cert": "tests/certs/client.pem",
+                        "federation_list_client_cert": TEST_CLIENT_CERT,
                         "gematik_ca_baseurl": "https://download-ref.tsl.ti-dienste.de/",
                         "allowed_room_versions": ["9", "10"],
                     },

@@ -14,6 +14,7 @@ Synapse Invite Checker is a synapse module to restrict invites on a homeserver a
 - [Usage](#usage)
 - [Testing](#testing)
 - [Code Quality](#code-quality)
+- [Engineering Standards](#engineering-standards)
 - [License](#license)
 
 ## Installation
@@ -35,7 +36,7 @@ modules:
         description: "Custom description for the endpoint", # Description for the info endpoint, optional
         contact: "random@example.com", # Contact information for the info endpoint, optional
         federation_list_url: "https://localhost:8080", # Full url where to fetch the federation list from, required
-        federation_list_client_cert: "tests/certs/client.pem", # path to a pem encoded client certificate for mtls, required if federation list url is https and federation_list_require_mtls is true
+        federation_list_client_cert: "path/to/client.pem", # path to a pem encoded client certificate for mtls, required if federation list url is https and federation_list_require_mtls is true
         federation_list_require_mtls: true or false, # Whether to require mTLS for HTTPS federation list URLs. Defaults to true for backwards compatibility
         gematik_ca_baseurl: "https://download-ref.tsl.ti-dienste.de/", # the baseurl to the ca to use for the federation list, required
         tim-type: "epa" or "pro", # Patient/Insurance or Professional mode, defaults to "pro" mode. Optional currently, but will be required in a later release
@@ -71,24 +72,30 @@ modules:
         limit_reactions: true or false, # Prevent more than a single grapheme cluster in a reaction. Defaults to true, false to disable
         disable_epa_communication: true or false, # Explicitly block all invites and joins to/from ePA domains. Logs a warning at startup when enabled. Defaults to false
 ```
+
 ### default_permissions
 
 For establishing the default permissions for the users on this server. As the simplest
 example:
+
 ```yaml
 default_permissions:
   defaultSetting: "allow all"
 ```
+
 This is what the default will be if no setting is entered for this section.
 
 an example to allow all communication except for insured users
+
 ```yaml
 default_permissions:
   defaultSetting: "allow all"
   groupException:
     - groupName: "isInsuredPerson"
 ```
+
 and an example of blocking all communication except for users on the local server
+
 ```yaml
 default_permissions:
   defaultSetting: "block all"
@@ -105,6 +112,7 @@ that is converted to milliseconds. Suffixes with 's', 'm', 'h', 'd', 'w', or 'y'
 ## Testing
 
 To create virtual env and install dependency:
+
 ```console
 hatch shell
 ```
@@ -116,17 +124,20 @@ hatch test
 ```
 
 #### Additional optional testing arguments:
+
 Run the tests in parallel: `-p`
 
 Collect coverage data(automatically output as `lcov.info`): `-c`
 
 #### Running a specific test:
+
 Selecting a specific test to run can be as easy as providing the path to the test. All tests start from
 the base test directory, `tests`. If running all tests, this can be left out. If requiring only tests
 from `test_createrooms_local.py`, append `tests/test_createrooms_local.py` to the command, and all tests
 in that file will run. If requiring only tests in `LocalProModeCreateRoomTest`, appending
 `tests/test_createrooms_local.py::LocalProModeCreateRoomTest` to the command will run only those tests.
 As an example of running only the test for checking that the default state of the history visibility for a room is "invited":
+
 ```console
 hatch test tests/test_createrooms_local.py::LocalProModeCreateRoomTest::test_create_room_default_history_visibility_invited
 ```
@@ -172,6 +183,133 @@ To automatically fix issues in the code:
   ```console
   hatch fmt
   ```
+
+## Engineering Standards
+
+This repository uses the Famedly
+[engineering standards](https://github.com/famedly/engineering-standards). They are
+pulled in as a Nix flake input in `flake.nix` and pinned in `flake.lock`. The standards
+provide the shared development tooling: a `nix develop` shell, pre-commit hooks run by
+`prek`, formatters run by `treefmt`, license checks run by `reuse`, and the CI workflow
+that runs the same hooks on every pull request.
+
+Python itself is not managed by Nix. Hatch creates the virtual environments and installs
+the Python dependencies with uv, as described under [Testing](#testing) and
+[Code Quality](#code-quality). The standards shell supplies the tools around that:
+`prek`, `treefmt`, `typos`, `reuse`, and `nix fmt`.
+
+### Setup
+
+1. Install [Lix](https://lix.systems/install/). Any Nix with flakes enabled also works.
+2. Enter the shell from the repository root:
+
+   ```console
+   nix develop
+   ```
+
+   The shell prints a menu of the available commands on entry.
+
+3. Optional: use [direnv](https://direnv.net/) to load the shell automatically when you
+   `cd` into the repository.
+4. Activate `hatch` shell.
+
+### Pre-commit hooks
+
+Hooks are run by `prek` and defined in `.pre-commit-config.yaml`. That file is generated
+from the standards; see [Generated files](#generated-files) below. The hooks check for
+large files, merge conflicts, private keys, broken symlinks, mixed line endings, and
+valid JSON, TOML, and XML. They also run `typos`, `treefmt`, `reuse lint-file`, and a
+check that flake inputs are de-duplicated.
+
+Useful commands, all available from the shell menu:
+
+- `prek` runs the hooks on the staged changes. It stashes unstaged changes before
+  running, so hooks see the staged or committed version of a file.
+- `prek --stage pre-push` also runs the slower pre-push hooks.
+- `prek -s main -o HEAD` runs the hooks on all commits in the current branch.
+- `prek run --all-files` runs the hooks on the whole repository.
+
+CI runs `prek --all-files --stage pre-push` in the standards shell on every pull request
+via `.github/workflows/check-pre-commit-hooks.yml`.
+
+### Formatting
+
+`treefmt` formats files that are not covered by `hatch fmt`: Nix (`nixfmt`), Markdown and
+YAML (`prettier`), TOML (`taplo`), and shell scripts (`shfmt`). Run it with:
+
+```console
+nix fmt
+```
+
+Python formatting stays with `hatch fmt`.
+
+### Spelling
+
+`typos` runs with `--write-changes`, so it rewrites what it considers a misspelling. To
+keep an intentional spelling, add it under a `[tool.typos]` section in `pyproject.toml`,
+for example:
+
+```toml
+[tool.typos.default.extend-words]
+# Project term, not a misspelling
+hassle = "hassle"
+```
+
+Per-line opt-outs need a regex in `[tool.typos.default] extend-ignore-re`; see the
+[typos reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md).
+
+### Licensing
+
+Every file needs a copyright and license declaration, checked by `reuse`. Famedly code in
+this repository is `AGPL-3.0-only`. Files generated by the standards carry an
+`Apache-2.0` header; leave those headers as they are.
+
+- Source files take a header comment:
+
+  ```python
+  # SPDX-FileCopyrightText: 2026 Famedly GmbH
+  #
+  # SPDX-License-Identifier: AGPL-3.0-only
+  ```
+
+  `reuse annotate --copyright="Famedly GmbH" --license="AGPL-3.0-only" <file>` adds it.
+
+- Files that should not be edited are listed in `REUSE.toml` instead.
+- Binary or generated files can take a sidecar `<file>.license` next to them.
+
+`reuse lint` checks the whole repository. License texts live in `LICENSES/`.
+
+### Generated files
+
+The following files are generated from the standards and marked
+`managed-by: engineering-standards`. Do not edit them by hand; a `filegen` pre-push hook
+fails if they are out of date.
+
+- `.pre-commit-config.yaml`
+- `.github/workflows/check-pre-commit-hooks.yml`
+- `.editorconfig`
+- `.gitattributes`
+- `.prettierrc.yaml`
+- `.taplo.toml`
+- `treefmt.toml`
+
+Repository-specific settings go in `flake.nix`. For example, the pre-commit hooks skip
+the test client certificate through
+`prek-pre-commit.workspaces.".".exclude` there. After changing `flake.nix`, regenerate
+the managed files:
+
+```console
+nix run .#filegen-activate
+```
+
+### Updating the standards
+
+```console
+nix flake update famedly-engineering-standards
+nix run .#filegen-activate
+```
+
+Commit the resulting changes to `flake.lock` and the generated files together.
 
 ## License
 

@@ -1,17 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Famedly GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
 [build-system]
-requires = ["hatchling"]
 build-backend = "hatchling.build"
+requires = ["hatchling"]
 
 [project]
-name = "synapse-invite-checker"
-description = 'Synapse module to handle TIM contact management and invite permissions'
-readme = "README.md"
-requires-python = ">=3.10"
-license = "AGPL-3.0-only"
-keywords = []
-authors = [
-  { name = "Nicolas Werner", email = "n.werner@famedly.com" },
-]
+authors = [{ name = "Nicolas Werner", email = "n.werner@famedly.com" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -31,6 +26,12 @@ dependencies = [
   # For the emoji reaction restrictions
   "emoji",
 ]
+description = 'Synapse module to handle TIM contact management and invite permissions'
+keywords = []
+license = "AGPL-3.0-only"
+name = "synapse-invite-checker"
+readme = "README.md"
+requires-python = ">=3.10"
 version = "0.6.1"
 
 [project.urls]
@@ -39,7 +40,6 @@ Issues = "https://github.com/famedly/synapse-invite-checker/-/issues"
 Source = "https://github.com/famedly/synapse-invite-checker/"
 
 [tool.hatch.envs.default]
-installer = "uv"
 dependencies = [
   "black",
   "pytest",
@@ -49,8 +49,10 @@ dependencies = [
   "psycopg2",
   # we don't depend on synapse directly to prevent pip from pulling the wrong synapse,
   # when we just want to install the module
-  "matrix-synapse @ git+https://github.com/famedly/synapse.git@master"
+  "matrix-synapse @ git+https://github.com/famedly/synapse.git@master",
 ]
+installer = "uv"
+python = "3.13"
 
 [tool.hatch.envs.hatch-static-analysis]
 dependencies = [
@@ -65,52 +67,30 @@ dependencies = [
   "types-bleach",
   "types-cachetools",
   "types-requests",
-  "types-pyOpenSSL"
+  "types-pyOpenSSL",
 ]
+installer = "uv"
+python = "3.13"
 
 [tool.hatch.envs.hatch-static-analysis.scripts]
-format-check = [
-  "isort . --check --diff",
-  "black . --check --diff"
-]
-format-fix = [
-  "isort .",
-  "black ."
-]
-lint-check = [
-  "mypy",
-  "ruff check"
-]
-lint-fix = [
-  "mypy",
-  "ruff check --fix"
-]
+format-check = ["isort . --check --diff", "black . --check --diff"]
+format-fix = ["isort .", "black ."]
+lint-check = ["mypy", "ruff check"]
+lint-fix = ["mypy", "ruff check --fix"]
 
 [tool.coverage.run]
 branch = true
 parallel = true
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.ruff]
-target-version = "py310"
 line-length = 88
+target-version = "py310"
 
 [tool.ruff.lint]
-ignore = [
-  "FBT001",
-  "FBT002",
-  "TRY002",
-  "TRY003",
-  "PLW0603",
-  "N802",
-  "N815"
-]
+ignore = ["FBT001", "FBT002", "TRY002", "TRY003", "PLW0603", "N802", "N815"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = [
@@ -120,26 +100,24 @@ ignore = [
   "N803",
   "SLF001",
   "UP035",
-  "UP046", # remove after Python 3.12(because of PEP695)
-  "UP047", # remove after Python 3.12(because of PEP695)
-  "PT019"
+  "UP046",   # remove after Python 3.12(because of PEP695)
+  "UP047",   # remove after Python 3.12(because of PEP695)
+  "PT019",
 ]
 
 [tool.mypy]
-python_version = "3.10"
+files = ["synapse_invite_checker", "tests"]
 ignore_missing_imports = true
 install_types = true
-plugins = [
-  "pydantic.mypy",
-  "mypy_zope:plugin"
-]
-files = ["synapse_invite_checker", "tests"]
+plugins = ["pydantic.mypy", "mypy_zope:plugin"]
+python_version = "3.10"
 
 [tool.isort]
 profile = "black"
 src_paths = ["synapse_invite_checker", "tests"]
 
 [tool.hatch.envs.hatch-test]
+installer = "uv"
 # The Hatch test environment includes the default pytest, mock and coverage
 # dependencies. If you should need additional, use the 'extra-dependencies' section
 # below.
@@ -149,7 +127,7 @@ extra-dependencies = [
   "pytest-cov",
   # we don't depend on synapse directly to prevent pip from pulling the wrong synapse,
   # when we just want to install the module
-  "matrix-synapse @ git+https://github.com/famedly/synapse.git@master"
+  "matrix-synapse @ git+https://github.com/famedly/synapse.git@master",
 ]
 
 # The 'hatch test ...' command has the built-in scripts that define its invocation.
