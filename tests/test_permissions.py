@@ -1,17 +1,6 @@
-# Copyright (C) 2025 Famedly
+# SPDX-FileCopyrightText: 2026 Famedly GmbH
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# SPDX-License-Identifier: AGPL-3.0-only
 import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -150,19 +139,19 @@ class PermissionConfigTest(TestCase):
                 }],
             "userExceptions":
                 {
-                    "@david:hassel.hoff": {}
+                    "@david:hassle.hoff": {}
                 }
         }
         """
         test_permission_object = PermissionConfig.model_validate_json(test_json)
 
         assert "power.rangers" in test_permission_object.serverExceptions
-        assert "@david:hassel.hoff" in test_permission_object.userExceptions
+        assert "@david:hassle.hoff" in test_permission_object.userExceptions
 
         assert not test_permission_object.is_allow_all()
         assert test_permission_object.is_group_excepted(GroupName.isInsuredPerson)
         assert test_permission_object.is_mxid_allowed_to_contact(
-            "@david:hassel.hoff", is_mxid_epa=False
+            "@david:hassle.hoff", is_mxid_epa=False
         )
         assert test_permission_object.is_mxid_allowed_to_contact(
             "@billy:power.rangers", is_mxid_epa=False
@@ -178,18 +167,18 @@ class PermissionConfigTest(TestCase):
             "defaultSetting": "block all",
             "serverExceptions": {"power.rangers": {}},
             "groupExceptions": [{"groupName": "isInsuredPerson"}],
-            "userExceptions": {"@david:hassel.hoff": {}},
+            "userExceptions": {"@david:hassle.hoff": {}},
         }
 
         test_permission_object = PermissionConfig.model_validate(test_dict)
 
         assert "power.rangers" in test_permission_object.serverExceptions
-        assert "@david:hassel.hoff" in test_permission_object.userExceptions
+        assert "@david:hassle.hoff" in test_permission_object.userExceptions
         assert test_dict == test_permission_object.dump()
 
         assert not test_permission_object.is_allow_all()
         assert test_permission_object.is_mxid_allowed_to_contact(
-            "@david:hassel.hoff", is_mxid_epa=False
+            "@david:hassle.hoff", is_mxid_epa=False
         )
         assert test_permission_object.is_mxid_allowed_to_contact(
             "@billy:power.rangers", is_mxid_epa=False
@@ -213,18 +202,18 @@ class PermissionConfigTest(TestCase):
                         }],
                     "userExceptions":
                         {
-                            "@david:hassel.hoff": {}
+                            "@david:hassle.hoff": {}
                         }
                 }
                 """
         test_permission_object = PermissionConfig.model_validate_json(test_json)
 
         assert "power.rangers" in test_permission_object.serverExceptions
-        assert "@david:hassel.hoff" in test_permission_object.userExceptions
+        assert "@david:hassle.hoff" in test_permission_object.userExceptions
 
         assert test_permission_object.is_allow_all()
         assert not test_permission_object.is_mxid_allowed_to_contact(
-            "@david:hassel.hoff", is_mxid_epa=False
+            "@david:hassle.hoff", is_mxid_epa=False
         )
         assert not test_permission_object.is_mxid_allowed_to_contact(
             "@billy:power.rangers", is_mxid_epa=False
@@ -239,18 +228,18 @@ class PermissionConfigTest(TestCase):
             "defaultSetting": "allow all",
             "serverExceptions": {"power.rangers": {}},
             "groupExceptions": [{"groupName": "isInsuredPerson"}],
-            "userExceptions": {"@david:hassel.hoff": {}},
+            "userExceptions": {"@david:hassle.hoff": {}},
         }
 
         test_permission_object = PermissionConfig.model_validate(test_dict)
 
         assert "power.rangers" in test_permission_object.serverExceptions
-        assert "@david:hassel.hoff" in test_permission_object.userExceptions
+        assert "@david:hassle.hoff" in test_permission_object.userExceptions
         assert test_dict == test_permission_object.dump()
 
         assert test_permission_object.is_allow_all()
         assert not test_permission_object.is_mxid_allowed_to_contact(
-            "@david:hassel.hoff", is_mxid_epa=False
+            "@david:hassle.hoff", is_mxid_epa=False
         )
         assert not test_permission_object.is_mxid_allowed_to_contact(
             "@billy:power.rangers", is_mxid_epa=False
@@ -360,7 +349,7 @@ class PermissionConfigTest(TestCase):
             "@patient:insured.com", is_mxid_epa=True
         )
         assert not test_permission_object.is_mxid_allowed_to_contact(
-            "@ghandi:insured.com", is_mxid_epa=True
+            "@gandhi:insured.com", is_mxid_epa=True
         )
 
         assert_test_json_matches_permissions(test_json, test_permission_object)
@@ -462,21 +451,21 @@ class DefaultPermissionConfigTest(TestCase):
         groupExceptions:
         - groupName: isInsuredPerson
         userExceptions:
-          "@david:hassel.hoff": {}
+          "@david:hassle.hoff": {}
         """
         converted_yaml = yaml.safe_load(test_yaml)
 
         test_permission_object = DefaultPermissionConfig.model_validate(converted_yaml)
 
         assert "power.rangers" in test_permission_object.serverExceptions
-        assert "@david:hassel.hoff" in test_permission_object.userExceptions
+        assert "@david:hassle.hoff" in test_permission_object.userExceptions
 
         # Strictly speaking, these methods aren't used by DefaultPermissionConfig, but
         # they came along for the ride so may as well use them
         assert not test_permission_object.is_allow_all()
         assert test_permission_object.is_group_excepted(GroupName.isInsuredPerson)
         assert test_permission_object.is_mxid_allowed_to_contact(
-            "@david:hassel.hoff", is_mxid_epa=False
+            "@david:hassle.hoff", is_mxid_epa=False
         )
         assert test_permission_object.is_mxid_allowed_to_contact(
             "@billy:power.rangers", is_mxid_epa=False
@@ -497,18 +486,18 @@ class DefaultPermissionConfigTest(TestCase):
             groupExceptions:
             - groupName: isInsuredPerson
             userExceptions:
-              "@david:hassel.hoff": {}
+              "@david:hassle.hoff": {}
         """
         converted_yaml = yaml.safe_load(test_yaml)
 
         test_permission_object = DefaultPermissionConfig.model_validate(converted_yaml)
 
         assert "power.rangers" in test_permission_object.serverExceptions
-        assert "@david:hassel.hoff" in test_permission_object.userExceptions
+        assert "@david:hassle.hoff" in test_permission_object.userExceptions
 
         assert test_permission_object.is_allow_all()
         assert not test_permission_object.is_mxid_allowed_to_contact(
-            "@david:hassel.hoff", is_mxid_epa=False
+            "@david:hassle.hoff", is_mxid_epa=False
         )
         assert not test_permission_object.is_mxid_allowed_to_contact(
             "@billy:power.rangers", is_mxid_epa=False
@@ -617,7 +606,7 @@ class DefaultPermissionConfigTest(TestCase):
             "@patient:insured.com", is_mxid_epa=True
         )
         assert not test_permission_object.is_mxid_allowed_to_contact(
-            "@ghandi:insured.com", is_mxid_epa=True
+            "@gandhi:insured.com", is_mxid_epa=True
         )
 
         assert_test_yaml_matches_json_dump(
@@ -862,7 +851,7 @@ class PermissionsAccountDataValidationEdgeTestCases(FederatingModuleApiTestCase)
                 },
             "userExceptions":
                 {
-                    "@david:hassel.hoff": {}
+                    "@david:hassle.hoff": {}
                 }
         }
         """
