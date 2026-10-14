@@ -1,0 +1,42 @@
+## SPDX-FileCopyrightText: 2026 Famedly GmbH
+##
+## SPDX-License-Identifier: Apache-2.0
+
+# managed-by: engineering-standards — do not edit manually.
+#
+# Regenerate with `nix run .#filegen-activate`.
+#
+# The shared rules come from the engineering standards. Add
+# project-specific rules in `flake.nix` under
+# `famedly.standards.python.projects.".".ruff`; project
+# settings override shared settings.
+#
+# Declare the supported Python version with `requires-python` in
+# `pyproject.toml`; Ruff reads its target version from there.
+
+line-length = 88
+
+[lint]
+extend-select = ["I"]
+ignore = [
+    "FBT001",
+    "FBT002",
+    "N802",
+    "N815",
+    "PLW0603",
+    "TRY002",
+    "TRY003",
+]
+
+[lint.per-file-ignores]
+"tests/*" = [
+    "N803",
+    "PLR2004",
+    "PT019",
+    "S101",
+    "S105",
+    "SLF001",
+    "UP035",
+    "UP046",
+    "UP047",
+]

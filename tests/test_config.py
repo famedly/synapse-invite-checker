@@ -181,9 +181,9 @@ class ConfigParsingTestCase(TestCase):
         """
         test_config = self.config.copy()
         config = InviteChecker.parse_config(test_config)
-        assert (
-            config.federation_list_require_mtls
-        ), "federation_list_require_mtls should default to True"
+        assert config.federation_list_require_mtls, (
+            "federation_list_require_mtls should default to True"
+        )
 
     def test_missing_fed_list_client_certs_is_accepted_if_fed_scheme_is_http(
         self,
@@ -300,17 +300,17 @@ class ConfigParsingTestCase(TestCase):
     def test_public_room_override_defaults_to_true(self) -> None:
         test_config = self.config.copy()
         config = InviteChecker.parse_config(test_config)
-        assert (
-            config.override_public_room_federation
-        ), "`override_public_room_federation` should default to 'True'"
+        assert config.override_public_room_federation, (
+            "`override_public_room_federation` should default to 'True'"
+        )
 
     def test_public_room_override_can_be_disabled(self) -> None:
         test_config = self.config.copy()
         test_config.update({"override_public_room_federation": False})
         config = InviteChecker.parse_config(test_config)
-        assert (
-            config.override_public_room_federation is False
-        ), "`override_public_room_federation` should be `False`'"
+        assert config.override_public_room_federation is False, (
+            "`override_public_room_federation` should be `False`'"
+        )
 
     def test_public_room_override_raises(self) -> None:
         test_config = self.config.copy()
@@ -328,17 +328,17 @@ class ConfigParsingTestCase(TestCase):
     def test_prohibit_world_readable_rooms_override_defaults_to_false(self) -> None:
         test_config = self.config.copy()
         config = InviteChecker.parse_config(test_config)
-        assert (
-            config.prohibit_world_readable_rooms is False
-        ), "`prohibit_world_readable_rooms` should default to 'False'"
+        assert config.prohibit_world_readable_rooms is False, (
+            "`prohibit_world_readable_rooms` should default to 'False'"
+        )
 
     def test_prohibit_world_readable_rooms_override_can_be_enabled(self) -> None:
         test_config = self.config.copy()
         test_config.update({"prohibit_world_readable_rooms": True})
         config = InviteChecker.parse_config(test_config)
-        assert (
-            config.prohibit_world_readable_rooms is True
-        ), "`prohibit_world_readable_rooms` should be `True`'"
+        assert config.prohibit_world_readable_rooms is True, (
+            "`prohibit_world_readable_rooms` should be `True`'"
+        )
 
     def test_prohibit_world_readable_rooms_override_raises(self) -> None:
         test_config = self.config.copy()
@@ -419,17 +419,17 @@ class ConfigParsingTestCase(TestCase):
 
     def test_disable_epa_communication_defaults_to_false(self) -> None:
         config = InviteChecker.parse_config(self.config)
-        assert (
-            config.disable_epa_communication is False
-        ), "`disable_epa_communication` should default to False"
+        assert config.disable_epa_communication is False, (
+            "`disable_epa_communication` should default to False"
+        )
 
     def test_disable_epa_communication_can_be_enabled(self) -> None:
         test_config = self.config.copy()
         test_config.update({"disable_epa_communication": True})
         config = InviteChecker.parse_config(test_config)
-        assert (
-            config.disable_epa_communication is True
-        ), "`disable_epa_communication` should be True when set"
+        assert config.disable_epa_communication is True, (
+            "`disable_epa_communication` should be True when set"
+        )
 
     def test_disable_epa_communication_rejects_non_bool(self) -> None:
         for bad_value in ("true", 1, "yes"):

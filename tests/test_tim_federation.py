@@ -89,9 +89,9 @@ class FederationDomainSchemaTest(FederatingModuleApiTestCase):
             should_still_be_true = await self.inv_checker.is_domain_allowed(
                 DOMAIN_IN_LIST
             )
-            assert (
-                should_still_be_true
-            ), "tested domain was still not allowed but should have been"
+            assert should_still_be_true, (
+                "tested domain was still not allowed but should have been"
+            )
             mock_fetch.assert_not_called()
 
     async def test_common_fed_domain(self):

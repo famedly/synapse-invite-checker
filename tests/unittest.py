@@ -880,9 +880,9 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         """
 
         custom_headers = [] if custom_headers is None else list(custom_headers)
-        assert (
-            from_server in self.map_server_name_to_signing_key
-        ), f"Signing key for {from_server} not found in map"
+        assert from_server in self.map_server_name_to_signing_key, (
+            f"Signing key for {from_server} not found in map"
+        )
         custom_headers.append(
             (
                 "Authorization",
@@ -920,9 +920,9 @@ class FederatingHomeserverTestCase(HomeserverTestCase):
         Returns:
              The modified event dict, for convenience
         """
-        assert (
-            server_name in self.map_server_name_to_signing_key
-        ), f"Signing key for {server_name} not found in map"
+        assert server_name in self.map_server_name_to_signing_key, (
+            f"Signing key for {server_name} not found in map"
+        )
         add_hashes_and_signatures(
             room_version,
             event_dict,

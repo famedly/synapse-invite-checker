@@ -24,9 +24,9 @@ class MessengerInfoTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert (
-            channel.code == HTTPStatus.UNAUTHORIZED
-        ), "Request should fail with no access token"
+        assert channel.code == HTTPStatus.UNAUTHORIZED, (
+            "Request should fail with no access token"
+        )
 
     def test_default_operator_contact_info_resource(self) -> None:
         """Tests that the messenger operator contact info resource is accessible"""
@@ -93,9 +93,9 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert (
-            channel.code == HTTPStatus.UNAUTHORIZED
-        ), "Request should fail with no access token"
+        assert channel.code == HTTPStatus.UNAUTHORIZED, (
+            "Request should fail with no access token"
+        )
 
         channel = self.make_request(
             method="GET",
@@ -104,9 +104,9 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert (
-            channel.code == HTTPStatus.BAD_REQUEST
-        ), "Request should have a parameter missing"
+        assert channel.code == HTTPStatus.BAD_REQUEST, (
+            "Request should have a parameter missing"
+        )
 
         channel = self.make_request(
             method="GET",
@@ -116,9 +116,9 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
         )
 
         assert channel.code == HTTPStatus.OK, channel.result
-        assert channel.json_body[
-            "isInsurance"
-        ], "isInsurance is FALSE when it should be TRUE"
+        assert channel.json_body["isInsurance"], (
+            "isInsurance is FALSE when it should be TRUE"
+        )
 
         channel = self.make_request(
             method="GET",
@@ -128,9 +128,9 @@ class MessengerIsInsuranceResourceTest(FederatingModuleApiTestCase):
         )
 
         assert channel.code == HTTPStatus.OK, channel.result
-        assert not channel.json_body[
-            "isInsurance"
-        ], "isInsurance is TRUE when it should be FALSE"
+        assert not channel.json_body["isInsurance"], (
+            "isInsurance is TRUE when it should be FALSE"
+        )
 
     @synapse_test.override_config(
         {
@@ -184,9 +184,9 @@ class MessengerFindByIkResourceTestCase(FederatingModuleApiTestCase):
             shorthand=False,
         )
 
-        assert (
-            channel.code == HTTPStatus.UNAUTHORIZED
-        ), "Request should fail with no access token"
+        assert channel.code == HTTPStatus.UNAUTHORIZED, (
+            "Request should fail with no access token"
+        )
 
     def test_not_found(self) -> None:
         channel = self.make_request(

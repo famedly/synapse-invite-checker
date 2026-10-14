@@ -30,9 +30,9 @@ def _redact_event_helper(
         content={"reason": "test redaction"},
         access_token=tok,
     )
-    assert (
-        channel.code == expect_code
-    ), f"Expected {expect_code}, got {channel.code}: {channel.json_body}"
+    assert channel.code == expect_code, (
+        f"Expected {expect_code}, got {channel.code}: {channel.json_body}"
+    )
     return channel.json_body
 
 

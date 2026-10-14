@@ -41,7 +41,6 @@ Source = "https://github.com/famedly/synapse-invite-checker/"
 
 [tool.hatch.envs.default]
 dependencies = [
-  "black",
   "pytest",
   "pytest-cov",
   "mock",
@@ -56,7 +55,6 @@ python = "3.13"
 
 [tool.hatch.envs.hatch-static-analysis]
 dependencies = [
-  "black",
   "isort",
   "ruff",
   "mypy",
@@ -73,8 +71,8 @@ installer = "uv"
 python = "3.13"
 
 [tool.hatch.envs.hatch-static-analysis.scripts]
-format-check = ["isort . --check --diff", "black . --check --diff"]
-format-fix = ["isort .", "black ."]
+format-check = ["isort . --check --diff"]
+format-fix = ["isort ."]
 lint-check = ["mypy", "ruff check"]
 lint-fix = ["mypy", "ruff check --fix"]
 
@@ -84,26 +82,6 @@ parallel = true
 
 [tool.coverage.report]
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
-
-[tool.ruff]
-line-length = 88
-target-version = "py310"
-
-[tool.ruff.lint]
-ignore = ["FBT001", "FBT002", "TRY002", "TRY003", "PLW0603", "N802", "N815"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = [
-  "S101",
-  "S105",
-  "PLR2004",
-  "N803",
-  "SLF001",
-  "UP035",
-  "UP046",   # remove after Python 3.12(because of PEP695)
-  "UP047",   # remove after Python 3.12(because of PEP695)
-  "PT019",
-]
 
 [tool.mypy]
 files = ["synapse_invite_checker", "tests"]

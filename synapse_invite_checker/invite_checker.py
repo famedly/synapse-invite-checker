@@ -678,13 +678,13 @@ class InviteChecker:
         """
         if not is_invited:
             # Do we have the creation event of the room state?
-            state_mapping: StateMap[EventBase] = (
-                await self.api._storage_controllers.state.get_current_state(
-                    room_id,
-                    StateFilter.from_types(
-                        [(EventTypes.Create, None), (EventTypes.JoinRules, None)]
-                    ),
-                )
+            state_mapping: StateMap[
+                EventBase
+            ] = await self.api._storage_controllers.state.get_current_state(
+                room_id,
+                StateFilter.from_types(
+                    [(EventTypes.Create, None), (EventTypes.JoinRules, None)]
+                ),
             )
 
             creation_event = state_mapping.get((EventTypes.Create, ""))
@@ -1169,11 +1169,11 @@ class InviteChecker:
         # context as above applies, there may not yet be a room_id if this is a room
         # creation in progress
         if room_id and (not self.api.is_mine(inviter) or not self.api.is_mine(invitee)):
-            state_mapping: StateMap[EventBase] = (
-                await self.api._storage_controllers.state.get_current_state(
-                    room_id,
-                    StateFilter.from_types([(EventTypes.JoinRules, None)]),
-                )
+            state_mapping: StateMap[
+                EventBase
+            ] = await self.api._storage_controllers.state.get_current_state(
+                room_id,
+                StateFilter.from_types([(EventTypes.JoinRules, None)]),
             )
             event = state_mapping.get((EventTypes.JoinRules, ""))
             if event and event.content["join_rule"] == JoinRules.PUBLIC:
@@ -1231,13 +1231,13 @@ class InviteChecker:
 
         Returns None when no events were found for a room
         """
-        state_mapping: StateMap[EventBase] = (
-            await self.api._storage_controllers.state.get_current_state(
-                room_id,
-                StateFilter.from_types(
-                    [(EventTypes.Member, None), (EventTypes.Create, None)]
-                ),
-            )
+        state_mapping: StateMap[
+            EventBase
+        ] = await self.api._storage_controllers.state.get_current_state(
+            room_id,
+            StateFilter.from_types(
+                [(EventTypes.Member, None), (EventTypes.Create, None)]
+            ),
         )
 
         leave_event_timestamps = set()
@@ -1552,12 +1552,12 @@ class InviteChecker:
             # This database call was chosen over `is_server_notice_room()` as batching
             # the data should be much more efficient than calling the latter for every
             # single room
-            server_notice_rooms_list: list[RoomsForUser] = (
-                await self.api._store.get_rooms_for_local_user_where_membership_is(
-                    self.api._hs.config.servernotices.server_notices_mxid,
-                    [Membership.JOIN],
-                    [],
-                )
+            server_notice_rooms_list: list[
+                RoomsForUser
+            ] = await self.api._store.get_rooms_for_local_user_where_membership_is(
+                self.api._hs.config.servernotices.server_notices_mxid,
+                [Membership.JOIN],
+                [],
             )
             # Simplify notice room list for fast lookup
             server_notice_rooms = {room.room_id for room in server_notice_rooms_list}

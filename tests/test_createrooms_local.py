@@ -66,9 +66,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=[invitee],
             )
-            assert (
-                room_id
-            ), f"{label} room from {self.pro_user_a} should be created with invite to: {invitee}"
+            assert room_id, (
+                f"{label} room from {self.pro_user_a} should be created with invite to: {invitee}"
+            )
         for invitee in [
             self.pro_user_a,
             self.pro_user_c,
@@ -79,9 +79,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=[invitee],
             )
-            assert (
-                room_id
-            ), f"{label} room from {self.pro_user_b} should be created with invite to: {invitee}"
+            assert room_id, (
+                f"{label} room from {self.pro_user_b} should be created with invite to: {invitee}"
+            )
         for invitee in [
             self.pro_user_b,
             self.pro_user_c,
@@ -92,9 +92,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=[invitee],
             )
-            assert (
-                room_id
-            ), f"{label} room from {self.pro_user_d} should be created with invite to: {invitee}"
+            assert room_id, (
+                f"{label} room from {self.pro_user_d} should be created with invite to: {invitee}"
+            )
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -113,9 +113,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=invitee_list,
             )
-            assert (
-                room_id is None
-            ), f"{label} room should not be created with invites to: {invitee_list}"
+            assert room_id is None, (
+                f"{label} room should not be created with invites to: {invitee_list}"
+            )
 
     def test_create_server_notices_room(self) -> None:
         """
@@ -192,9 +192,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             EventTypes.RoomHistoryVisibility,
             tok=self.access_token_a,
         )
-        assert (
-            state_events["history_visibility"] == HistoryVisibility.INVITED
-        ), "Default history visibility should be 'invited'"
+        assert state_events["history_visibility"] == HistoryVisibility.INVITED, (
+            "Default history visibility should be 'invited'"
+        )
 
         # Test 2: Public room created without explicit history_visibility should default to "invited"
         room_id_public = self.create_local_room(self.pro_user_a, is_public=True)
@@ -206,9 +206,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             EventTypes.RoomHistoryVisibility,
             tok=self.access_token_a,
         )
-        assert (
-            state_events["history_visibility"] == HistoryVisibility.INVITED
-        ), "Default history visibility should be 'invited'"
+        assert state_events["history_visibility"] == HistoryVisibility.INVITED, (
+            "Default history visibility should be 'invited'"
+        )
 
         # Test 3: User can override history visibility during private room creation
         custom_history_visibility = {
@@ -221,9 +221,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         room_id_private_custom = self.create_local_room(
             self.pro_user_a, is_public=False, override_content=override_content
         )
-        assert (
-            room_id_private_custom
-        ), "Private room with custom history visibility should be created"
+        assert room_id_private_custom, (
+            "Private room with custom history visibility should be created"
+        )
 
         # Get the history visibility state event for the custom room
         state_events_custom = self.helper.get_state(
@@ -231,9 +231,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             EventTypes.RoomHistoryVisibility,
             tok=self.access_token_a,
         )
-        assert (
-            state_events_custom["history_visibility"] == HistoryVisibility.SHARED
-        ), "Custom history visibility should be respected"
+        assert state_events_custom["history_visibility"] == HistoryVisibility.SHARED, (
+            "Custom history visibility should be respected"
+        )
 
         # Test 4: User can override history visibility during public room creation
         custom_history_visibility = {
@@ -246,9 +246,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
         room_id_public_custom = self.create_local_room(
             self.pro_user_a, is_public=True, override_content=override_content
         )
-        assert (
-            room_id_public_custom
-        ), "Public room with custom history visibility should be created"
+        assert room_id_public_custom, (
+            "Public room with custom history visibility should be created"
+        )
 
         # Get the history visibility state event for the custom room
         state_events_custom = self.helper.get_state(
@@ -256,9 +256,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             EventTypes.RoomHistoryVisibility,
             tok=self.access_token_a,
         )
-        assert (
-            state_events_custom["history_visibility"] == HistoryVisibility.SHARED
-        ), "Custom history visibility should be respected"
+        assert state_events_custom["history_visibility"] == HistoryVisibility.SHARED, (
+            "Custom history visibility should be respected"
+        )
 
     def test_create_room_with_v2_room_type_rejected(self) -> None:
         """
@@ -270,9 +270,9 @@ class LocalProModeCreateRoomTest(FederatingModuleApiTestCase):
             invitee_list=[self.pro_user_b],
             override_content={"type": "de.gematik.tim.roomtype.default.v2"},
         )
-        assert (
-            room_id is None
-        ), "Room with de.gematik.tim.roomtype.default.v2 type should not be created"
+        assert room_id is None, (
+            "Room with de.gematik.tim.roomtype.default.v2 type should not be created"
+        )
 
 
 @parameterized_class(
@@ -326,9 +326,9 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=[invitee],
             )
-            assert (
-                room_id is None
-            ), f"{label} room should not be created with invite to: {invitee}"
+            assert room_id is None, (
+                f"{label} room should not be created with invite to: {invitee}"
+            )
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -344,9 +344,9 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             is_public=is_public,
             invitee_list=invitee_list,
         )
-        assert (
-            room_id is None
-        ), f"{label} room should not be created with invites to: {invitee_list}"
+        assert room_id is None, (
+            f"{label} room should not be created with invites to: {invitee_list}"
+        )
 
     @parameterized.expand(
         [
@@ -371,9 +371,9 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
         room_id = self.create_local_room(
             self.epa_user_d, is_public=False, override_content=initial_state
         )
-        assert (
-            room_id is None
-        ), f"Room with join_rule '{join_rule}' should NOT have been created"
+        assert room_id is None, (
+            f"Room with join_rule '{join_rule}' should NOT have been created"
+        )
 
     def test_create_room_with_modified_history_visibility(self) -> None:
         """
@@ -469,9 +469,9 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             EventTypes.RoomHistoryVisibility,
             tok=self.access_token,
         )
-        assert (
-            state_events["history_visibility"] == HistoryVisibility.INVITED
-        ), "Default history visibility should be 'invited'"
+        assert state_events["history_visibility"] == HistoryVisibility.INVITED, (
+            "Default history visibility should be 'invited'"
+        )
 
         # Test 2: User can override history visibility during room creation
         custom_history_visibility = {
@@ -492,9 +492,9 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             EventTypes.RoomHistoryVisibility,
             tok=self.access_token,
         )
-        assert (
-            state_events_custom["history_visibility"] == HistoryVisibility.SHARED
-        ), "Custom history visibility should be respected"
+        assert state_events_custom["history_visibility"] == HistoryVisibility.SHARED, (
+            "Custom history visibility should be respected"
+        )
 
     def test_create_room_with_v2_room_type_rejected(self) -> None:
         """
@@ -506,6 +506,6 @@ class LocalEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             invitee_list=[self.epa_user_e],
             override_content={"type": "de.gematik.tim.roomtype.default.v2"},
         )
-        assert (
-            room_id is None
-        ), "Room with de.gematik.tim.roomtype.default.v2 type should not be created"
+        assert room_id is None, (
+            "Room with de.gematik.tim.roomtype.default.v2 type should not be created"
+        )

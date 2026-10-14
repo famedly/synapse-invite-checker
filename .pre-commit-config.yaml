@@ -76,6 +76,24 @@ repos:
     stages: []
   repo: local
 - hooks:
+  - description: Reject a [tool.ruff] table in pyproject.toml, which Ruff ignores
+      when ruff.toml exists
+    entry: python-ruff-not-in-pyproject
+    id: python-ruff-not-in-pyproject
+    language: system
+    name: python-ruff-not-in-pyproject
+    pass_filenames: false
+    stages: []
+  - description: Reject black config in pyproject.toml, since ruff format replaces
+      it
+    entry: python-no-black
+    id: python-no-black
+    language: system
+    name: python-no-black
+    pass_filenames: false
+    stages: []
+  repo: local
+- hooks:
   - args:
     - follow
     description: Ensure that flake inputs are recursively de-duplicated

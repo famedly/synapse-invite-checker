@@ -21,6 +21,7 @@ excludes = [
     "LICENSE",
     ".github/workflows/check-pre-commit-hooks.yml",
     ".pre-commit-config.yaml",
+    "ruff.toml",
     ".gitattributes",
     ".github/workflows/check-pre-commit-hooks.yml.license",
     ".prettierrc.yaml",
@@ -57,6 +58,18 @@ includes = [
     "*.yml",
 ]
 options = ["--write"]
+
+[formatter.ruff-check]
+command = "ruff"
+excludes = []
+includes = ["*.py", "*.pyi"]
+options = ["check", "--fix"]
+
+[formatter.ruff-format]
+command = "ruff"
+excludes = []
+includes = ["*.py", "*.pyi"]
+options = ["format"]
 
 [formatter.shfmt]
 command = "shfmt"

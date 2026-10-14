@@ -147,7 +147,6 @@ class RoomVersionCreateRoomTest(FederatingModuleApiTestCase):
             start_room_version,
             finish_room_version,
         ) in self.ROOM_UPGRADE_AND_DOWNGRADE_PAIRINGS:
-
             # First test that a room can be "upgraded" into the same room version
             room_id = self.create_local_room(
                 self.user_a, is_public=is_public, room_version=start_room_version
