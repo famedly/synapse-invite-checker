@@ -326,9 +326,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
 
     def default_config(self) -> dict[str, Any]:
         conf = super().default_config()
-        assert (
-            self.DEFAULT_ROOM_VERSION in KNOWN_ROOM_VERSIONS
-        ), f"Requested default room version unknown: {self.DEFAULT_ROOM_VERSION}"
+        assert self.DEFAULT_ROOM_VERSION in KNOWN_ROOM_VERSIONS, (
+            f"Requested default room version unknown: {self.DEFAULT_ROOM_VERSION}"
+        )
         conf["default_room_version"] = self.DEFAULT_ROOM_VERSION
         if "modules" not in conf:
             conf["modules"] = [
@@ -389,9 +389,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         """
         # First create the make_join that will need to be signed by the 'remote server'
         join_result_channel = self._make_join(joining_user, room_id, room_version_str)
-        assert (
-            join_result_channel.code == make_join_expected_code
-        ), f"make_join: {join_result_channel.json_body}"
+        assert join_result_channel.code == make_join_expected_code, (
+            f"make_join: {join_result_channel.json_body}"
+        )
 
         # The make_join can fail if a user was not invited to a room, or was otherwise
         # denied. Since there is nothing to give to the rest of the handshake below, may
@@ -413,9 +413,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
             content=join_event_dict,
             from_server=joining_users_domain,
         )
-        assert (
-            channel.code == send_join_expected_code
-        ), f"send_join: {channel.json_body}"
+        assert channel.code == send_join_expected_code, (
+            f"send_join: {channel.json_body}"
+        )
 
         # the room should show that the new user is a member
         r = self.get_success(self.storage_controllers.state.get_current_state(room_id))
@@ -462,9 +462,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         self.reactor.advance(random() * 2)
 
         domain = UserID.from_string(creator_id).domain
-        assert (
-            domain in self.map_server_name_to_signing_key
-        ), f"Signing key for {domain} not found in map"
+        assert domain in self.map_server_name_to_signing_key, (
+            f"Signing key for {domain} not found in map"
+        )
         remote_room = FakeRoom(
             self.hs.config,
             self.clock,
@@ -498,14 +498,14 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         Raises: AssertionError if remote room was not created/found
 
         """
-        assert (
-            room_id in self.remote_rooms
-        ), "Remote room should have been found(was it created?)"
+        assert room_id in self.remote_rooms, (
+            "Remote room should have been found(was it created?)"
+        )
 
         remote_room = self.remote_rooms[room_id]
-        assert (
-            not remote_room.room_version.msc4242_state_dags
-        ), "MSC4242 based rooms are not supported yet."
+        assert not remote_room.room_version.msc4242_state_dags, (
+            "MSC4242 based rooms are not supported yet."
+        )
 
         # This is the join event signed by the remote server
         # It is a tuple of [origin server, Join EventBase, RoomVersion]
@@ -595,9 +595,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
         expect_code: int = HTTPStatus.OK,
     ) -> dict[str, Any] | None:
         """Make a fake inbound federation invite request from our fake room"""
-        assert (
-            room_id in self.remote_rooms
-        ), "Remote room should have been found(was it created?)"
+        assert room_id in self.remote_rooms, (
+            "Remote room should have been found(was it created?)"
+        )
 
         remote_room = self.remote_rooms[room_id]
         # We use the fake room to generate the invite event, which signs it with the
@@ -698,9 +698,9 @@ class FederatingModuleApiTestCase(synapsetest.FederatingHomeserverTestCase):
                 # initial_state is special, it's a list so we don't override it as much
                 # as merge it.
                 if key == "initial_state":
-                    assert isinstance(
-                        value, list
-                    ), "initial_state in 'override_content' should be a List"
+                    assert isinstance(value, list), (
+                        "initial_state in 'override_content' should be a List"
+                    )
                     initial_state = extra_content.get("initial_state", [])
 
                     initial_state.extend(value)

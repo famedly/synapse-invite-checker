@@ -201,9 +201,9 @@ class RestHelper:
             data,
         )
 
-        assert (
-            channel.code == expect_code
-        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        assert channel.code == expect_code, (
+            f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        )
 
         self.auth_user_id = temp_id
 
@@ -296,27 +296,27 @@ class RestHelper:
             data,
         )
 
-        assert (
-            channel.code == expect_code
-        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        assert channel.code == expect_code, (
+            f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        )
 
         if expect_errcode:
-            assert (
-                str(channel.json_body["errcode"]) == expect_errcode
-            ), "Expected: {!r}, got: {!r}, resp: {!r}".format(
-                expect_errcode,
-                channel.json_body["errcode"],
-                channel.result["body"],
+            assert str(channel.json_body["errcode"]) == expect_errcode, (
+                "Expected: {!r}, got: {!r}, resp: {!r}".format(
+                    expect_errcode,
+                    channel.json_body["errcode"],
+                    channel.result["body"],
+                )
             )
 
         if expect_additional_fields is not None:
             for expect_key, expect_value in expect_additional_fields.items():
-                assert (
-                    expect_key in channel.json_body
-                ), f"Expected field {expect_key}, got {channel.json_body}"
-                assert (
-                    channel.json_body[expect_key] == expect_value
-                ), f"Expected: {expect_value} at {expect_key}, got: {channel.json_body[expect_key]}, resp: {channel.json_body}"
+                assert expect_key in channel.json_body, (
+                    f"Expected field {expect_key}, got {channel.json_body}"
+                )
+                assert channel.json_body[expect_key] == expect_value, (
+                    f"Expected: {expect_value} at {expect_key}, got: {channel.json_body[expect_key]}, resp: {channel.json_body}"
+                )
 
         self.auth_user_id = temp_id
 
@@ -370,9 +370,9 @@ class RestHelper:
             custom_headers=custom_headers,
         )
 
-        assert (
-            channel.code == expect_code
-        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        assert channel.code == expect_code, (
+            f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        )
 
         return channel.json_body
 
@@ -405,9 +405,9 @@ class RestHelper:
             path,
         )
 
-        assert (
-            channel.code == expect_code
-        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        assert channel.code == expect_code, (
+            f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        )
 
         return channel.json_body
 
@@ -450,9 +450,9 @@ class RestHelper:
 
         channel = make_request(self.reactor, self.site, method, path, content)
 
-        assert (
-            channel.code == expect_code
-        ), f"Expected: {expect_code}, got: {channel.code}, resp: {channel.result['body']}"
+        assert channel.code == expect_code, (
+            f"Expected: {expect_code}, got: {channel.code}, resp: {channel.result['body']}"
+        )
 
         return channel.json_body
 
@@ -539,9 +539,9 @@ class RestHelper:
             custom_headers=[("Content-Length", str(image_length))],
         )
 
-        assert (
-            channel.code == expect_code
-        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        assert channel.code == expect_code, (
+            f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        )
 
         return channel.json_body
 
@@ -565,9 +565,9 @@ class RestHelper:
             access_token=access_token,
         )
 
-        assert (
-            channel.code == expect_code
-        ), f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        assert channel.code == expect_code, (
+            f"Expected: {expect_code}, got {channel.code}, resp: {channel.result['body']}"
+        )
 
         return channel.json_body
 
@@ -652,9 +652,9 @@ class RestHelper:
             "/login",
             content={"type": "m.login.token", "token": login_token},
         )
-        assert (
-            channel.code == expected_status
-        ), f"unexpected status in response: {channel.code}"
+        assert channel.code == expected_status, (
+            f"unexpected status in response: {channel.code}"
+        )
         return channel.json_body
 
     def auth_via_oidc(

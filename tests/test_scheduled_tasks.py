@@ -667,13 +667,13 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
 
         actual_task_list = [task.status for task in purge_task_list]
         if status_list:
-            assert (
-                len(actual_task_list) > 0
-            ), f"{comment} | GT expected status list: {status_list}, actual status list: {actual_task_list}"
+            assert len(actual_task_list) > 0, (
+                f"{comment} | GT expected status list: {status_list}, actual status list: {actual_task_list}"
+            )
         else:
-            assert (
-                len(actual_task_list) == 0
-            ), f"{comment} | EQ expected status list: {status_list}, actual status list: {actual_task_list}"
+            assert len(actual_task_list) == 0, (
+                f"{comment} | EQ expected status list: {status_list}, actual status list: {actual_task_list}"
+            )
 
         completed_task = [
             task for task in purge_task_list if task.status == TaskStatus.COMPLETE
@@ -687,9 +687,9 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
         assert len(completed_task) == (
             1 if TaskStatus.COMPLETE in status_list else 0
         ), f"{comment} | completed {completed_task}"
-        assert len(active_task) == (
-            1 if TaskStatus.ACTIVE in status_list else 0
-        ), f"{comment} | active {active_task}"
+        assert len(active_task) == (1 if TaskStatus.ACTIVE in status_list else 0), (
+            f"{comment} | active {active_task}"
+        )
         assert len(scheduled_task) == (
             1 if TaskStatus.SCHEDULED in status_list else 0
         ), f"{comment} | scheduled {scheduled_task}"
@@ -795,9 +795,9 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
             self.reactor.advance(60 * 60)
 
             current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert (
-                current_rooms is not None
-            ), f"Room should still exist at count: {count}"
+            assert current_rooms is not None, (
+                f"Room should still exist at count: {count}"
+            )
 
             self.assert_task_status_for_room_is(
                 room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], f"loop count: {count}"
@@ -986,9 +986,9 @@ class InactiveRoomScanTaskV1_1TestCase(FederatingModuleApiTestCase):
             self.reactor.advance(60 * 60)
 
             current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert (
-                current_rooms is not None
-            ), f"Room should still exist at count: {count}"
+            assert current_rooms is not None, (
+                f"Room should still exist at count: {count}"
+            )
 
             self.assert_task_status_for_room_is(
                 room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], f"loop count: {count}"
@@ -1117,13 +1117,13 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
 
         actual_task_list = [task.status for task in purge_task_list]
         if status_list:
-            assert (
-                len(actual_task_list) > 0
-            ), f"{comment} | GT expected status list: {status_list}, actual status list: {actual_task_list}"
+            assert len(actual_task_list) > 0, (
+                f"{comment} | GT expected status list: {status_list}, actual status list: {actual_task_list}"
+            )
         else:
-            assert (
-                len(actual_task_list) == 0
-            ), f"{comment} | EQ expected status list: {status_list}, actual status list: {actual_task_list}"
+            assert len(actual_task_list) == 0, (
+                f"{comment} | EQ expected status list: {status_list}, actual status list: {actual_task_list}"
+            )
 
         completed_task = [
             task for task in purge_task_list if task.status == TaskStatus.COMPLETE
@@ -1137,9 +1137,9 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
         assert len(completed_task) == (
             1 if TaskStatus.COMPLETE in status_list else 0
         ), f"{comment} | completed {completed_task}"
-        assert len(active_task) == (
-            1 if TaskStatus.ACTIVE in status_list else 0
-        ), f"{comment} | active {active_task}"
+        assert len(active_task) == (1 if TaskStatus.ACTIVE in status_list else 0), (
+            f"{comment} | active {active_task}"
+        )
         assert len(scheduled_task) == (
             1 if TaskStatus.SCHEDULED in status_list else 0
         ), f"{comment} | scheduled {scheduled_task}"
@@ -1263,9 +1263,9 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
             self.reactor.advance(60 * 60)
 
             current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert (
-                current_rooms is not None
-            ), f"Room should still exist at count: {count}"
+            assert current_rooms is not None, (
+                f"Room should still exist at count: {count}"
+            )
 
             self.assert_task_status_for_room_is(
                 room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], f"loop count: {count}"
@@ -1291,9 +1291,7 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
 
         # Now the room should be gone
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert (
-            current_rooms is None
-        ) == room_should_be_deleted, (
+        assert (current_rooms is None) == room_should_be_deleted, (
             f"Should room be gone now: {room_should_be_deleted}"
         )
 
@@ -1459,9 +1457,9 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
             self.reactor.advance(60 * 60)
 
             current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-            assert (
-                current_rooms is not None
-            ), f"Room should still exist at count: {count}"
+            assert current_rooms is not None, (
+                f"Room should still exist at count: {count}"
+            )
 
             self.assert_task_status_for_room_is(
                 room_id, SHUTDOWN_AND_PURGE_ROOM_ACTION_NAME, [], f"loop count: {count}"
@@ -1487,9 +1485,7 @@ class StateOnlyPurgeRoomScanTaskV1_2TestCase(FederatingModuleApiTestCase):
 
         # Now the room should be gone
         current_rooms = self.get_success_or_raise(self.store.get_room(room_id))
-        assert (
-            current_rooms is None
-        ) == room_should_be_deleted, (
+        assert (current_rooms is None) == room_should_be_deleted, (
             f"Should room be gone now: {room_should_be_deleted}"
         )
 

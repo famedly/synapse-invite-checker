@@ -5,7 +5,7 @@
   description = "Synapse Invite Checker";
 
   inputs = {
-    famedly-engineering-standards.url = "github:famedly/engineering-standards";
+    famedly-engineering-standards.url = "github:famedly/engineering-standards/feat/syn-141-ruff-standards";
 
     nixpkgs.follows = "famedly-engineering-standards/nixpkgs";
     flake-parts.follows = "famedly-engineering-standards/flake-parts";

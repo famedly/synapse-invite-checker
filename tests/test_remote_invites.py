@@ -87,7 +87,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                 assert (
                     self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                     == NOT_SPAM
-                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit all)"
+                ), (
+                    f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit all)"
+                )
 
                 # Explicit block all
                 self.set_permissions_for_user(
@@ -97,7 +99,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                 assert (
                     self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                     == errors.Codes.FORBIDDEN
-                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit all)"
+                ), (
+                    f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit all)"
+                )
 
                 # Explicit allow single
                 self.set_permissions_for_user(
@@ -110,7 +114,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                 assert (
                     self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                     == NOT_SPAM
-                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit single)"
+                ), (
+                    f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit single)"
+                )
 
                 # Explicit block single
                 self.set_permissions_for_user(
@@ -123,7 +129,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                 assert (
                     self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                     == errors.Codes.FORBIDDEN
-                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit single)"
+                ), (
+                    f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit single)"
+                )
 
                 # Explicit allow server
                 self.set_permissions_for_user(
@@ -138,7 +146,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                 assert (
                     self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                     == NOT_SPAM
-                ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit server)"
+                ), (
+                    f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit server)"
+                )
 
                 # Explicit block server
                 self.set_permissions_for_user(
@@ -153,7 +163,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                 assert (
                     self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                     == errors.Codes.FORBIDDEN
-                ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit server)"
+                ), (
+                    f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit server)"
+                )
 
     def test_invite_from_remote_outside_of_fed_list(self) -> None:
         """Tests that an invite from a remote server not in the federation list gets denied"""
@@ -172,7 +184,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                 assert (
                     self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                     == errors.Codes.FORBIDDEN
-                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(before permission)"
+                ), (
+                    f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(before permission)"
+                )
 
             for local_user in [
                 self.pro_user_a,
@@ -185,7 +199,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                 assert (
                     self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                     == errors.Codes.FORBIDDEN
-                ), f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(after permission)"
+                ), (
+                    f"'{remote_user_id}' should be FORBIDDEN to invite {local_user}(after permission)"
+                )
 
     def test_invite_to_nonexistent_local_user(self) -> None:
         """Tests that an invite to a local user that does not exist gets denied"""
@@ -199,7 +215,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                     remote_user_id, self.non_existent_user, "!madeup:example.com"
                 )
                 == errors.Codes.FORBIDDEN
-            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+            ), (
+                f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+            )
 
             # Adding permissions will not help, as the user doesn't exist
             with pytest.raises(
@@ -220,7 +238,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
                     remote_user_id, self.non_existent_user, "!madeup:example.com"
                 )
                 == errors.Codes.FORBIDDEN
-            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+            ), (
+                f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+            )
 
     def test_remote_invite_from_an_insurance_domain(self) -> None:
         """
@@ -250,7 +270,9 @@ class RemoteProModeInviteTest(FederatingModuleApiTestCase):
             assert (
                 self.may_invite(remote_user_id, self.pro_user_d, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.pro_user_d} without contact details"
+            ), (
+                f"'{remote_user_id}' should be FORBIDDEN to invite {self.pro_user_d} without contact details"
+            )
 
 
 class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
@@ -336,7 +358,9 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
             assert (
                 self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit all)"
+            ), (
+                f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit all)"
+            )
 
             # Explicit block all
             self.set_permissions_for_user(
@@ -346,7 +370,9 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
             assert (
                 self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit all)"
+            ), (
+                f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit all)"
+            )
 
             # Explicit allow single
             self.set_permissions_for_user(
@@ -359,7 +385,9 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
             assert (
                 self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit single)"
+            ), (
+                f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit single)"
+            )
 
             # Explicit block single
             self.set_permissions_for_user(
@@ -372,7 +400,9 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
             assert (
                 self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit single)"
+            ), (
+                f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit single)"
+            )
 
             # Explicit allow server
             self.set_permissions_for_user(
@@ -385,7 +415,9 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
             assert (
                 self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                 == NOT_SPAM
-            ), f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit server)"
+            ), (
+                f"'{remote_user_id}' should be ALLOWED to invite {local_user} (explicit server)"
+            )
 
             # Explicit block server
             self.set_permissions_for_user(
@@ -398,7 +430,9 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
             assert (
                 self.may_invite(remote_user_id, local_user, "!madeup:example.com")
                 == errors.Codes.FORBIDDEN
-            ), f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit server)"
+            ), (
+                f"'{remote_user_id}' should be BLOCKED from inviting {local_user} (explicit server)"
+            )
 
     def test_remote_invite_from_an_insured_domain_fails(self) -> None:
         """
@@ -435,7 +469,9 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
                     remote_user_id, self.non_existent_user, "!madeup:example.com"
                 )
                 == errors.Codes.FORBIDDEN
-            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+            ), (
+                f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(before permission)"
+            )
 
             # Adding permissions will not help, as the user doesn't exist
             with pytest.raises(
@@ -457,4 +493,6 @@ class RemoteEpaModeInviteTest(FederatingModuleApiTestCase):
                     remote_user_id, self.non_existent_user, "!madeup:example.com"
                 )
                 == errors.Codes.FORBIDDEN
-            ), f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+            ), (
+                f"'{remote_user_id}' should be FORBIDDEN to invite {self.non_existent_user}(after permission)"
+            )

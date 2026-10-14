@@ -79,9 +79,9 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=[remote_user],
             )
-            assert (
-                room_id is not None
-            ) is expect_creation, f"Creating {label} room from {self.pro_user_a} while inviting {remote_user}: {'denied' if expect_creation else 'allowed'}"
+            assert (room_id is not None) is expect_creation, (
+                f"Creating {label} room from {self.pro_user_a} while inviting {remote_user}: {'denied' if expect_creation else 'allowed'}"
+            )
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_any_user_to_non_fed_domain_create_room_fails(
@@ -96,9 +96,9 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=[self.remote_non_fed_list_user],
             )
-            assert (
-                room_id is None
-            ), f"User '{local_user}'s {label} room with remote non-fed-list domain should not be created"
+            assert room_id is None, (
+                f"User '{local_user}'s {label} room with remote non-fed-list domain should not be created"
+            )
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -125,9 +125,9 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=invitee_list,
             )
-            assert (
-                room_id is None
-            ), f"User-HBA {label} room should not be created(before permission) with invites to: {invitee_list}"
+            assert room_id is None, (
+                f"User-HBA {label} room should not be created(before permission) with invites to: {invitee_list}"
+            )
 
         for remote_user_to_add in (
             self.remote_pro_user,
@@ -152,9 +152,9 @@ class RemoteProModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=invitee_list,
             )
-            assert (
-                room_id is None
-            ), f"User-HBA {label} room should not be created(after permission) with invites to: {invitee_list}"
+            assert room_id is None, (
+                f"User-HBA {label} room should not be created(after permission) with invites to: {invitee_list}"
+            )
 
 
 @parameterized_class(
@@ -213,9 +213,9 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             is_public=is_public,
             invitee_list=[self.remote_pro_user],
         )
-        assert (
-            (room_id is None) if is_public else room_id
-        ), f"Epa-User {label} room with remote Pro-User should be: {'denied' if is_public else 'allowed'}"
+        assert (room_id is None) if is_public else room_id, (
+            f"Epa-User {label} room with remote Pro-User should be: {'denied' if is_public else 'allowed'}"
+        )
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_epa_to_epa_create_room_fails(self, label: str, is_public: bool) -> None:
@@ -228,9 +228,9 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             is_public=is_public,
             invitee_list=[self.remote_epa_user],
         )
-        assert (
-            room_id is None
-        ), f"User-ePA {label} room with remote insured should not be created(before permissions)"
+        assert room_id is None, (
+            f"User-ePA {label} room with remote insured should not be created(before permissions)"
+        )
 
         # Touching the permission(since the server is "allow all") should not help them
         # get a room made
@@ -241,9 +241,9 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             is_public=is_public,
             invitee_list=[self.remote_epa_user],
         )
-        assert (
-            room_id is None
-        ), f"User-ePA {label} room with remote insured should not be created(after permissions)"
+        assert room_id is None, (
+            f"User-ePA {label} room with remote insured should not be created(after permissions)"
+        )
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_epa_to_non_fed_domain_create_any_room_fails(
@@ -257,9 +257,9 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             is_public=is_public,
             invitee_list=[self.remote_non_fed_list_user],
         )
-        assert (
-            room_id is None
-        ), f"User-ePA {label} room with remote non-fed-list domain should not be created(before permissions)"
+        assert room_id is None, (
+            f"User-ePA {label} room with remote non-fed-list domain should not be created(before permissions)"
+        )
 
         # Touching the permission(since the server is "allow all") should not help them
         # get a room made
@@ -270,9 +270,9 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
             is_public=is_public,
             invitee_list=[self.remote_non_fed_list_user],
         )
-        assert (
-            room_id is None
-        ), f"User-ePA {label} room with remote non-fed-list domain should not be created(after permissions)"
+        assert room_id is None, (
+            f"User-ePA {label} room with remote non-fed-list domain should not be created(after permissions)"
+        )
 
     @parameterized.expand([("public", True), ("private", False)])
     def test_create_room_with_two_invites_fails(
@@ -293,9 +293,9 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=invitee_list,
             )
-            assert (
-                room_id is None
-            ), f"User-ePA {label} room should not be created(before permission) with invites to: {invitee_list}"
+            assert room_id is None, (
+                f"User-ePA {label} room should not be created(before permission) with invites to: {invitee_list}"
+            )
 
         # Touching the permission(since the server is "allow all") should not help them
         # get a room made
@@ -317,6 +317,6 @@ class RemoteEpaModeCreateRoomTest(FederatingModuleApiTestCase):
                 is_public=is_public,
                 invitee_list=invitee_list,
             )
-            assert (
-                room_id is None
-            ), f"User-ePA {label} room should not be created(after permission) with invites to: {invitee_list}"
+            assert room_id is None, (
+                f"User-ePA {label} room should not be created(after permission) with invites to: {invitee_list}"
+            )

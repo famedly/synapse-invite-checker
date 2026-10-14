@@ -32,15 +32,16 @@
         "wrappers": "wrappers"
       },
       "locked": {
-        "lastModified": 1791183744,
-        "narHash": "sha256-UsZcQ5GRvxYUn2WzdAdCAqnbYExE2Fik4ZkBCc2ahYQ=",
+        "lastModified": 1791990633,
+        "narHash": "sha256-MOMFShXJjte3YIj6rtNzp2OprF5kAXbDbFKFwngIhWA=",
         "owner": "famedly",
         "repo": "engineering-standards",
-        "rev": "12c1fe72e581c89564ea0eeff16ecd75909f1692",
+        "rev": "8440d122ad6e927c34d1844c866ba6e2a0d08236",
         "type": "github"
       },
       "original": {
         "owner": "famedly",
+        "ref": "feat/syn-141-ruff-standards",
         "repo": "engineering-standards",
         "type": "github"
       }

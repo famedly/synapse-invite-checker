@@ -403,9 +403,9 @@ class DefaultPermissionConfigTest(TestCase):
         assert test_permission_object.defaultSetting is not None
         assert test_permission_object.defaultSetting == "block all"
 
-        assert (
-            self.server_name not in test_permission_object.serverExceptions
-        ), f"No server should be an exception since no {LOCAL_SERVER_TEMPLATE} was included"
+        assert self.server_name not in test_permission_object.serverExceptions, (
+            f"No server should be an exception since no {LOCAL_SERVER_TEMPLATE} was included"
+        )
         assert isinstance(test_permission_object.groupExceptions, list)
 
         assert_test_yaml_matches_json_dump(
@@ -427,9 +427,9 @@ class DefaultPermissionConfigTest(TestCase):
         assert test_permission_object.defaultSetting == "block all"
         assert isinstance(test_permission_object.userExceptions, dict)
         assert isinstance(test_permission_object.serverExceptions, dict)
-        assert (
-            self.server_name in test_permission_object.serverExceptions
-        ), f"server should be an exception since {LOCAL_SERVER_TEMPLATE} was included"
+        assert self.server_name in test_permission_object.serverExceptions, (
+            f"server should be an exception since {LOCAL_SERVER_TEMPLATE} was included"
+        )
         assert isinstance(test_permission_object.groupExceptions, list)
 
         assert_test_yaml_matches_json_dump(
@@ -865,9 +865,9 @@ class PermissionsAccountDataValidationEdgeTestCases(FederatingModuleApiTestCase)
             self.inv_checker.permissions_handler.get_permissions(self.user_a)
         )
 
-        assert (
-            perms == self.inv_checker.permissions_handler.default_perms
-        ), "permissions should be default after reset"
+        assert perms == self.inv_checker.permissions_handler.default_perms, (
+            "permissions should be default after reset"
+        )
 
     def test_reading_permissions_schema_empty(self) -> None:
         """Test that permissions objects that are empty are reset"""
@@ -893,6 +893,6 @@ class PermissionsAccountDataValidationEdgeTestCases(FederatingModuleApiTestCase)
         perms = self.get_success_or_raise(
             self.inv_checker.permissions_handler.get_permissions(self.user_c)
         )
-        assert (
-            perms == self.inv_checker.permissions_handler.default_perms
-        ), "permissions should be default after reset"
+        assert perms == self.inv_checker.permissions_handler.default_perms, (
+            "permissions should be default after reset"
+        )
